@@ -69,6 +69,15 @@ export interface PerformanceSnapshot {
   pnlPercent: number;
 }
 
+export interface Alert {
+  id: string;
+  title: string;
+  message: string;
+  date: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  read: boolean;
+}
+
 export interface PortfolioState {
   capitalBase: number;
   capitalAvailable: number;
@@ -80,6 +89,7 @@ export interface PortfolioState {
   targetAnnualReturn: number;
   startDate: string;
   performanceHistory: PerformanceSnapshot[];
+  alerts: Alert[];
   updatedAt: string;
 }
 

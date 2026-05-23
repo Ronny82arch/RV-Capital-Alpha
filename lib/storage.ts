@@ -52,6 +52,7 @@ function defaultPortfolio(): PortfolioState {
     targetAnnualReturn: TARGET_RETURN,
     startDate: new Date().toISOString().split('T')[0],
     performanceHistory: [{ date: new Date().toISOString().split('T')[0], totalValue: CAPITAL_BASE, pnlPercent: 0 }],
+    alerts: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -70,6 +71,36 @@ export async function getPortfolio(): Promise<PortfolioState> {
 export async function savePortfolio(state: PortfolioState): Promise<void> {
   state.updatedAt = new Date().toISOString();
   await kvSet('portfolio', JSON.stringify(state));
+}
+
+// ─── ALERTS ───────────────────────────────────────────────────────────────────
+export async function addAlert(alertInfo: Omit<import('@/types').Alert, 'id' | 'date' | 'read'>): Promise<void> {
+  const portfolio = await getPortfolio();
+  const newAlert: import('@/types').Alert = {
+    id: generateId(),
+    date: new Date().toISOString(),
+    read: false,
+    ...alertInfo,
+  };
+  portfolio.alerts = [newAlert, ...(portfolio.alerts || [])].slice(0, 100);
+  await savePortfolio(portfolio);
+}
+
+export async function markAlertAsRead(alertId: string): Promise<void> {
+  const portfolio = await getPortfolio();
+  const alert = portfolio.alerts?.find(a => a.id === alertId);
+  if (alert) {
+    alert.read = true;
+    await savePortfolio(portfolio);
+  }
+}
+
+export async function markAllAlertsAsRead(): Promise<void> {
+  const portfolio = await getPortfolio();
+  if (portfolio.alerts) {
+    portfolio.alerts.forEach(a => { a.read = true; });
+    await savePortfolio(portfolio);
+  }
 }
 
 // ─── SIGNAL OPERATIONS ────────────────────────────────────────────────────────

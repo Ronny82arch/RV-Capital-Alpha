@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllMarketData } from '@/lib/market';
 import { analyzeAsset, findBestCandidate, generateSignalWithAI } from '@/lib/ai';
 import { getPortfolio, addSignal } from '@/lib/storage';
-import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/telegram';
+import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rv-capital-alpha.vercel.app';
 
