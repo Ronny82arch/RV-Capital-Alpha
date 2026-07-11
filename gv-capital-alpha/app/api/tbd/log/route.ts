@@ -49,9 +49,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     let config = await getTbdConfig();
 
-    // Aggiorna config se totalCapital e' inviato
-    if (typeof body.totalCapital === 'number') {
-      await saveTbdConfig({ totalCapital: body.totalCapital });
+    // Aggiorna config se totalCapital o dailyTarget sono inviati
+    const configUpdates: any = {};
+    if (typeof body.totalCapital === 'number') configUpdates.totalCapital = body.totalCapital;
+    if (typeof body.dailyTarget === 'number') configUpdates.dailyTarget = body.dailyTarget;
+    
+    if (Object.keys(configUpdates).length > 0) {
+      await saveTbdConfig(configUpdates);
       config = await getTbdConfig();
     }
 
@@ -61,10 +65,14 @@ export async function POST(request: Request) {
     // Inizializza log se non esiste
     if (!log) {
       log = engine.createEmptyDayLog(todayKey());
-    } else if (typeof body.totalCapital === 'number') {
-      // Aggiorna il capitale iniziale del log odierno se modificato
-      log.startingCash = config.totalCapital;
-      log.endingCash = config.totalCapital + log.realizedPnL;
+    } else {
+      if (typeof body.totalCapital === 'number') {
+        log.startingCash = config.totalCapital;
+        log.endingCash = config.totalCapital + log.realizedPnL;
+      }
+      if (typeof body.dailyTarget === 'number') {
+        log.targetReached = log.realizedPnL >= config.dailyTarget;
+      }
     }
 
     // Aggiorna manuale P&L (es. operatore chiude un trade su eToro)
