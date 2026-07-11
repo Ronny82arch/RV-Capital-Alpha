@@ -215,6 +215,19 @@ export default function DashboardTab({ portfolio, market }: Props) {
         ))}
       </div>
 
+      {/* TITOLO DEL PORTAFOGLIO */}
+      <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {getTagIcon(selectedTag || 'Tutti')}
+        <div>
+          <div style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em' }}>
+            PORTAFOGLIO
+          </div>
+          <h1 style={{ fontSize: '32px', margin: 0, fontWeight: 'bold', color: 'var(--text)' }}>
+            {selectedTag === 'Tutti' ? 'Globale' : selectedTag}
+          </h1>
+        </div>
+      </div>
+
       {/* TOP KPI ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
         <KpiCard
@@ -279,6 +292,14 @@ export default function DashboardTab({ portfolio, market }: Props) {
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ALLOCAZIONE PER CATEGORIA</div>
             <AssetAllocationChart positions={openPositions} />
+          </div>
+        )}
+
+        {/* ESPOSIZIONE GEOGRAFICA */}
+        {openPositions.length > 0 && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ESPOSIZIONE GEOGRAFICA</div>
+            <GeographicExposureWidget positions={openPositions} />
           </div>
         )}
 
@@ -571,6 +592,62 @@ function CoreSatelliteWidget({ positions }: { positions: import('@/types').Posit
       </div>
       <div style={{ fontSize: '10px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
         Totale allocato: €{total.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+      </div>
+    </div>
+  );
+}
+
+function getGeography(symbol: string, name: string): string {
+  const t = name.toLowerCase() + symbol.toLowerCase();
+  if (t.includes('world') || t.includes('global') || t.includes('vwce')) return 'Globale';
+  if (t.includes('us') || t.includes('s&p') || t.includes('spy') || t.includes('apple') || t.includes('tesla')) return 'Nord America';
+  if (t.includes('europe') || t.includes('eu')) return 'Europa';
+  if (t.includes('em') || t.includes('emerging')) return 'Mercati Emergenti';
+  if (t.includes('btc') || t.includes('eth') || t.includes('bitcoin') || t.includes('crypto')) return 'Decentralizzata';
+  return 'Altro';
+}
+
+function GeographicExposureWidget({ positions }: { positions: import('@/types').Position[] }) {
+  const geos = positions.reduce((acc, pos) => {
+    const geo = getGeography(pos.symbol, pos.name);
+    const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
+    acc[geo] = (acc[geo] || 0) + val;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const totalValue = Object.values(geos).reduce((a, b) => a + b, 0);
+  if (totalValue === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun dato.</div>;
+
+  const colors: Record<string, string> = {
+    'Nord America': '#3b82f6',
+    'Globale': '#8b5cf6',
+    'Europa': '#00d4aa',
+    'Mercati Emergenti': '#f59e0b',
+    'Decentralizzata': '#ef4444',
+    'Altro': 'var(--text2)'
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
+        {Object.entries(geos).sort((a,b)=>b[1]-a[1]).map(([geo, val]) => {
+          const pct = (val / totalValue) * 100;
+          return (
+            <div key={geo} style={{ width: `${pct}%`, background: colors[geo] || 'var(--text2)', transition: 'width 0.5s' }} title={`${geo}: ${pct.toFixed(1)}%`} />
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        {Object.entries(geos).sort((a,b)=>b[1]-a[1]).map(([geo, val]) => {
+          const pct = (val / totalValue) * 100;
+          return (
+            <div key={geo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors[geo] || 'var(--text2)' }} />
+              <span style={{ color: 'var(--text2)' }}>{geo}</span>
+              <span style={{ fontWeight: 'bold' }}>{pct.toFixed(1)}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
