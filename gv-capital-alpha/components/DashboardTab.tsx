@@ -41,26 +41,59 @@ export default function DashboardTab({ portfolio, market }: Props) {
         <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '32px', textAlign: 'center' }}>
           Seleziona il Portafoglio
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '20px', width: '100%', maxWidth: '700px' }}>
-          {allTags.map(tag => (
-            <button
-              key={tag}
-              onClick={() => setSelectedTag(tag)}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                padding: '32px 16px', background: 'var(--bg2)', border: '1px solid var(--border)',
-                borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
-              }}
-              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
-              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-            >
-              <span style={{ fontSize: '48px', marginBottom: '16px' }}>{getTagIcon(tag)}</span>
-              <span style={{ fontSize: '15px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)' }}>
-                {tag === 'Tutti' ? 'Globale' : tag}
-              </span>
-            </button>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+          {allTags.map(tag => {
+            let pnlPct = 0;
+            let val = 0;
+
+            if (tag === 'Tutti') {
+              pnlPct = p.totalPnLPercent;
+              val = p.totalValue;
+            } else {
+              const tagPos = p.positions.filter(pos => pos.tags?.includes(tag));
+              const openTagPos = tagPos.filter(pos => pos.status === 'OPEN');
+              const closedTagPos = tagPos.filter(pos => pos.status === 'CLOSED');
+              
+              const unrealized = openTagPos.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
+              const realized = closedTagPos.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
+              const totalPnL = unrealized + realized;
+              const invested = openTagPos.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0) + closedTagPos.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
+              
+              pnlPct = invested > 0 ? (totalPnL / invested) * 100 : 0;
+              val = openTagPos.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
+            }
+
+            const isPositive = pnlPct >= 0;
+            const pnlColor = isPositive ? 'var(--green)' : 'var(--red)';
+
+            return (
+              <button
+                key={tag}
+                onClick={() => setSelectedTag(tag)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '32px 16px', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+              >
+                <span style={{ fontSize: '48px', marginBottom: '16px' }}>{getTagIcon(tag)}</span>
+                <span style={{ fontSize: '15px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)' }}>
+                  {tag === 'Tutti' ? 'Globale' : tag}
+                </span>
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'var(--bg)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--bg3)' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: pnlColor, fontFamily: 'var(--font-mono)' }}>
+                    {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+                    €{val.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
