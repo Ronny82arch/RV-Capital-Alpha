@@ -171,7 +171,7 @@ export default function DashboardTab({ portfolio, market }: Props) {
       </div>
 
       {/* TOP KPI ROW */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
         <KpiCard
           label={selectedTag === 'Tutti' ? "VALORE PORTAFOGLIO" : `VALORE: ${selectedTag.toUpperCase()}`}
           value={`€${displayTotalValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
@@ -184,6 +184,14 @@ export default function DashboardTab({ portfolio, market }: Props) {
           sub={`${displayPnLPct >= 0 ? '+' : ''}${displayPnLPct.toFixed(2)}%`}
           color={displayPnL >= 0 ? 'var(--green)' : 'var(--red)'}
         />
+        {selectedTag !== 'Tutti' && (
+          <KpiCard
+            label="PESO SUL GLOBALE"
+            value={`${((displayTotalValue / Math.max(1, p.totalValue)) * 100).toFixed(1)}%`}
+            sub="del portafoglio complessivo"
+            color="var(--blue)"
+          />
+        )}
         <KpiCard
           label="LIQUIDITÀ DISPONIBILE"
           value={`€${p.capitalAvailable.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
@@ -230,7 +238,7 @@ export default function DashboardTab({ portfolio, market }: Props) {
         )}
 
         {/* RELAZIONE CORE / SATELLITE (GLOBALE) */}
-        {selectedTag === 'Tutti' && (
+        {(selectedTag === 'Tutti' || selectedTag === 'Core' || selectedTag === 'Satellite') && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>RAPPORTO CORE / SATELLITE</div>
             <CoreSatelliteWidget positions={p.positions} />
