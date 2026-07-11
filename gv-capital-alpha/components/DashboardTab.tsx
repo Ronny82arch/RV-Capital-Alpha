@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 import ProfessionalChart from './ProfessionalChart';
-import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon } from 'lucide-react';
+import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale } from 'lucide-react';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
 
@@ -290,7 +290,9 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* ASSET ALLOCATION (MACRO-CATEGORIE) */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ALLOCAZIONE PER CATEGORIA</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <PieChart size={14} /> ALLOCAZIONE PER CATEGORIA
+            </div>
             <AssetAllocationChart positions={openPositions} />
           </div>
         )}
@@ -298,7 +300,9 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* ESPOSIZIONE SETTORIALE */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>DIVERSIFICAZIONE SETTORIALE</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <Layers size={14} /> DIVERSIFICAZIONE SETTORIALE
+            </div>
             <SectorDiversificationWidget positions={openPositions} />
           </div>
         )}
@@ -306,7 +310,9 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* ESPOSIZIONE GEOGRAFICA */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ESPOSIZIONE GEOGRAFICA</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <Globe size={14} /> ESPOSIZIONE GEOGRAFICA
+            </div>
             <GeographicExposureWidget positions={openPositions} />
           </div>
         )}
@@ -314,7 +320,9 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* RELAZIONE CORE / SATELLITE (GLOBALE) */}
         {(selectedTag === 'Tutti' || selectedTag === 'Core' || selectedTag === 'Satellite') && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>RAPPORTO CORE / SATELLITE</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <Scale size={14} /> RAPPORTO CORE / SATELLITE
+            </div>
             <CoreSatelliteWidget positions={p.positions} />
           </div>
         )}
