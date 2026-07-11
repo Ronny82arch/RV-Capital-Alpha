@@ -465,7 +465,7 @@ export default function QuontestTab() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(85px, 1fr))",
                     gap: "8px",
                     marginTop: "12px",
                   }}
@@ -650,12 +650,7 @@ export default function QuontestTab() {
             </div>
 
             <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto 1fr",
-                gap: "12px",
-                alignItems: "center",
-              }}
+              className="canali-grid"
             >
               {/* Fascia Alta */}
               <div
