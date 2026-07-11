@@ -1,22 +1,51 @@
 'use client';
+import { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
 
 export default function DashboardTab({ portfolio, market }: Props) {
+  const [selectedTag, setSelectedTag] = useState<string>('Tutti');
+
   if (!portfolio) return <Empty />;
 
   const p = portfolio;
   const target = p.targetAnnualReturn * 100;
-  const pnlEur = p.totalPnL;
-  const pnlPct = p.totalPnLPercent;
   const targetEur = p.capitalBase * p.targetAnnualReturn;
-  const progressPct = Math.min(100, (pnlEur / targetEur) * 100);
-  const ahead = isAheadOfTarget(pnlPct, target, p.startDate);
-  const aggression = getAggression(pnlPct, target, p.startDate);
-  const openPositions = p.positions.filter(pos => pos.status === 'OPEN');
-  const closedPositions = p.positions.filter(pos => pos.status === 'CLOSED');
+
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    p.positions.forEach(pos => {
+      pos.tags?.forEach(t => tags.add(t));
+    });
+    return ['Tutti', ...Array.from(tags).sort()];
+  }, [p.positions]);
+
+  const filteredPositions = selectedTag === 'Tutti'
+    ? p.positions
+    : p.positions.filter(pos => pos.tags?.includes(selectedTag));
+
+  const openPositions = filteredPositions.filter(pos => pos.status === 'OPEN');
+  const closedPositions = filteredPositions.filter(pos => pos.status === 'CLOSED');
+
+  let displayTotalValue = p.totalValue;
+  let displayPnL = p.totalPnL;
+  let displayPnLPct = p.totalPnLPercent;
+
+  if (selectedTag !== 'Tutti') {
+    displayTotalValue = openPositions.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
+    const unrealized = openPositions.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
+    const realized = closedPositions.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
+    displayPnL = unrealized + realized;
+    const invested = openPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0) + closedPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
+    displayPnLPct = invested > 0 ? (displayPnL / invested) * 100 : 0;
+  }
+
+  const progressPct = Math.min(100, (p.totalPnL / targetEur) * 100);
+  const ahead = isAheadOfTarget(p.totalPnLPercent, target, p.startDate);
+  const aggression = getAggression(p.totalPnLPercent, target, p.startDate);
+
   const winRate = closedPositions.length > 0
     ? (closedPositions.filter(pos => (pos.realizedPnl ?? 0) > 0).length / closedPositions.length * 100)
     : null;
@@ -26,19 +55,43 @@ export default function DashboardTab({ portfolio, market }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+      {/* PORTFOLIO SELECTOR */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        {allTags.map(tag => (
+          <button
+            key={tag}
+            onClick={() => setSelectedTag(tag)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: `1px solid ${selectedTag === tag ? 'var(--blue)' : 'var(--border)'}`,
+              background: selectedTag === tag ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg2)',
+              color: selectedTag === tag ? 'var(--blue)' : 'var(--text2)',
+              fontSize: '12px',
+              fontFamily: 'var(--font-mono)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
+          >
+            {tag === 'Tutti' ? '🌍 Globale' : tag}
+          </button>
+        ))}
+      </div>
+
       {/* TOP KPI ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         <KpiCard
-          label="VALORE PORTAFOGLIO"
-          value={`€${p.totalValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-          sub={`base €${p.capitalBase.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
+          label={selectedTag === 'Tutti' ? "VALORE PORTAFOGLIO" : `VALORE: ${selectedTag.toUpperCase()}`}
+          value={`€${displayTotalValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          sub={selectedTag === 'Tutti' ? `base €${p.capitalBase.toLocaleString('it-IT', { maximumFractionDigits: 0 })}` : 'valore posizioni attuali'}
           color="var(--text)"
         />
         <KpiCard
           label="P&L TOTALE"
-          value={`${pnlEur >= 0 ? '+' : ''}€${pnlEur.toFixed(0)}`}
-          sub={`${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`}
-          color={pnlEur >= 0 ? 'var(--green)' : 'var(--red)'}
+          value={`${displayPnL >= 0 ? '+' : ''}€${displayPnL.toFixed(0)}`}
+          sub={`${displayPnLPct >= 0 ? '+' : ''}${displayPnLPct.toFixed(2)}%`}
+          color={displayPnL >= 0 ? 'var(--green)' : 'var(--red)'}
         />
         <KpiCard
           label="LIQUIDITÀ DISPONIBILE"
