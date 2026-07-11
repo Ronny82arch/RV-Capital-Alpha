@@ -234,6 +234,8 @@ Decisione algoritmica:
       },
       createdAt: new Date().toISOString(),
       status: 'PENDING',
+      // Note: tags will be moved to the Position when the signal is executed, 
+      // but for now we don't store tags on the Signal itself as per types.
     };
 
     return signal;

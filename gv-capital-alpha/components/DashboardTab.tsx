@@ -75,6 +75,14 @@ export default function DashboardTab({ portfolio, market }: Props) {
         </div>
       </div>
 
+      {/* ASSET ALLOCATION (MACRO-CATEGORIE) */}
+      {openPositions.length > 0 && (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ALLOCAZIONE PER CATEGORIA</div>
+          <AssetAllocationChart positions={openPositions} />
+        </div>
+      )}
+
       {/* EQUITY CURVE */}
       {p.performanceHistory.length > 1 && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
@@ -178,4 +186,63 @@ function EquityChart({ history, capitalBase }: { history: { date: string; totalV
 
 function Empty() {
   return <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px', fontFamily: 'var(--font-mono)' }}>Caricamento dati...</div>;
+}
+
+function getMacroCategory(pos: import('@/types').Position): string {
+  if (pos.tags) {
+    const t = pos.tags.join(' ').toLowerCase();
+    if (t.includes('cripto') || t.includes('crypto') || t.includes('btc') || t.includes('eth')) return 'CRYPTO';
+    if (t.includes('materi') || t.includes('commodit') || t.includes('oro') || t.includes('gold') || t.includes('argento') || t.includes('silver') || t.includes('petrolio') || t.includes('oil')) return 'MATERIE PRIME';
+    if (t.includes('fondo') || t.includes('etf') || t.includes('pac')) return 'FONDI / ETF';
+  }
+  if (pos.type === 'CRYPTO') return 'CRYPTO';
+  if (pos.type === 'ETF') return 'FONDI / ETF';
+  if (pos.type === 'STOCK') return 'AZIONI';
+  return 'ALTRO';
+}
+
+function AssetAllocationChart({ positions }: { positions: import('@/types').Position[] }) {
+  const categories = positions.reduce((acc, pos) => {
+    const type = getMacroCategory(pos);
+    const val = (pos.currentPrice ?? pos.entryPrice) * pos.quantity;
+    acc[type] = (acc[type] || 0) + val;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const totalValue = Object.values(categories).reduce((sum, val) => sum + val, 0);
+
+  const colors: Record<string, string> = {
+    'CRYPTO': '#f59e0b',
+    'AZIONI': '#3b82f6',
+    'FONDI / ETF': '#00d4aa',
+    'MATERIE PRIME': '#eab308',
+    'ALTRO': '#94a3b8'
+  };
+
+  if (totalValue === 0) return null;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
+        {Object.entries(categories).map(([cat, val]) => {
+          const pct = (val / totalValue) * 100;
+          return (
+            <div key={cat} style={{ width: `${pct}%`, background: colors[cat] || colors['ALTRO'], transition: 'width 0.5s' }} title={`${cat}: ${pct.toFixed(1)}%`} />
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        {Object.entries(categories).map(([cat, val]) => {
+          const pct = (val / totalValue) * 100;
+          return (
+            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors[cat] || colors['ALTRO'] }} />
+              <span style={{ color: 'var(--text2)' }}>{cat}</span>
+              <span style={{ fontWeight: 'bold' }}>{pct.toFixed(1)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

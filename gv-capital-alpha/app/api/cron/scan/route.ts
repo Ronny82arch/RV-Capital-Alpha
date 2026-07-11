@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
 
 async function runScan() {
   try {
+    // Sync with eToro before processing if configured
+    const { syncEtoroPortfolio } = await import('@/lib/storage');
+    await syncEtoroPortfolio();
+
     const [marketData, portfolio] = await Promise.all([
       fetchAllMarketData(),
       getPortfolio(),
@@ -31,7 +35,16 @@ async function runScan() {
 
     // ── CHECK STOP LOSS / TAKE PROFIT ALERTS ─────────────────────────────────
     const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
-    for (const pos of openPositions) {
+    const aiManagedTags = portfolio.aiManagedTags || [];
+    
+    // Filter out positions the AI is not allowed to manage
+    const managedPositions = openPositions.filter(p => {
+      if (aiManagedTags.length === 0) return true; // If no tags configured, manage all
+      if (!p.tags || p.tags.length === 0) return false; // If position has no tags but AI is restricted, ignore
+      return p.tags.some(tag => aiManagedTags.includes(tag));
+    });
+
+    for (const pos of managedPositions) {
       const md = marketData.find(m => m.symbol === pos.symbol);
       if (!md) continue;
 

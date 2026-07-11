@@ -6,9 +6,11 @@ interface Props {
   portfolio: PortfolioState | null;
   market: MarketData[];
   onClose: (positionId: string, price: number) => Promise<boolean>;
+  onUpdateTags?: (positionId: string, tags: string[]) => Promise<boolean>;
+  onUpdateAIFilters?: (aiManagedTags: string[]) => Promise<boolean>;
 }
 
-export default function PositionsTab({ portfolio, market, onClose }: Props) {
+export default function PositionsTab({ portfolio, market, onClose, onUpdateTags, onUpdateAIFilters }: Props) {
   const openPositions = portfolio?.positions.filter(p => p.status === 'OPEN') ?? [];
   const closedPositions = portfolio?.positions.filter(p => p.status === 'CLOSED') ?? [];
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);
@@ -34,6 +36,9 @@ export default function PositionsTab({ portfolio, market, onClose }: Props) {
         </div>
       )}
 
+      {/* AI Filters Configuration */}
+      <AIFiltersPanel portfolio={portfolio} onUpdate={onUpdateAIFilters} />
+
       {openPositions.length === 0 && closedPositions.length === 0 && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '32px', textAlign: 'center', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
           Nessuna posizione aperta.<br />
@@ -45,7 +50,7 @@ export default function PositionsTab({ portfolio, market, onClose }: Props) {
         <div>
           <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>POSIZIONI APERTE ({openPositions.length})</div>
           {openPositions.map(pos => (
-            <PositionCard key={pos.id} position={pos} onClose={onClose} />
+            <PositionCard key={pos.id} position={pos} onClose={onClose} onUpdateTags={onUpdateTags} />
           ))}
         </div>
       )}
@@ -60,10 +65,13 @@ export default function PositionsTab({ portfolio, market, onClose }: Props) {
   );
 }
 
-function PositionCard({ position: pos, onClose }: { position: Position; onClose: (id: string, p: number) => Promise<boolean> }) {
+function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Position; onClose: (id: string, p: number) => Promise<boolean>; onUpdateTags?: (id: string, t: string[]) => Promise<boolean> }) {
   const [showClose, setShowClose] = useState(false);
+  const [showTags, setShowTags] = useState(false);
   const [priceInput, setPriceInput] = useState('');
+  const [tagInput, setTagInput] = useState('');
   const [closing, setClosing] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const pnl = pos.unrealizedPnl ?? 0;
   const pnlPct = pos.unrealizedPnlPercent ?? 0;
@@ -129,9 +137,51 @@ function PositionCard({ position: pos, onClose }: { position: Position; onClose:
         </div>
       </div>
 
-      <div style={{ fontSize: '10px', color: 'var(--text3)', marginBottom: '10px' }}>
-        Aperta: {new Date(pos.entryDate).toLocaleDateString('it-IT')} · Capitale: €{pos.capitalAllocated.toFixed(0)}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ fontSize: '10px', color: 'var(--text3)' }}>
+          Aperta: {new Date(pos.entryDate).toLocaleDateString('it-IT')} · Capitale: €{pos.capitalAllocated.toFixed(0)}
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {(pos.tags || []).map(t => (
+            <span key={t} style={{ background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>
+              {t}
+            </span>
+          ))}
+          <button onClick={() => setShowTags(!showTags)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text3)', fontSize: '9px', padding: '2px 6px', cursor: 'pointer' }}>+ TAG</button>
+        </div>
       </div>
+
+      {showTags && (
+        <div className="animate-fade" style={{ background: 'var(--bg3)', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text3)', marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>MODIFICA ETICHETTE (TAGS)</div>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            {['Core', 'Satellite', 'PAC'].map(preset => (
+              <button key={preset} onClick={() => { setTagInput(preset); }} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '10px', padding: '4px 8px', color: 'var(--text2)' }}>{preset}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input type="text" placeholder="Tag personalizzato (es. Piano Figlia)" value={tagInput} onChange={e => setTagInput(e.target.value)} style={{ flex: 1, fontSize: '12px' }} />
+            <button onClick={async () => {
+              if (!tagInput || !onUpdateTags) return;
+              setUpdating(true);
+              const newTags = Array.from(new Set([...(pos.tags || []), tagInput]));
+              await onUpdateTags(pos.id, newTags);
+              setTagInput('');
+              setShowTags(false);
+              setUpdating(false);
+            }} disabled={updating || !tagInput} style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '10px', fontWeight: 'bold' }}>{updating ? '...' : 'AGGIUNGI'}</button>
+            {pos.tags && pos.tags.length > 0 && (
+              <button onClick={async () => {
+                if (!onUpdateTags) return;
+                setUpdating(true);
+                await onUpdateTags(pos.id, []);
+                setShowTags(false);
+                setUpdating(false);
+              }} style={{ background: 'var(--red)', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '10px', fontWeight: 'bold' }}>SVUOTA</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {!showClose ? (
         <button onClick={() => setShowClose(true)} style={{
@@ -192,6 +242,74 @@ function MiniInfo({ label, value, sub, color = 'var(--text)' }: { label: string;
       <div style={{ fontSize: '8px', color: 'var(--text3)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginBottom: '3px' }}>{label}</div>
       <div style={{ fontSize: '12px', fontWeight: '700', fontFamily: 'var(--font-mono)', color }}>{value}</div>
       {sub && <div style={{ fontSize: '9px', color, opacity: 0.7 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function AIFiltersPanel({ portfolio, onUpdate }: { portfolio: PortfolioState | null; onUpdate?: (tags: string[]) => Promise<boolean> }) {
+  const [showConfig, setShowConfig] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  const managedTags = portfolio?.aiManagedTags || [];
+
+  return (
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>FILTRI INTELLIGENZA ARTIFICIALE</div>
+          <div style={{ fontSize: '12px', color: 'var(--text2)' }}>
+            L'IA analizza e gestisce <b>solo</b> le posizioni con queste etichette:
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+            {managedTags.length === 0 ? (
+              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic' }}>Tutte (nessun filtro applicato)</span>
+            ) : (
+              managedTags.map(t => (
+                <span key={t} style={{ background: 'var(--blue)', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>{t}</span>
+              ))
+            )}
+          </div>
+        </div>
+        <button onClick={() => setShowConfig(!showConfig)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', fontSize: '10px', padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+          MODIFICA
+        </button>
+      </div>
+
+      {showConfig && (
+        <div className="animate-fade" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text3)', marginBottom: '8px' }}>Seleziona quali etichette vuoi che l'IA utilizzi. Tutte le altre posizioni verranno ignorate (es. Piani di accumulo).</div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            {['Core', 'Satellite', 'Trading'].map(preset => (
+              <button key={preset} onClick={async () => {
+                if (!onUpdate || managedTags.includes(preset)) return;
+                setUpdating(true);
+                await onUpdate([...managedTags, preset]);
+                setUpdating(false);
+              }} style={{ background: 'var(--bg3)', border: 'none', borderRadius: '4px', fontSize: '10px', padding: '4px 8px', color: 'var(--text2)', cursor: 'pointer' }}>+ {preset}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input type="text" placeholder="Aggiungi tag (es. Core)" value={tagInput} onChange={e => setTagInput(e.target.value)} style={{ flex: 1, fontSize: '12px', padding: '6px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px' }} />
+            <button onClick={async () => {
+              if (!tagInput || !onUpdate || managedTags.includes(tagInput)) return;
+              setUpdating(true);
+              await onUpdate([...managedTags, tagInput]);
+              setTagInput('');
+              setUpdating(false);
+            }} disabled={updating || !tagInput} style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>{updating ? '...' : 'AGGIUNGI'}</button>
+            
+            {managedTags.length > 0 && (
+              <button onClick={async () => {
+                if (!onUpdate) return;
+                setUpdating(true);
+                await onUpdate([]);
+                setUpdating(false);
+              }} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>RESETTA</button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

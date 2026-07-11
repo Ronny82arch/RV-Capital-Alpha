@@ -61,6 +61,7 @@ export interface Position {
   currentPrice?: number;
   unrealizedPnl?: number;
   unrealizedPnlPercent?: number;
+  tags?: string[];
 }
 
 export interface PerformanceSnapshot {
@@ -91,6 +92,7 @@ export interface PortfolioState {
   performanceHistory: PerformanceSnapshot[];
   alerts: Alert[];
   updatedAt: string;
+  aiManagedTags: string[];
 }
 
 export interface MarketData {

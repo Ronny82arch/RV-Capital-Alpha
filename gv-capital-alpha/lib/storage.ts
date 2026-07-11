@@ -53,6 +53,7 @@ function defaultPortfolio(): PortfolioState {
     startDate: new Date().toISOString().split('T')[0],
     performanceHistory: [{ date: new Date().toISOString().split('T')[0], totalValue: CAPITAL_BASE, pnlPercent: 0 }],
     alerts: [],
+    aiManagedTags: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -221,6 +222,59 @@ export async function updatePositionPrices(
   if (changed) {
     await recalcPortfolio(portfolio);
     await savePortfolio(portfolio);
+  }
+}
+
+export async function updatePositionTags(positionId: string, tags: string[]): Promise<void> {
+  const portfolio = await getPortfolio();
+  const idx = portfolio.positions.findIndex(p => p.id === positionId);
+  if (idx !== -1) {
+    portfolio.positions[idx].tags = tags;
+    await savePortfolio(portfolio);
+  }
+}
+
+export async function syncEtoroPortfolio(): Promise<void> {
+  if (!process.env.ETORO_API_KEY || !process.env.ETORO_USER_KEY) return;
+  const { getEtoroBalance, getEtoroPositions } = await import('./etoro');
+  try {
+    const balance = await getEtoroBalance();
+    const ePositions = await getEtoroPositions();
+    
+    const portfolio = await getPortfolio();
+    portfolio.capitalAvailable = balance.AvailableBalance;
+    
+    // Create a map of existing tags to preserve them
+    const existingTags = new Map<string, string[]>();
+    portfolio.positions.forEach(p => {
+      if (p.tags) existingTags.set(p.symbol, p.tags);
+    });
+
+    const newPositions: import('@/types').Position[] = ePositions.map(ep => ({
+      id: `etoro_${ep.InstrumentID}`,
+      signalId: 'etoro_sync',
+      symbol: String(ep.InstrumentID),
+      name: `Instrument ${ep.InstrumentID}`,
+      type: 'STOCK',
+      action: ep.IsBuy ? 'BUY' : 'SELL',
+      entryPrice: ep.OpenRate,
+      quantity: ep.Invested / ep.OpenRate,
+      capitalAllocated: ep.Invested,
+      stopLoss: ep.StopLossRate,
+      takeProfit: ep.TakeProfitRate,
+      entryDate: new Date().toISOString(),
+      status: 'OPEN',
+      currentPrice: ep.CurrentRate,
+      unrealizedPnl: ep.CurrentValue - ep.Invested,
+      unrealizedPnlPercent: ((ep.CurrentValue - ep.Invested) / ep.Invested) * 100,
+      tags: existingTags.get(String(ep.InstrumentID)) || ['Da Assegnare'],
+    }));
+
+    portfolio.positions = newPositions;
+    await recalcPortfolio(portfolio);
+    await savePortfolio(portfolio);
+  } catch (error) {
+    console.error('eToro sync failed:', error);
   }
 }
 

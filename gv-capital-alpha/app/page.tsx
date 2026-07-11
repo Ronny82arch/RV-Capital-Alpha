@@ -98,6 +98,30 @@ export default function Home() {
     return data.success;
   };
 
+  const handleUpdateTags = async (positionId: string, tags: string[]) => {
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positionId, tags }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
+  const handleUpdateAIFilters = async (aiManagedTags: string[]) => {
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'portfolio_tags', aiManagedTags }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -123,7 +147,13 @@ export default function Home() {
           />
         )}
         {tab === 'positions' && (
-          <PositionsTab portfolio={portfolio} market={market} onClose={handleClose} />
+          <PositionsTab 
+            portfolio={portfolio} 
+            market={market} 
+            onClose={handleClose} 
+            onUpdateTags={handleUpdateTags}
+            onUpdateAIFilters={handleUpdateAIFilters}
+          />
         )}
         {tab === 'market' && <MarketTab market={market} />}
       </main>
