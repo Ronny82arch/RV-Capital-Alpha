@@ -34,7 +34,7 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
             CAPITAL ALPHA
           </div>
           <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.15em' }}>
-            AUTONOMOUS ENGINE · {portfolio?.capitalBase?.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) ?? '€30.000'}
+            AUTONOMOUS ENGINE
           </div>
         </div>
       </div>
