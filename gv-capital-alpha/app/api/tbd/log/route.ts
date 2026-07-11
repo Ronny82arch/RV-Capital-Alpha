@@ -47,14 +47,24 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const config = await getTbdConfig();
-    const engine = new TradingByDayEngine(config);
+    let config = await getTbdConfig();
 
+    // Aggiorna config se totalCapital e' inviato
+    if (typeof body.totalCapital === 'number') {
+      await saveTbdConfig({ totalCapital: body.totalCapital });
+      config = await getTbdConfig();
+    }
+
+    const engine = new TradingByDayEngine(config);
     let log = await getTodayLog();
 
     // Inizializza log se non esiste
     if (!log) {
       log = engine.createEmptyDayLog(todayKey());
+    } else if (typeof body.totalCapital === 'number') {
+      // Aggiorna il capitale iniziale del log odierno se modificato
+      log.startingCash = config.totalCapital;
+      log.endingCash = config.totalCapital + log.realizedPnL;
     }
 
     // Aggiorna manuale P&L (es. operatore chiude un trade su eToro)
@@ -73,7 +83,7 @@ export async function POST(request: Request) {
 
     await saveTodayLog(log);
 
-    return NextResponse.json({ success: true, data: log });
+    return NextResponse.json({ success: true, data: log, config });
   } catch (err) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
