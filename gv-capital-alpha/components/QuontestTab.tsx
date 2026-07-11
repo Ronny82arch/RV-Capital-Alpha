@@ -1,10 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { PortfolioState } from "@/types";
 
 // ─── TIPI ─────────────────────────────────────────────────────────────────────
 
 type MarketRegime = "GOLDILOCKS" | "REFLATION" | "STAGFLATION" | "DEFLATION";
+
+interface Props {
+  portfolio: PortfolioState | null;
+}
 
 interface QuantData {
   ticker: string;
@@ -130,10 +135,47 @@ function BarRow({
   );
 }
 
-// ─── COMPONENTE PRINCIPALE ────────────────────────────────────────────────────
+export default function QuontestTab({ portfolio }: Props) {
+  const [activeCategory, setActiveCategory] = useState<"portfolio" | "market">("portfolio");
+  
+  // Estrai dinamicamente gli asset dal portafoglio (solo posizioni OPEN)
+  const portfolioAssets = useMemo(() => {
+    if (!portfolio || !portfolio.positions) return [];
+    const openPos = portfolio.positions.filter(p => p.status === "OPEN");
+    const uniqueSymbols = Array.from(new Set(openPos.map(p => p.symbol)));
+    
+    return uniqueSymbols.map(sym => {
+      const standard = ASSETS.find(a => a.symbol === sym);
+      return {
+        symbol: sym,
+        label: sym,
+        icon: standard ? standard.icon : "⬡"
+      };
+    });
+  }, [portfolio]);
 
-export default function QuontestTab() {
+  // Seleziona la lista corrente in base alla tab attiva
+  const currentAssets = activeCategory === "portfolio" && portfolioAssets.length > 0
+    ? portfolioAssets
+    : ASSETS;
+
+  // Forza categoria su "market" se il portafoglio non ha asset
+  useEffect(() => {
+    if (portfolioAssets.length === 0 && activeCategory === "portfolio") {
+      setActiveCategory("market");
+    }
+  }, [portfolioAssets, activeCategory]);
+
   const [ticker, setTicker] = useState("BTC");
+  
+  // Sincronizza il ticker selezionato con il primo della lista corrente se quello attuale non e' presente
+  useEffect(() => {
+    const exists = currentAssets.some(a => a.symbol === ticker);
+    if (!exists && currentAssets.length > 0) {
+      setTicker(currentAssets[0].symbol);
+    }
+  }, [currentAssets, ticker]);
+
   const [regime, setRegime] = useState<MarketRegime>("REFLATION");
   const [data, setData] = useState<QuantData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -270,9 +312,50 @@ export default function QuontestTab() {
           </div>
         </div>
 
+        {/* Barra di selezione Categoria */}
+        <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "12px" }}>
+          <button
+            onClick={() => portfolioAssets.length > 0 ? setActiveCategory("portfolio") : null}
+            disabled={portfolioAssets.length === 0}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "8px",
+              border: "none",
+              background: activeCategory === "portfolio" ? "rgba(16,185,129,0.15)" : "transparent",
+              color: activeCategory === "portfolio" ? "#10b981" : (portfolioAssets.length === 0 ? "#334155" : "#64748b"),
+              fontSize: "11px",
+              fontWeight: 800,
+              cursor: portfolioAssets.length === 0 ? "not-allowed" : "pointer",
+              fontFamily: "var(--font-mono, monospace)",
+              letterSpacing: "0.05em",
+              transition: "all 0.2s"
+            }}
+          >
+            📂 TITOLI IN PORTAFOGLIO ({portfolioAssets.length})
+          </button>
+          <button
+            onClick={() => setActiveCategory("market")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "8px",
+              border: "none",
+              background: activeCategory === "market" ? "rgba(59,130,246,0.12)" : "transparent",
+              color: activeCategory === "market" ? "#3b82f6" : "#64748b",
+              fontSize: "11px",
+              fontWeight: 800,
+              cursor: "pointer",
+              fontFamily: "var(--font-mono, monospace)",
+              letterSpacing: "0.05em",
+              transition: "all 0.2s"
+            }}
+          >
+            🌐 ALTRI DI MERCATO
+          </button>
+        </div>
+
         {/* Selettore Asset */}
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {ASSETS.map((a) => (
+          {currentAssets.map((a) => (
             <button
               key={a.symbol}
               onClick={() => setTicker(a.symbol)}
