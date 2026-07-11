@@ -595,7 +595,7 @@ export default function TradingByDayTab() {
       )}
 
       {/* ── LAYOUT PRINCIPALE ──────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "16px", alignItems: "start" }}>
+      <div className="responsive-grid" style={{ alignItems: "start" }}>
 
         {/* Colonna sinistra: Segnali */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
