@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
+import { Tab } from '@/app/page';
 import ProfessionalChart from './ProfessionalChart';
 import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale } from 'lucide-react';
 
-interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
+interface Props { portfolio: PortfolioState | null; market: MarketData[]; setTab?: (t: Tab) => void; }
 
 function getTagIcon(tag: string) {
   const t = tag.toLowerCase();
@@ -22,7 +23,7 @@ function getTagIcon(tag: string) {
   return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
 }
 
-export default function DashboardTab({ portfolio, market }: Props) {
+export default function DashboardTab({ portfolio, market, setTab }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
@@ -34,6 +35,23 @@ export default function DashboardTab({ portfolio, market }: Props) {
     'PAC Ginevra': 5,
     'PAC Sofia': 5
   });
+  const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
+
+  useEffect(() => {
+    async function fetchTbd() {
+      try {
+        const res = await fetch('/api/tbd/log');
+        const json = await res.json();
+        if (json.success) {
+          setTbdData({
+            realizedPnL: json.data.today?.realizedPnL ?? 0,
+            totalCapital: json.data.config?.totalCapital ?? 5000,
+          });
+        }
+      } catch (e) {}
+    }
+    fetchTbd();
+  }, []);
 
   const toggleTheme = () => {
     const newLight = !isLight;
@@ -137,6 +155,32 @@ export default function DashboardTab({ portfolio, market }: Props) {
               </button>
             );
           })}
+          
+          {/* PORTFOLIO CARD TRADING BY DAY */}
+          <button
+            onClick={() => setTab ? setTab('trading') : null}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '32px 16px', background: 'var(--bg2)', border: '1px solid var(--border)',
+              borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = '#f59e0b'; }}
+            onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+          >
+            <span style={{ fontSize: '48px', marginBottom: '16px' }}>⚡</span>
+            <span style={{ fontSize: '15px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)' }}>
+              Trading by Day
+            </span>
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'var(--bg)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--bg3)' }}>
+              <span style={{ fontSize: '14px', fontWeight: 'bold', color: (tbdData?.realizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)', fontFamily: 'var(--font-mono)' }}>
+                {(tbdData?.realizedPnL ?? 0) >= 0 ? '+' : ''}{(tbdData?.realizedPnL ?? 0).toFixed(2)}€
+              </span>
+              <span style={{ fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+                €{tbdData ? tbdData.totalCapital.toLocaleString('it-IT') : '5.000'}
+              </span>
+            </div>
+          </button>
         </div>
         <div style={{ marginTop: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           <div style={{ fontSize: '14px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>
