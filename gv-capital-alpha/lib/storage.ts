@@ -42,39 +42,42 @@ async function kvSet(key: string, value: string): Promise<void> {
 // ─── DEFAULT PORTFOLIO ────────────────────────────────────────────────────────
 function defaultPortfolio(): PortfolioState {
   // Se non c'è eToro o database collegato, mostriamo un portafoglio fittizio per far provare l'app
+  // Simuliamo tre portafogli diversi usando i tag: Core, Satellite, e PAC Figlia
+  const dateStr = new Date().toISOString();
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = dateStr.split('T')[0];
+
   return {
     capitalBase: CAPITAL_BASE,
-    capitalAvailable: 15000,
+    capitalAvailable: 8000,
     positions: [
-      {
-        id: 'dummy_1', signalId: 'dummy', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY',
-        entryPrice: 60000, quantity: 0.1, capitalAllocated: 6000, stopLoss: 55000, takeProfit: 80000,
-        entryDate: new Date().toISOString(), status: 'OPEN', currentPrice: 65000, unrealizedPnl: 500, unrealizedPnlPercent: 8.33, tags: ['Cripto', 'Core']
-      },
-      {
-        id: 'dummy_2', signalId: 'dummy', symbol: 'AAPL', name: 'Apple', type: 'STOCK', action: 'BUY',
-        entryPrice: 150, quantity: 20, capitalAllocated: 3000, stopLoss: 140, takeProfit: 200,
-        entryDate: new Date().toISOString(), status: 'OPEN', currentPrice: 145, unrealizedPnl: -100, unrealizedPnlPercent: -3.33, tags: ['Azioni', 'Satellite']
-      },
-      {
-        id: 'dummy_3', signalId: 'dummy', symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', action: 'BUY',
-        entryPrice: 500, quantity: 12, capitalAllocated: 6000, stopLoss: 480, takeProfit: 600,
-        entryDate: new Date().toISOString(), status: 'OPEN', currentPrice: 510, unrealizedPnl: 120, unrealizedPnlPercent: 2.4, tags: ['Fondo', 'PAC']
-      }
+      // --- PORTAFOGLIO: Core ---
+      { id: 'd1', signalId: 'd', symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', action: 'BUY', entryPrice: 500, quantity: 20, capitalAllocated: 10000, stopLoss: 450, takeProfit: 600, entryDate: dateStr, status: 'OPEN', currentPrice: 520, unrealizedPnl: 400, unrealizedPnlPercent: 4.0, tags: ['Core', 'Fondo'] },
+      { id: 'd2', signalId: 'd', symbol: 'GLD', name: 'Gold ETF', type: 'ETF', action: 'BUY', entryPrice: 180, quantity: 20, capitalAllocated: 3600, stopLoss: 170, takeProfit: 210, entryDate: dateStr, status: 'OPEN', currentPrice: 195, unrealizedPnl: 300, unrealizedPnlPercent: 8.3, tags: ['Core', 'Oro', 'Materie'] },
+      
+      // --- PORTAFOGLIO: Satellite ---
+      { id: 'd3', signalId: 'd', symbol: 'AAPL', name: 'Apple Inc', type: 'STOCK', action: 'BUY', entryPrice: 170, quantity: 15, capitalAllocated: 2550, stopLoss: 150, takeProfit: 220, entryDate: dateStr, status: 'OPEN', currentPrice: 185, unrealizedPnl: 225, unrealizedPnlPercent: 8.8, tags: ['Satellite', 'Azioni'] },
+      { id: 'd4', signalId: 'd', symbol: 'TSLA', name: 'Tesla Inc', type: 'STOCK', action: 'BUY', entryPrice: 200, quantity: 10, capitalAllocated: 2000, stopLoss: 180, takeProfit: 280, entryDate: dateStr, status: 'OPEN', currentPrice: 170, unrealizedPnl: -300, unrealizedPnlPercent: -15.0, tags: ['Satellite', 'Azioni'] },
+      { id: 'd5', signalId: 'd', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY', entryPrice: 60000, quantity: 0.05, capitalAllocated: 3000, stopLoss: 50000, takeProfit: 90000, entryDate: dateStr, status: 'OPEN', currentPrice: 68000, unrealizedPnl: 400, unrealizedPnlPercent: 13.3, tags: ['Satellite', 'Cripto'] },
+      { id: 'd6', signalId: 'd', symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', action: 'BUY', entryPrice: 3000, quantity: 1.5, capitalAllocated: 4500, stopLoss: 2500, takeProfit: 5000, entryDate: dateStr, status: 'OPEN', currentPrice: 3400, unrealizedPnl: 600, unrealizedPnlPercent: 13.3, tags: ['Satellite', 'Cripto'] },
+
+      // --- PORTAFOGLIO: PAC Figlia ---
+      { id: 'd7', signalId: 'd', symbol: 'VWCE', name: 'Vanguard All-World', type: 'ETF', action: 'BUY', entryPrice: 100, quantity: 50, capitalAllocated: 5000, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 110, unrealizedPnl: 500, unrealizedPnlPercent: 10.0, tags: ['PAC Figlia', 'Fondo'] },
+      { id: 'd8', signalId: 'd', symbol: 'BND', name: 'Vanguard Total Bond', type: 'ETF', action: 'BUY', entryPrice: 70, quantity: 20, capitalAllocated: 1400, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 72, unrealizedPnl: 40, unrealizedPnlPercent: 2.8, tags: ['PAC Figlia', 'Obbligazionario'] }
     ],
     signals: [],
-    totalValue: 30520,
-    totalPnL: 520,
-    totalPnLPercent: 1.73,
+    totalValue: 32165,
+    totalPnL: 2165,
+    totalPnLPercent: 7.21,
     targetAnnualReturn: TARGET_RETURN,
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: today,
     performanceHistory: [
-      { date: new Date(Date.now() - 86400000).toISOString().split('T')[0], totalValue: CAPITAL_BASE, pnlPercent: 0 },
-      { date: new Date().toISOString().split('T')[0], totalValue: 30520, pnlPercent: 1.73 }
+      { date: yesterday, totalValue: CAPITAL_BASE, pnlPercent: 0 },
+      { date: today, totalValue: 32165, pnlPercent: 7.21 }
     ],
-    alerts: [{ id: '1', title: 'Benvenuto', message: 'Questo è un portafoglio di simulazione. Collega eToro aggiungendo ETORO_API_KEY su Vercel.', date: new Date().toISOString(), type: 'INFO', read: false }],
+    alerts: [{ id: '1', title: 'Portafoglio Multiplo Generato', message: 'Troverai asset etichettati come Core, Satellite e PAC Figlia. Vai nelle impostazioni IA per escludere il PAC Figlia dai segnali!', date: dateStr, type: 'SUCCESS', read: false }],
     aiManagedTags: ['Core', 'Satellite'],
-    updatedAt: new Date().toISOString(),
+    updatedAt: dateStr,
   };
 }
 
