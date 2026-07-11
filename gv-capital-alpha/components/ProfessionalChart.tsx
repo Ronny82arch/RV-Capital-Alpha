@@ -140,7 +140,7 @@ export default function ProfessionalChart({ currentValue, label }: Props) {
             <Tooltip 
               contentStyle={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', fontFamily: 'var(--font-mono)' }}
               itemStyle={{ color: 'var(--text)', fontWeight: 'bold' }}
-              formatter={(value: number) => [`€${value.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`, 'Valore']}
+              formatter={(value: any) => [`€${Number(value).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`, 'Valore']}
               labelStyle={{ color: 'var(--text2)', marginBottom: '4px' }}
             />
             <Area 
