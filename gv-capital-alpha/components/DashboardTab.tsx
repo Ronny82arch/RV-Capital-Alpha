@@ -20,6 +20,7 @@ function getTagIcon(tag: string) {
 
 export default function DashboardTab({ portfolio, market }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
 
   if (!portfolio) return <Empty />;
 
@@ -262,6 +263,7 @@ export default function DashboardTab({ portfolio, market }: Props) {
                   <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>ASSET</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>CATEGORIA</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ALLOCATO</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ATTUALE</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>PESO %</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>P&L</th>
                 </tr>
@@ -270,41 +272,88 @@ export default function DashboardTab({ portfolio, market }: Props) {
                 {openPositions.map(pos => {
                   const pnl = pos.unrealizedPnl ?? 0;
                   const pnlPct = pos.unrealizedPnlPercent ?? 0;
-                  const val = (pos.currentPrice ?? pos.entryPrice) * pos.quantity;
-                  const weight = displayTotalValue > 0 ? (val / displayTotalValue) * 100 : 0;
+                  const allocated = pos.capitalAllocated ?? (pos.entryPrice * pos.quantity);
+                  const currentVal = (pos.currentPrice ?? pos.entryPrice) * pos.quantity;
+                  const weight = displayTotalValue > 0 ? (currentVal / displayTotalValue) * 100 : 0;
+                  const isExpanded = expandedPosId === pos.id;
+
                   return (
-                    <tr key={pos.id} style={{ borderBottom: '1px solid var(--bg3)' }}>
-                      <td style={{ padding: '12px 8px' }}>
-                        <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
-                        <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>
-                      </td>
-                      <td style={{ padding: '12px 8px', color: 'var(--text2)' }}>
-                        <span style={{ padding: '4px 8px', background: 'var(--bg3)', borderRadius: '12px', fontSize: '10px' }}>
-                          {getMacroCategory(pos)}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                        <div style={{ fontWeight: 'bold', color: 'var(--text)' }}>
-                          €{val.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-                          <span style={{ color: 'var(--text2)', width: '35px' }}>{weight.toFixed(1)}%</span>
-                          <div style={{ width: '40px', height: '6px', background: 'var(--bg3)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${Math.min(100, weight)}%`, height: '100%', background: 'var(--blue)', borderRadius: '3px' }} />
+                    <React.Fragment key={pos.id}>
+                      <tr 
+                        onClick={() => setExpandedPosId(isExpanded ? null : pos.id)}
+                        style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--bg3)', cursor: 'pointer', transition: 'background 0.2s' }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <td style={{ padding: '12px 8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text3)' }}>{isExpanded ? '▼' : '▶'}</span>
+                            <div>
+                              <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                        <div style={{ fontWeight: '700', fontSize: '13px', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                          {pnl >= 0 ? '+' : ''}€{pnl.toFixed(0)}
-                        </div>
-                        <div style={{ fontSize: '10px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                          {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td style={{ padding: '12px 8px', color: 'var(--text2)' }}>
+                          <span style={{ padding: '4px 8px', background: 'var(--bg3)', borderRadius: '12px', fontSize: '10px' }}>
+                            {getMacroCategory(pos)}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <div style={{ color: 'var(--text2)' }}>
+                            €{allocated.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 'bold', color: 'var(--text)' }}>
+                            €{currentVal.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                            <span style={{ color: 'var(--text2)', width: '35px' }}>{weight.toFixed(1)}%</span>
+                            <div style={{ width: '40px', height: '6px', background: 'var(--bg3)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.min(100, weight)}%`, height: '100%', background: 'var(--blue)', borderRadius: '3px' }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <div style={{ fontWeight: '700', fontSize: '13px', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                            {pnl >= 0 ? '+' : ''}€{pnl.toFixed(0)}
+                          </div>
+                          <div style={{ fontSize: '10px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                            {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr style={{ borderBottom: '1px solid var(--bg3)', background: 'rgba(0,0,0,0.1)' }}>
+                          <td colSpan={6} style={{ padding: '16px', borderLeft: '2px solid var(--blue)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '8px', letterSpacing: '0.1em' }}>STORICO OPERAZIONI</div>
+                            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', background: 'var(--bg2)', borderRadius: '8px', overflow: 'hidden' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text2)', background: 'var(--bg)' }}>
+                                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 'normal' }}>DATA</th>
+                                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 'normal' }}>AZIONE</th>
+                                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'normal' }}>QUANTITÀ</th>
+                                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'normal' }}>PREZZO</th>
+                                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'normal' }}>TOTALE</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td style={{ padding: '8px 12px' }}>{new Date(pos.entryDate).toLocaleDateString('it-IT')}</td>
+                                  <td style={{ padding: '8px 12px', color: pos.action === 'BUY' ? 'var(--green)' : 'var(--red)', fontWeight: 'bold' }}>{pos.action}</td>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right' }}>{pos.quantity.toLocaleString('it-IT', { maximumFractionDigits: 4 })}</td>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right' }}>€{pos.entryPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 'bold' }}>€{allocated.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
