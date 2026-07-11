@@ -13,6 +13,7 @@ export default function TabBar({ tab, setTab, portfolio }: Props) {
     { id: 'signals', label: 'Segnali', icon: '⚡', badge: pendingCount },
     { id: 'positions', label: 'Posizioni', icon: '📊', badge: openCount },
     { id: 'market', label: 'Mercato', icon: '◉' },
+    { id: 'quontest', label: 'Quontest', icon: '⟨ψ⟩' },
   ];
 
   return (
