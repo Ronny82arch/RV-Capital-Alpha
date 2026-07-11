@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { PortfolioState, Position, MarketData } from '@/types';
+import AssetIcon from './AssetIcon';
 
 interface Props {
   portfolio: PortfolioState | null;
@@ -100,9 +101,12 @@ function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Posi
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-        <div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '18px' }}>{pos.symbol}</div>
-          <div style={{ fontSize: '12px', color: 'var(--text3)' }}>{pos.name} · {pos.quantity} unità</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <AssetIcon symbol={pos.symbol} />
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '18px' }}>{pos.symbol}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text3)' }}>{pos.name} · {pos.quantity} unità</div>
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: '700', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
@@ -218,11 +222,14 @@ function ClosedPositionRow({ position: pos }: { position: Position }) {
       padding: '12px 14px', background: 'var(--bg2)', border: '1px solid var(--border)',
       borderRadius: '10px', marginBottom: '6px',
     }}>
-      <div>
-        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700' }}>{pos.symbol}</span>
-        <span style={{ fontSize: '11px', color: 'var(--text3)', marginLeft: '8px' }}>
-          {pos.quantity} × €{pos.entryPrice.toFixed(2)} → €{pos.closePrice?.toFixed(2)}
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <AssetIcon symbol={pos.symbol} />
+        <div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '700' }}>{pos.symbol}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
+            {pos.quantity} × €{pos.entryPrice.toFixed(2)} → €{pos.closePrice?.toFixed(2)}
+          </div>
+        </div>
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: '700', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>

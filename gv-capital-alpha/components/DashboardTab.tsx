@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 import ProfessionalChart from './ProfessionalChart';
+import AssetIcon from './AssetIcon';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale } from 'lucide-react';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
@@ -696,7 +697,10 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {data.assets.sort((a,b)=>b.value-a.value).map(a => (
                   <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
-                    <span title={a.name}>{a.symbol}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AssetIcon symbol={a.symbol} />
+                      <span title={a.name}>{a.symbol}</span>
+                    </div>
                     <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
                   </div>
                 ))}
@@ -768,7 +772,10 @@ function SectorDiversificationWidget({ positions }: { positions: import('@/types
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {data.assets.sort((a,b)=>b.value-a.value).map(a => (
                   <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
-                    <span title={a.name}>{a.symbol}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AssetIcon symbol={a.symbol} />
+                      <span title={a.name}>{a.symbol}</span>
+                    </div>
                     <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
                   </div>
                 ))}
