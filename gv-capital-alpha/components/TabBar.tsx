@@ -2,6 +2,7 @@
 import { Tab } from '@/app/page';
 import { PortfolioState } from '@/types';
 import { useState, useEffect } from 'react';
+import { Compass, Target, Zap, Briefcase, LineChart, FlaskConical } from 'lucide-react';
 
 interface Props { tab: Tab; setTab: (t: Tab) => void; portfolio: PortfolioState | null; }
 
@@ -29,13 +30,13 @@ export default function TabBar({ tab, setTab, portfolio }: Props) {
   const pendingCount = portfolio?.signals.filter(s => s.status === 'PENDING').length ?? 0;
   const openCount = portfolio?.positions.filter(p => p.status === 'OPEN').length ?? 0;
 
-  const tabs: { id: Tab; label: string; icon: string; badge?: number }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🧭' },
-    { id: 'signals', label: 'Segnali', icon: '🎯', badge: pendingCount },
-    { id: 'trading', label: 'Trading', icon: '⚡', badge: tbdCount },
-    { id: 'positions', label: 'Posizioni', icon: '💼', badge: openCount },
-    { id: 'market', label: 'Mercato', icon: '📈' },
-    { id: 'quontest', label: 'Quontest', icon: '🔬' },
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: <Compass size={16} strokeWidth={1.8} /> },
+    { id: 'signals', label: 'Segnali', icon: <Target size={16} strokeWidth={1.8} />, badge: pendingCount },
+    { id: 'trading', label: 'Trading', icon: <Zap size={16} strokeWidth={1.8} />, badge: tbdCount },
+    { id: 'positions', label: 'Posizioni', icon: <Briefcase size={16} strokeWidth={1.8} />, badge: openCount },
+    { id: 'market', label: 'Mercato', icon: <LineChart size={16} strokeWidth={1.8} /> },
+    { id: 'quontest', label: 'Quontest', icon: <FlaskConical size={16} strokeWidth={1.8} /> },
   ];
 
   return (
@@ -53,7 +54,7 @@ export default function TabBar({ tab, setTab, portfolio }: Props) {
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
           position: 'relative', whiteSpace: 'nowrap',
         }}>
-          <span>{t.icon}</span>
+          <span style={{ display: 'flex', alignItems: 'center' }}>{t.icon}</span>
           <span>{t.label}</span>
           {t.badge ? (
             <span style={{
