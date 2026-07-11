@@ -14,12 +14,18 @@ interface TbdPageData {
     reason: "TARGET" | "MAX_LOSS" | "NONE";
     message: string;
   };
+  config?: {
+    totalCapital: number;
+    dailyTarget: number;
+    maxTotalRiskPercent: number;
+    activeSlots: number;
+    preTriggerBufferPercent: number;
+  };
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const DAILY_TARGET = 50;
-const TOTAL_CAPITAL = 5000;
 
 function pnlColor(pnl: number) {
   if (pnl > 0) return "#10b981";
@@ -315,6 +321,8 @@ export default function TradingByDayTab() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
+  const [editingCapital, setEditingCapital] = useState(false);
+  const [capitalInput, setCapitalInput] = useState("");
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -325,7 +333,10 @@ export default function TradingByDayTab() {
     try {
       const res  = await fetch("/api/tbd/log");
       const json = await res.json();
-      if (json.success) setData(json.data);
+      if (json.success) {
+        setData(json.data);
+        setCapitalInput(String(json.data.config?.totalCapital ?? 5000));
+      }
     } catch {
       /* silent */
     } finally {
@@ -338,6 +349,29 @@ export default function TradingByDayTab() {
     const interval = setInterval(fetchData, 60000); // refresh ogni minuto
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const handleSaveCapital = async () => {
+    const val = parseFloat(capitalInput);
+    if (isNaN(val) || val <= 0) {
+      showToast("Valore capitale non valido", false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/tbd/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ totalCapital: val }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Capitale aggiornato correttamente");
+        setEditingCapital(false);
+        await fetchData();
+      }
+    } catch {
+      showToast("Errore durante il salvataggio del capitale", false);
+    }
+  };
 
   const handleScan = async () => {
     setScanning(true);
@@ -388,6 +422,7 @@ export default function TradingByDayTab() {
   const breaker   = data?.circuitBreaker;
   const signals   = data?.activeSignals ?? [];
   const history   = data?.history ?? [];
+  const totalCapital = data?.config?.totalCapital ?? 5000;
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "20px", position: "relative" }}>
@@ -408,9 +443,43 @@ export default function TradingByDayTab() {
             }}>
               ⚡ Trading by Day
             </h2>
-            <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748b", letterSpacing: "0.05em" }}>
-              Capitale: <b style={{ color: "#e2e8f0" }}>{TOTAL_CAPITAL.toLocaleString()}€</b> · Target: <b style={{ color: "#10b981" }}>+{DAILY_TARGET}€/giorno</b> · 4 Cluster Attivi
-            </p>
+            <div style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748b", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span>Capitale:</span>
+              {editingCapital ? (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="number"
+                    value={capitalInput}
+                    onChange={(e) => setCapitalInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveCapital()}
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: "6px",
+                      color: "#e2e8f0",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      width: "80px",
+                      padding: "1px 4px",
+                      textAlign: "center",
+                      fontFamily: "var(--font-mono, monospace)"
+                    }}
+                    autoFocus
+                  />
+                  <button onClick={handleSaveCapital} style={{ background: "none", border: "none", color: "#10b981", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>Salva</button>
+                  <button onClick={() => { setEditingCapital(false); setCapitalInput(String(totalCapital)); }} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "11px" }}>Annulla</button>
+                </div>
+              ) : (
+                <b
+                  onClick={() => setEditingCapital(true)}
+                  title="Clicca per modificare la liquidità allocata"
+                  style={{ color: "#e2e8f0", cursor: "pointer", borderBottom: "1px dashed #64748b" }}
+                >
+                  {totalCapital.toLocaleString()}€ ✏️
+                </b>
+              )}
+              <span>· Target: <b style={{ color: "#10b981" }}>+{DAILY_TARGET}€/giorno</b> · 4 Cluster Attivi</span>
+            </div>
           </div>
           <button
             onClick={handleScan}
@@ -526,7 +595,7 @@ export default function TradingByDayTab() {
                   ? `${Math.round((data.today.winningTrades / data.today.totalTrades) * 100)}%`
                   : "—",
               },
-              { label: "Capitale",       val: `${TOTAL_CAPITAL.toLocaleString()}€` },
+              { label: "Capitale",       val: `${totalCapital.toLocaleString()}€` },
             ].map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                 <span style={{ color: "#64748b" }}>{item.label}</span>
