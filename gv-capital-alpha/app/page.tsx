@@ -138,7 +138,7 @@ export default function Home() {
       <TabBar tab={tab} setTab={setTab} portfolio={portfolio} />
 
       <main style={{ flex: 1, padding: '20px', overflowY: 'auto', paddingBottom: '32px' }}>
-        {tab === 'dashboard' && <DashboardTab portfolio={portfolio} market={market} />}
+        {tab === 'dashboard' && <DashboardTab portfolio={portfolio} market={market} setTab={setTab} />}
         {tab === 'signals' && (
           <SignalsTab
             portfolio={portfolio}
