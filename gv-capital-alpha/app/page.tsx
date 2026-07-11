@@ -8,8 +8,9 @@ import DashboardTab from '@/components/DashboardTab';
 import SignalsTab from '@/components/SignalsTab';
 import PositionsTab from '@/components/PositionsTab';
 import MarketTab from '@/components/MarketTab';
+import QuontestTab from '@/components/QuontestTab';
 
-export type Tab = 'dashboard' | 'signals' | 'positions' | 'market';
+export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest';
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -156,6 +157,7 @@ export default function Home() {
           />
         )}
         {tab === 'market' && <MarketTab market={market} />}
+        {tab === 'quontest' && <QuontestTab />}
       </main>
 
       {toast && (
