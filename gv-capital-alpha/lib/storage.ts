@@ -61,21 +61,25 @@ function defaultPortfolio(): PortfolioState {
       { id: 'd5', signalId: 'd', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY', entryPrice: 60000, quantity: 0.05, capitalAllocated: 3000, stopLoss: 50000, takeProfit: 90000, entryDate: dateStr, status: 'OPEN', currentPrice: 68000, unrealizedPnl: 400, unrealizedPnlPercent: 13.3, tags: ['Satellite', 'Cripto'] },
       { id: 'd6', signalId: 'd', symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', action: 'BUY', entryPrice: 3000, quantity: 1.5, capitalAllocated: 4500, stopLoss: 2500, takeProfit: 5000, entryDate: dateStr, status: 'OPEN', currentPrice: 3400, unrealizedPnl: 600, unrealizedPnlPercent: 13.3, tags: ['Satellite', 'Cripto'] },
 
-      // --- PORTAFOGLIO: PAC Figlia ---
-      { id: 'd7', signalId: 'd', symbol: 'VWCE', name: 'Vanguard All-World', type: 'ETF', action: 'BUY', entryPrice: 100, quantity: 50, capitalAllocated: 5000, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 110, unrealizedPnl: 500, unrealizedPnlPercent: 10.0, tags: ['PAC Figlia', 'Fondo'] },
-      { id: 'd8', signalId: 'd', symbol: 'BND', name: 'Vanguard Total Bond', type: 'ETF', action: 'BUY', entryPrice: 70, quantity: 20, capitalAllocated: 1400, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 72, unrealizedPnl: 40, unrealizedPnlPercent: 2.8, tags: ['PAC Figlia', 'Obbligazionario'] }
+      // --- PORTAFOGLIO: PAC Ginevra ---
+      { id: 'd7', signalId: 'd', symbol: 'VWCE', name: 'Vanguard All-World', type: 'ETF', action: 'BUY', entryPrice: 100, quantity: 30, capitalAllocated: 3000, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 110, unrealizedPnl: 300, unrealizedPnlPercent: 10.0, tags: ['PAC Ginevra', 'Fondo'] },
+      { id: 'd8', signalId: 'd', symbol: 'BND', name: 'Vanguard Total Bond', type: 'ETF', action: 'BUY', entryPrice: 70, quantity: 10, capitalAllocated: 700, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 72, unrealizedPnl: 20, unrealizedPnlPercent: 2.8, tags: ['PAC Ginevra', 'Obbligazionario'] },
+
+      // --- PORTAFOGLIO: PAC Sofia ---
+      { id: 'd9', signalId: 'd', symbol: 'SWDA', name: 'iShares Core MSCI World', type: 'ETF', action: 'BUY', entryPrice: 80, quantity: 40, capitalAllocated: 3200, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 88, unrealizedPnl: 320, unrealizedPnlPercent: 10.0, tags: ['PAC Sofia', 'Fondo'] },
+      { id: 'd10', signalId: 'd', symbol: 'AGGH', name: 'iShares Core Global Aggregate', type: 'ETF', action: 'BUY', entryPrice: 50, quantity: 15, capitalAllocated: 750, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 51, unrealizedPnl: 15, unrealizedPnlPercent: 2.0, tags: ['PAC Sofia', 'Obbligazionario'] }
     ],
     signals: [],
-    totalValue: 32165,
-    totalPnL: 2165,
-    totalPnLPercent: 7.21,
+    totalValue: 33435,
+    totalPnL: 2435,
+    totalPnLPercent: 7.85,
     targetAnnualReturn: TARGET_RETURN,
     startDate: today,
     performanceHistory: [
       { date: yesterday, totalValue: CAPITAL_BASE, pnlPercent: 0 },
-      { date: today, totalValue: 32165, pnlPercent: 7.21 }
+      { date: today, totalValue: 33435, pnlPercent: 7.85 }
     ],
-    alerts: [{ id: '1', title: 'Portafoglio Multiplo Generato', message: 'Troverai asset etichettati come Core, Satellite e PAC Figlia. Vai nelle impostazioni IA per escludere il PAC Figlia dai segnali!', date: dateStr, type: 'SUCCESS', read: false }],
+    alerts: [{ id: '1', title: 'Portafoglio Multiplo Generato', message: 'Troverai asset etichettati come Core, Satellite, PAC Ginevra e PAC Sofia.', date: dateStr, type: 'SUCCESS', read: false }],
     aiManagedTags: ['Core', 'Satellite'],
     updatedAt: dateStr,
   };

@@ -2,19 +2,20 @@
 import { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
+import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase } from 'lucide-react';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
 
 function getTagIcon(tag: string) {
   const t = tag.toLowerCase();
-  if (t === 'tutti') return '🌍';
-  if (t.includes('core')) return '🛡️';
-  if (t.includes('satellite') || t.includes('satelite')) return '🚀';
-  if (t.includes('pac') || t.includes('figli')) return '👶';
-  if (t.includes('cripto') || t.includes('crypto')) return '🪙';
-  if (t.includes('azion')) return '📈';
-  if (t.includes('fond') || t.includes('etf')) return '📊';
-  return '📁';
+  if (t === 'tutti') return <Globe size={48} strokeWidth={1.5} color="var(--blue)" />;
+  if (t.includes('core')) return <ShieldCheck size={48} strokeWidth={1.5} color="var(--green)" />;
+  if (t.includes('satellite') || t.includes('satelite')) return <Rocket size={48} strokeWidth={1.5} color="#f59e0b" />;
+  if (t.includes('pac') || t.includes('figli') || t.includes('ginevra') || t.includes('sofia')) return <Baby size={48} strokeWidth={1.5} color="#ec4899" />;
+  if (t.includes('cripto') || t.includes('crypto')) return <Bitcoin size={48} strokeWidth={1.5} color="#f59e0b" />;
+  if (t.includes('azion')) return <TrendingUp size={48} strokeWidth={1.5} color="var(--blue)" />;
+  if (t.includes('fond') || t.includes('etf')) return <BarChart3 size={48} strokeWidth={1.5} color="#8b5cf6" />;
+  return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
 }
 
 export default function DashboardTab({ portfolio, market }: Props) {
