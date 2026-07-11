@@ -25,8 +25,6 @@ interface TbdPageData {
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
-const DAILY_TARGET = 50;
-
 function pnlColor(pnl: number) {
   if (pnl > 0) return "#10b981";
   if (pnl < 0) return "#ef4444";
@@ -323,6 +321,8 @@ export default function TradingByDayTab() {
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
   const [editingCapital, setEditingCapital] = useState(false);
   const [capitalInput, setCapitalInput] = useState("");
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState("");
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -336,6 +336,7 @@ export default function TradingByDayTab() {
       if (json.success) {
         setData(json.data);
         setCapitalInput(String(json.data.config?.totalCapital ?? 5000));
+        setTargetInput(String(json.data.config?.dailyTarget ?? 50));
       }
     } catch {
       /* silent */
@@ -370,6 +371,29 @@ export default function TradingByDayTab() {
       }
     } catch {
       showToast("Errore durante il salvataggio del capitale", false);
+    }
+  };
+
+  const handleSaveTarget = async () => {
+    const val = parseFloat(targetInput);
+    if (isNaN(val) || val <= 0) {
+      showToast("Valore target non valido", false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/tbd/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dailyTarget: val }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Target giornaliero aggiornato correttamente");
+        setEditingTarget(false);
+        await fetchData();
+      }
+    } catch {
+      showToast("Errore durante il salvataggio del target", false);
     }
   };
 
@@ -418,11 +442,12 @@ export default function TradingByDayTab() {
   };
 
   const pnl       = data?.today?.realizedPnL ?? 0;
-  const progress  = Math.max(0, Math.min(100, (pnl / DAILY_TARGET) * 100));
+  const totalCapital = data?.config?.totalCapital ?? 5000;
+  const dailyTarget  = data?.config?.dailyTarget ?? 50;
+  const progress  = Math.max(0, Math.min(100, (pnl / dailyTarget) * 100));
   const breaker   = data?.circuitBreaker;
   const signals   = data?.activeSignals ?? [];
   const history   = data?.history ?? [];
-  const totalCapital = data?.config?.totalCapital ?? 5000;
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "20px", position: "relative" }}>
@@ -478,7 +503,41 @@ export default function TradingByDayTab() {
                   {totalCapital.toLocaleString()}€ ✏️
                 </b>
               )}
-              <span>· Target: <b style={{ color: "#10b981" }}>+{DAILY_TARGET}€/giorno</b> · 4 Cluster Attivi</span>
+              <span>· Target:</span>
+              {editingTarget ? (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="number"
+                    value={targetInput}
+                    onChange={(e) => setTargetInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveTarget()}
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: "6px",
+                      color: "#10b981",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      width: "60px",
+                      padding: "1px 4px",
+                      textAlign: "center",
+                      fontFamily: "var(--font-mono, monospace)"
+                    }}
+                    autoFocus
+                  />
+                  <button onClick={handleSaveTarget} style={{ background: "none", border: "none", color: "#10b981", cursor: "pointer", fontSize: "11px", fontWeight: "bold" }}>Salva</button>
+                  <button onClick={() => { setEditingTarget(false); setTargetInput(String(dailyTarget)); }} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "11px" }}>Annulla</button>
+                </div>
+              ) : (
+                <b
+                  onClick={() => setEditingTarget(true)}
+                  title="Clicca per modificare il target giornaliero"
+                  style={{ color: "#10b981", cursor: "pointer", borderBottom: "1px dashed #10b981" }}
+                >
+                  +{dailyTarget}€ ✏️
+                </b>
+              )}
+              <span>· 4 Cluster Attivi</span>
             </div>
           </div>
           <button
@@ -505,7 +564,7 @@ export default function TradingByDayTab() {
             <span>P&L Oggi: <b style={{ color: pnlColor(pnl), fontFamily: "var(--font-mono, monospace)" }}>
               {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}€
             </b></span>
-            <span>Target: <b style={{ color: "#10b981" }}>+{DAILY_TARGET}€</b></span>
+            <span>Target: <b style={{ color: "#10b981" }}>+{dailyTarget}€</b></span>
           </div>
           <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "99px", height: "8px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div style={{
