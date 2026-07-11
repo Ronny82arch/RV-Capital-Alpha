@@ -1,6 +1,8 @@
 'use client';
-import { useState, useMemo } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
+import { AssetAllocationChart, EquityChart } from '@/components/Charts';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase } from 'lucide-react';
 
@@ -22,7 +24,7 @@ export default function DashboardTab({ portfolio, market }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
 
-  if (!portfolio) return <Empty />;
+  if (!portfolio) return <div />;
 
   const p = portfolio;
   const target = p.targetAnnualReturn * 100;
@@ -42,7 +44,7 @@ export default function DashboardTab({ portfolio, market }: Props) {
         <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '32px', textAlign: 'center' }}>
           Seleziona il Portafoglio
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '20px', width: '100%', maxWidth: '700px' }}>
           {allTags.map(tag => {
             let pnlPct = 0;
             let val = 0;
