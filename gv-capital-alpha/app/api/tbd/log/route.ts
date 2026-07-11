@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { TradingByDayEngine } from '@/lib/trading-by-day';
 import {
   getTodayLog, saveTodayLog, getLast30DaysLogs,
-  getTbdConfig, getActiveSignals, todayKey,
+  getTbdConfig, getActiveSignals, todayKey, saveTbdConfig
 } from '@/lib/tbd-storage';
 
 export const runtime = 'edge';
