@@ -5,8 +5,20 @@ import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
 
+function getTagIcon(tag: string) {
+  const t = tag.toLowerCase();
+  if (t === 'tutti') return '🌍';
+  if (t.includes('core')) return '🛡️';
+  if (t.includes('satellite') || t.includes('satelite')) return '🚀';
+  if (t.includes('pac') || t.includes('figli')) return '👶';
+  if (t.includes('cripto') || t.includes('crypto')) return '🪙';
+  if (t.includes('azion')) return '📈';
+  if (t.includes('fond') || t.includes('etf')) return '📊';
+  return '📁';
+}
+
 export default function DashboardTab({ portfolio, market }: Props) {
-  const [selectedTag, setSelectedTag] = useState<string>('Tutti');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   if (!portfolio) return <Empty />;
 
@@ -21,6 +33,37 @@ export default function DashboardTab({ portfolio, market }: Props) {
     });
     return ['Tutti', ...Array.from(tags).sort()];
   }, [p.positions]);
+
+  if (selectedTag === null) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '20px' }}>
+        <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '32px', textAlign: 'center' }}>
+          Seleziona il Portafoglio
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '20px', width: '100%', maxWidth: '700px' }}>
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => setSelectedTag(tag)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '32px 16px', background: 'var(--bg2)', border: '1px solid var(--border)',
+                borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+            >
+              <span style={{ fontSize: '48px', marginBottom: '16px' }}>{getTagIcon(tag)}</span>
+              <span style={{ fontSize: '15px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)' }}>
+                {tag === 'Tutti' ? 'Globale' : tag}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const filteredPositions = selectedTag === 'Tutti'
     ? p.positions
@@ -57,6 +100,18 @@ export default function DashboardTab({ portfolio, market }: Props) {
 
       {/* PORTFOLIO SELECTOR */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        <button
+          onClick={() => setSelectedTag(null)}
+          style={{
+            padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border)',
+            background: 'var(--bg2)', color: 'var(--text2)', fontSize: '12px', fontFamily: 'var(--font-mono)',
+            cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '4px'
+          }}
+          onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; }}
+          onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; }}
+        >
+          ⬅️ Menu
+        </button>
         {allTags.map(tag => (
           <button
             key={tag}
