@@ -184,13 +184,24 @@ export default function DashboardTab({ portfolio, market }: Props) {
         </div>
       </div>
 
-      {/* ASSET ALLOCATION (MACRO-CATEGORIE) */}
-      {openPositions.length > 0 && (
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ALLOCAZIONE PER CATEGORIA</div>
-          <AssetAllocationChart positions={openPositions} />
-        </div>
-      )}
+      {/* ALLOCATION WIDGETS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+        {/* ASSET ALLOCATION (MACRO-CATEGORIE) */}
+        {openPositions.length > 0 && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>ALLOCAZIONE PER CATEGORIA</div>
+            <AssetAllocationChart positions={openPositions} />
+          </div>
+        )}
+
+        {/* RELAZIONE CORE / SATELLITE (GLOBALE) */}
+        {selectedTag === 'Tutti' && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>RAPPORTO CORE / SATELLITE</div>
+            <CoreSatelliteWidget positions={p.positions} />
+          </div>
+        )}
+      </div>
 
       {/* EQUITY CURVE */}
       {p.performanceHistory.length > 1 && (
@@ -207,30 +218,65 @@ export default function DashboardTab({ portfolio, market }: Props) {
         <StatCard label="WIN RATE" value={winRate !== null ? `${winRate.toFixed(0)}%` : '—'} color={winRate !== null && winRate >= 50 ? 'var(--green)' : 'var(--red)'} />
       </div>
 
-      {/* OPEN POSITIONS MINI */}
+      {/* OPEN POSITIONS TABLE */}
       {openPositions.length > 0 && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
           <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>POSIZIONI APERTE</div>
-          {openPositions.map(pos => {
-            const pnl = pos.unrealizedPnl ?? 0;
-            const pnlPct = pos.unrealizedPnlPercent ?? 0;
-            return (
-              <div key={pos.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--bg3)' }}>
-                <div>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '13px' }}>{pos.symbol}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text3)', marginLeft: '8px' }}>{pos.quantity} × €{pos.entryPrice.toFixed(2)}</span>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '700', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                    {pnl >= 0 ? '+' : ''}€{pnl.toFixed(2)}
-                  </div>
-                  <div style={{ fontSize: '10px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                    {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+              <thead>
+                <tr style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>ASSET</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>CATEGORIA</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ALLOCATO</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>PESO %</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>P&L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openPositions.map(pos => {
+                  const pnl = pos.unrealizedPnl ?? 0;
+                  const pnlPct = pos.unrealizedPnlPercent ?? 0;
+                  const val = (pos.currentPrice ?? pos.entryPrice) * pos.quantity;
+                  const weight = displayTotalValue > 0 ? (val / displayTotalValue) * 100 : 0;
+                  return (
+                    <tr key={pos.id} style={{ borderBottom: '1px solid var(--bg3)' }}>
+                      <td style={{ padding: '12px 8px' }}>
+                        <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>
+                      </td>
+                      <td style={{ padding: '12px 8px', color: 'var(--text2)' }}>
+                        <span style={{ padding: '4px 8px', background: 'var(--bg3)', borderRadius: '12px', fontSize: '10px' }}>
+                          {getMacroCategory(pos)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                        <div style={{ fontWeight: 'bold', color: 'var(--text)' }}>
+                          €{val.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                          <span style={{ color: 'var(--text2)', width: '35px' }}>{weight.toFixed(1)}%</span>
+                          <div style={{ width: '40px', height: '6px', background: 'var(--bg3)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.min(100, weight)}%`, height: '100%', background: 'var(--blue)', borderRadius: '3px' }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                        <div style={{ fontWeight: '700', fontSize: '13px', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                          {pnl >= 0 ? '+' : ''}€{pnl.toFixed(0)}
+                        </div>
+                        <div style={{ fontSize: '10px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                          {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -349,6 +395,48 @@ function AssetAllocationChart({ positions }: { positions: import('@/types').Posi
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function CoreSatelliteWidget({ positions }: { positions: import('@/types').Position[] }) {
+  const openPos = positions.filter(p => p.status === 'OPEN');
+  
+  const coreValue = openPos
+    .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
+    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
+
+  const satValue = openPos
+    .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
+    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
+
+  const total = coreValue + satValue;
+  if (total === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun asset Core/Satellite attivo.</div>;
+
+  const corePct = (coreValue / total) * 100;
+  const satPct = (satValue / total) * 100;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', height: '16px', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ width: `${corePct}%`, background: 'var(--green)', transition: 'width 0.5s' }} title={`Core: ${corePct.toFixed(1)}%`} />
+        <div style={{ width: `${satPct}%`, background: '#f59e0b', transition: 'width 0.5s' }} title={`Satellite: ${satPct.toFixed(1)}%`} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--green)' }} />
+          <span style={{ color: 'var(--text2)' }}>Core</span>
+          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{corePct.toFixed(1)}%</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{satPct.toFixed(1)}%</span>
+          <span style={{ color: 'var(--text2)' }}>Satellite</span>
+          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
+        </div>
+      </div>
+      <div style={{ fontSize: '10px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
+        Totale allocato: €{total.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
       </div>
     </div>
   );
