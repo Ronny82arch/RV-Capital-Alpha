@@ -158,7 +158,7 @@ export default function Home() {
           />
         )}
         {tab === 'market' && <MarketTab market={market} />}
-        {tab === 'quontest' && <QuontestTab />}
+        {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
         {tab === 'trading' && <TradingByDayTab />}
       </main>
 
