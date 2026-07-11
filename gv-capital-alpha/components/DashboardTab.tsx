@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
-import { AssetAllocationChart, EquityChart } from '@/components/Charts';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase } from 'lucide-react';
 
