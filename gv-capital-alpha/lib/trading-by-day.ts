@@ -1,0 +1,270 @@
+/**
+ * CAPITAL ALPHA — TRADING BY DAY ENGINE
+ * Liquidità: 5.000 € isolata | Target: 50 € netti/giorno | Max Loss: 100 €
+ * Esecuzione: 4 cluster simultanei | Pre-Trigger: 0.6% prima dell'ingresso
+ */
+
+// ─── TIPI PUBBLICI ────────────────────────────────────────────────────────────
+
+export type TbdSignalStatus =
+  | 'PRE_ALERT'
+  | 'ACTIVE'
+  | 'TRIGGERED'
+  | 'CLOSED_TP'
+  | 'CLOSED_SL'
+  | 'CANCELLED';
+
+export type TbdDirection = 'BUY' | 'SELL';
+
+export type TbdDayStatus =
+  | 'STANDBY'
+  | 'ACTIVE'
+  | 'COMPLETED_PROFIT'
+  | 'COMPLETED_LOSS';
+
+export interface TradingEngineConfig {
+  totalCapital: number;            // 5000 €
+  dailyTarget: number;             // 50 €
+  maxTotalRiskPercent: number;     // 2.0 % → max 100 € perdita/giorno
+  activeSlots: number;             // 4 cluster simultanei
+  preTriggerBufferPercent: number; // 0.6 % di anticipo notifica
+  minRiskRewardRatio: number;      // 1.5 minimo R/R
+}
+
+export interface MarketDataSnapshot {
+  asset: string;
+  currentPrice: number;
+  atrH1: number;           // Average True Range orario
+  zScoreH1: number;        // Z-Score su serie oraria (≤ -2 = ipervenduto, ≥ +2 = ipercomprato)
+  chandeMomentumH1: number;// CMO su 14 periodi orari [-100, +100]
+  volumeSpike: boolean;    // Anomalia volume istituzionale
+  assetType: 'CRYPTO' | 'STOCK';
+}
+
+export interface TbdSignal {
+  id: string;
+  asset: string;
+  assetType: 'CRYPTO' | 'STOCK';
+  direction: TbdDirection;
+  timeframe: 'H1' | 'H4';
+  preTriggerPx: number;    // Prezzo di pre-allerta (0.6% prima dell'entry)
+  entryPrice: number;      // Prezzo limite di ingresso
+  stopLoss: number;        // SL calcolato su ATR × 1.5
+  takeProfit: number;      // TP calcolato per raggiungere targetPerSlot
+  allocatedSize: number;   // Capitale esposto per questo slot (€)
+  expectedPnL: number;     // Profitto atteso se TP (€)
+  maxLoss: number;         // Perdita massima se SL (€)
+  riskReward: number;      // Rapporto R/R
+  status: TbdSignalStatus;
+  triggeredAt?: string;
+  closedAt?: string;
+  realizedPnL?: number;
+  timestamp: string;
+}
+
+export interface TradingDayLog {
+  id: string;
+  date: string;            // YYYY-MM-DD
+  startingCash: number;    // 5000.00
+  endingCash: number;
+  realizedPnL: number;     // Somma algebrica trade del giorno
+  targetReached: boolean;  // true se PnL >= 50 €
+  totalTrades: number;
+  winningTrades: number;
+  status: TbdDayStatus;
+  signals: TbdSignal[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── CONFIGURAZIONE DEFAULT ────────────────────────────────────────────────────
+
+export const DEFAULT_CONFIG: TradingEngineConfig = {
+  totalCapital: 5000.00,
+  dailyTarget: 50.00,
+  maxTotalRiskPercent: 2.0,
+  activeSlots: 4,
+  preTriggerBufferPercent: 0.6,
+  minRiskRewardRatio: 1.5,
+};
+
+// ─── ENGINE ───────────────────────────────────────────────────────────────────
+
+export class TradingByDayEngine {
+  private config: TradingEngineConfig;
+
+  constructor(config: TradingEngineConfig = DEFAULT_CONFIG) {
+    this.config = config;
+  }
+
+  /**
+   * MATRICE DI FRAMMENTAZIONE CLUSTER
+   * Divide il capitale e il target in 4 slot bilanciati.
+   */
+  public calculateClusterAllocation() {
+    const sizePerSlot   = this.config.totalCapital / this.config.activeSlots; // 1250 €
+    const targetPerSlot = this.config.dailyTarget  / this.config.activeSlots; // 12.50 €
+    const maxRiskTotal  = this.config.totalCapital * (this.config.maxTotalRiskPercent / 100); // 100 €
+    const maxRiskPerSlot = maxRiskTotal / this.config.activeSlots; // 25 €
+
+    return { sizePerSlot, targetPerSlot, maxRiskTotal, maxRiskPerSlot };
+  }
+
+  /**
+   * SCANNER SPECULATIVO H1
+   * Identifica setup Long e Short su base statistica (Z-Score + CMO + volume).
+   * Calcola size sicura, pre-trigger e R/R minimo enforced.
+   */
+  public scanMarketForSpeculation(marketData: MarketDataSnapshot[]): TbdSignal[] {
+    const { sizePerSlot, targetPerSlot, maxRiskPerSlot } = this.calculateClusterAllocation();
+    const signals: TbdSignal[] = [];
+
+    for (const asset of marketData) {
+      const isBullishSetup =
+        asset.zScoreH1 <= -2.0 &&
+        asset.volumeSpike &&
+        asset.chandeMomentumH1 > -50;
+
+      const isBearishSetup =
+        asset.zScoreH1 >= 2.0 &&
+        asset.volumeSpike &&
+        asset.chandeMomentumH1 < 50;
+
+      if (!isBullishSetup && !isBearishSetup) continue;
+
+      const direction: TbdDirection = isBullishSetup ? 'BUY' : 'SELL';
+      const entryPrice = asset.currentPrice;
+      const atrBuffer  = asset.atrH1 * 1.5;
+
+      // Stop Loss asimmetrico basato su ATR reale
+      const stopLoss   = direction === 'BUY'
+        ? entryPrice - atrBuffer
+        : entryPrice + atrBuffer;
+
+      const lossPercentage = Math.abs(entryPrice - stopLoss) / entryPrice;
+
+      // Size sicura: garantisce che la perdita massima non superi maxRiskPerSlot
+      const safeSizeForRisk = maxRiskPerSlot / lossPercentage;
+      const allocatedSize   = Math.min(sizePerSlot, safeSizeForRisk);
+
+      // Take Profit: profitto necessario per raggiungere targetPerSlot
+      const profitPercentage = targetPerSlot / allocatedSize;
+
+      // Enforce R/R minimo (1.5)
+      const minProfitPercentage = lossPercentage * this.config.minRiskRewardRatio;
+      const effectiveProfitPct  = Math.max(profitPercentage, minProfitPercentage);
+
+      const takeProfit = direction === 'BUY'
+        ? entryPrice * (1 + effectiveProfitPct)
+        : entryPrice * (1 - effectiveProfitPct);
+
+      // Pre-Trigger: avvisa prima che tocchi l'entry
+      const bufferPct   = this.config.preTriggerBufferPercent / 100;
+      const preTriggerPx = direction === 'BUY'
+        ? entryPrice * (1 + bufferPct)   // avvisa sopra il prezzo attuale (rimbalzo)
+        : entryPrice * (1 - bufferPct);  // avvisa sotto il prezzo attuale (short)
+
+      const expectedPnL = allocatedSize * effectiveProfitPct;
+      const maxLoss     = allocatedSize * lossPercentage;
+      const riskReward  = Number((effectiveProfitPct / lossPercentage).toFixed(2));
+
+      signals.push({
+        id:            `${asset.asset}-${direction}-${Date.now()}`,
+        asset:         asset.asset,
+        assetType:     asset.assetType,
+        direction,
+        timeframe:     'H1',
+        preTriggerPx:  Number(preTriggerPx.toFixed(4)),
+        entryPrice:    Number(entryPrice.toFixed(4)),
+        stopLoss:      Number(stopLoss.toFixed(4)),
+        takeProfit:    Number(takeProfit.toFixed(4)),
+        allocatedSize: Number(allocatedSize.toFixed(2)),
+        expectedPnL:   Number(expectedPnL.toFixed(2)),
+        maxLoss:       Number(maxLoss.toFixed(2)),
+        riskReward,
+        status:        'PRE_ALERT',
+        timestamp:     new Date().toISOString(),
+      });
+    }
+
+    return signals;
+  }
+
+  /**
+   * CIRCUIT BREAKER GIORNALIERO
+   * Blocca nuovi segnali se target raggiunto o max loss toccata.
+   */
+  public evaluateDailyCircuitBreaker(
+    currentRealizedPnL: number
+  ): { stopTrading: boolean; reason: 'TARGET' | 'MAX_LOSS' | 'NONE'; message: string } {
+    if (currentRealizedPnL >= this.config.dailyTarget) {
+      return {
+        stopTrading: true,
+        reason: 'TARGET',
+        message: `🎯 TARGET RAGGIUNTO +${currentRealizedPnL.toFixed(2)}€ / ${this.config.dailyTarget}€. Motore congelato fino al reset di domani.`,
+      };
+    }
+
+    const maxLossThreshold = -(this.config.totalCapital * (this.config.maxTotalRiskPercent / 100));
+    if (currentRealizedPnL <= maxLossThreshold) {
+      return {
+        stopTrading: true,
+        reason: 'MAX_LOSS',
+        message: `🛑 MAX LOSS RAGGIUNTA ${currentRealizedPnL.toFixed(2)}€ (limite ${maxLossThreshold.toFixed(2)}€). Operatività inibita fino a domani.`,
+      };
+    }
+
+    const remaining = this.config.dailyTarget - currentRealizedPnL;
+    return {
+      stopTrading: false,
+      reason: 'NONE',
+      message: `✅ Motore attivo. Scansione cluster in corso. Mancano ${remaining.toFixed(2)}€ al target.`,
+    };
+  }
+
+  /**
+   * CALCOLO P&L GIORNALIERO AGGIORNATO
+   * Aggiunge un trade chiuso al log del giorno.
+   */
+  public updateDayLog(log: TradingDayLog, closedSignal: TbdSignal): TradingDayLog {
+    const pnl = closedSignal.realizedPnL ?? 0;
+    const updated: TradingDayLog = {
+      ...log,
+      realizedPnL:   log.realizedPnL + pnl,
+      totalTrades:   log.totalTrades + 1,
+      winningTrades: pnl > 0 ? log.winningTrades + 1 : log.winningTrades,
+      updatedAt:     new Date().toISOString(),
+    };
+
+    const breaker = this.evaluateDailyCircuitBreaker(updated.realizedPnL);
+    updated.targetReached = breaker.reason === 'TARGET';
+    updated.endingCash    = this.config.totalCapital + updated.realizedPnL;
+    updated.status        = breaker.reason === 'TARGET'
+      ? 'COMPLETED_PROFIT'
+      : breaker.reason === 'MAX_LOSS'
+        ? 'COMPLETED_LOSS'
+        : 'ACTIVE';
+
+    return updated;
+  }
+
+  /**
+   * CREA LOG GIORNALIERO VUOTO
+   */
+  public createEmptyDayLog(date: string): TradingDayLog {
+    return {
+      id:            `tbd-${date}`,
+      date,
+      startingCash:  this.config.totalCapital,
+      endingCash:    this.config.totalCapital,
+      realizedPnL:   0,
+      targetReached: false,
+      totalTrades:   0,
+      winningTrades: 0,
+      status:        'STANDBY',
+      signals:       [],
+      createdAt:     new Date().toISOString(),
+      updatedAt:     new Date().toISOString(),
+    };
+  }
+}
