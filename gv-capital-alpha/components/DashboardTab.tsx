@@ -25,6 +25,13 @@ export default function DashboardTab({ portfolio, market }: Props) {
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
   const [isLight, setIsLight] = useState(false);
+  const [portfolioTargets, setPortfolioTargets] = useState<Record<string, number>>({
+    'Tutti': 10,
+    'Core': 8,
+    'Satellite': 25,
+    'PAC Ginevra': 5,
+    'PAC Sofia': 5
+  });
 
   const toggleTheme = () => {
     const newLight = !isLight;
@@ -36,8 +43,8 @@ export default function DashboardTab({ portfolio, market }: Props) {
   if (!portfolio) return <div />;
 
   const p = portfolio;
-  const target = p.targetAnnualReturn * 100;
-  const targetEur = p.capitalBase * p.targetAnnualReturn;
+  const target = portfolioTargets[selectedTag || 'Tutti'] || 10;
+  const targetEur = p.capitalBase * (target / 100);
 
   const allTags = useMemo(() => {
     const tags = new Set<string>();
@@ -256,12 +263,33 @@ export default function DashboardTab({ portfolio, market }: Props) {
           sub={`${((p.capitalAvailable / p.capitalBase) * 100).toFixed(0)}% del capitale`}
           color="var(--blue)"
         />
-        <KpiCard
-          label="TARGET ANNUO"
-          value={`+${target.toFixed(0)}%`}
-          sub={`€${targetEur.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
-          color="var(--yellow)"
-        />
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>
+            TARGET ANNUO {selectedTag !== 'Tutti' && `(${selectedTag})`}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>+</span>
+            <input 
+              type="number" 
+              value={target}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) {
+                  setPortfolioTargets(prev => ({ ...prev, [selectedTag || 'Tutti']: val }));
+                }
+              }}
+              style={{
+                background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px',
+                color: 'var(--yellow)', fontSize: '20px', fontWeight: 'bold', fontFamily: 'var(--font-mono)',
+                width: '60px', padding: '2px 4px', textAlign: 'center'
+              }}
+            />
+            <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>%</span>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>
+            ~€{targetEur.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+          </div>
+        </div>
       </div>
 
       {/* PROGRESS BAR */}
@@ -290,8 +318,8 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* ASSET ALLOCATION (MACRO-CATEGORIE) */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
-              <PieChart size={14} /> ALLOCAZIONE PER CATEGORIA
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <PieChart size={32} /> ALLOCAZIONE PER CATEGORIA
             </div>
             <AssetAllocationChart positions={openPositions} />
           </div>
@@ -300,8 +328,8 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* ESPOSIZIONE SETTORIALE */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
-              <Layers size={14} /> DIVERSIFICAZIONE SETTORIALE
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <Layers size={32} /> DIVERSIFICAZIONE SETTORIALE
             </div>
             <SectorDiversificationWidget positions={openPositions} />
           </div>
@@ -310,8 +338,8 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* ESPOSIZIONE GEOGRAFICA */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
-              <Globe size={14} /> ESPOSIZIONE GEOGRAFICA
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <Globe size={32} /> ESPOSIZIONE GEOGRAFICA
             </div>
             <GeographicExposureWidget positions={openPositions} />
           </div>
@@ -320,8 +348,8 @@ export default function DashboardTab({ portfolio, market }: Props) {
         {/* RELAZIONE CORE / SATELLITE (GLOBALE) */}
         {(selectedTag === 'Tutti' || selectedTag === 'Core' || selectedTag === 'Satellite') && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
-              <Scale size={14} /> RAPPORTO CORE / SATELLITE
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+              <Scale size={32} /> RAPPORTO CORE / SATELLITE
             </div>
             <CoreSatelliteWidget positions={p.positions} />
           </div>
