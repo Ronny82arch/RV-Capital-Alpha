@@ -97,6 +97,17 @@ export default function DashboardTab({ portfolio, market }: Props) {
             );
           })}
         </div>
+        <div style={{ marginTop: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <div style={{ fontSize: '14px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>
+            PATRIMONIO COMPLESSIVO
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
+            €{p.totalValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: p.totalPnL >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            {p.totalPnL >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{p.totalPnL.toFixed(0)} ({p.totalPnLPercent >= 0 ? '+' : ''}{p.totalPnLPercent.toFixed(2)}%)
+          </div>
+        </div>
       </div>
     );
   }
