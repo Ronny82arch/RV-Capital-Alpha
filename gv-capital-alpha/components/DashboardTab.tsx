@@ -298,15 +298,13 @@ function Empty() {
 }
 
 function getMacroCategory(pos: import('@/types').Position): string {
-  if (pos.tags) {
-    const t = pos.tags.join(' ').toLowerCase();
-    if (t.includes('cripto') || t.includes('crypto') || t.includes('btc') || t.includes('eth')) return 'CRYPTO';
-    if (t.includes('materi') || t.includes('commodit') || t.includes('oro') || t.includes('gold') || t.includes('argento') || t.includes('silver') || t.includes('petrolio') || t.includes('oil')) return 'MATERIE PRIME';
-    if (t.includes('fondo') || t.includes('etf') || t.includes('pac')) return 'FONDI / ETF';
-  }
+  // If it's a specific symbol that represents commodities (like Gold)
+  if (pos.symbol === 'GLD' || pos.symbol === 'IAU') return 'MATERIE PRIME';
+
   if (pos.type === 'CRYPTO') return 'CRYPTO';
   if (pos.type === 'ETF') return 'FONDI / ETF';
   if (pos.type === 'STOCK') return 'AZIONI';
+  
   return 'ALTRO';
 }
 
