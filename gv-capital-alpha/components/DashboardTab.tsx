@@ -295,6 +295,14 @@ export default function DashboardTab({ portfolio, market }: Props) {
           </div>
         )}
 
+        {/* ESPOSIZIONE SETTORIALE */}
+        {openPositions.length > 0 && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>DIVERSIFICAZIONE SETTORIALE</div>
+            <SectorDiversificationWidget positions={openPositions} />
+          </div>
+        )}
+
         {/* ESPOSIZIONE GEOGRAFICA */}
         {openPositions.length > 0 && (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
@@ -608,14 +616,16 @@ function getGeography(symbol: string, name: string): string {
 }
 
 function GeographicExposureWidget({ positions }: { positions: import('@/types').Position[] }) {
-  const geos = positions.reduce((acc, pos) => {
+  const geoMap = positions.reduce((acc, pos) => {
     const geo = getGeography(pos.symbol, pos.name);
     const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
-    acc[geo] = (acc[geo] || 0) + val;
+    if (!acc[geo]) acc[geo] = { total: 0, assets: [] };
+    acc[geo].total += val;
+    acc[geo].assets.push({ symbol: pos.symbol, name: pos.name, value: val });
     return acc;
-  }, {} as Record<string, number>);
+  }, {} as Record<string, { total: number, assets: {symbol: string, name: string, value: number}[] }>);
 
-  const totalValue = Object.values(geos).reduce((a, b) => a + b, 0);
+  const totalValue = Object.values(geoMap).reduce((a, b) => a + b.total, 0);
   if (totalValue === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun dato.</div>;
 
   const colors: Record<string, string> = {
@@ -628,23 +638,105 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
-        {Object.entries(geos).sort((a,b)=>b[1]-a[1]).map(([geo, val]) => {
-          const pct = (val / totalValue) * 100;
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
+        {Object.entries(geoMap).sort((a,b)=>b[1].total-a[1].total).map(([geo, data]) => {
+          const pct = (data.total / totalValue) * 100;
           return (
             <div key={geo} style={{ width: `${pct}%`, background: colors[geo] || 'var(--text2)', transition: 'width 0.5s' }} title={`${geo}: ${pct.toFixed(1)}%`} />
           );
         })}
       </div>
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        {Object.entries(geos).sort((a,b)=>b[1]-a[1]).map(([geo, val]) => {
-          const pct = (val / totalValue) * 100;
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+        {Object.entries(geoMap).sort((a,b)=>b[1].total-a[1].total).map(([geo, data]) => {
+          const pct = (data.total / totalValue) * 100;
           return (
-            <div key={geo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors[geo] || 'var(--text2)' }} />
-              <span style={{ color: 'var(--text2)' }}>{geo}</span>
-              <span style={{ fontWeight: 'bold' }}>{pct.toFixed(1)}%</span>
+            <div key={geo} style={{ background: 'var(--bg3)', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors[geo] || 'var(--text2)' }} />
+                <span style={{ color: 'var(--text2)', fontWeight: 'bold' }}>{geo}</span>
+                <span style={{ fontWeight: 'bold', marginLeft: 'auto', color: 'var(--text)' }}>{pct.toFixed(1)}%</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {data.assets.sort((a,b)=>b.value-a.value).map(a => (
+                  <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+                    <span title={a.name}>{a.symbol}</span>
+                    <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getSector(symbol: string, name: string, type: string): string {
+  const t = name.toLowerCase() + symbol.toLowerCase();
+  if (type === 'CRYPTO') return 'Criptovalute';
+  if (t.includes('tech') || t.includes('apple') || t.includes('qqq')) return 'Tecnologia';
+  if (t.includes('finan') || t.includes('bank') || t.includes('jpm') || t.includes('bac')) return 'Finanza';
+  if (t.includes('health') || t.includes('med') || t.includes('jnj')) return 'Salute';
+  if (t.includes('energy') || t.includes('oil') || t.includes('xle')) return 'Energia';
+  if (t.includes('bond') || t.includes('treasury') || t.includes('bnd') || t.includes('agg') || t.includes('tlt')) return 'Obbligazionario';
+  if (t.includes('world') || t.includes('global') || t.includes('sp500') || t.includes('spy')) return 'Misto / Indici';
+  return 'Beni & Servizi';
+}
+
+function SectorDiversificationWidget({ positions }: { positions: import('@/types').Position[] }) {
+  const sectorMap = positions.reduce((acc, pos) => {
+    const sec = getSector(pos.symbol, pos.name, pos.type);
+    const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
+    if (!acc[sec]) acc[sec] = { total: 0, assets: [] };
+    acc[sec].total += val;
+    acc[sec].assets.push({ symbol: pos.symbol, name: pos.name, value: val });
+    return acc;
+  }, {} as Record<string, { total: number, assets: {symbol: string, name: string, value: number}[] }>);
+
+  const totalValue = Object.values(sectorMap).reduce((a, b) => a + b.total, 0);
+  if (totalValue === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun dato.</div>;
+
+  const colors: Record<string, string> = {
+    'Tecnologia': '#3b82f6',
+    'Finanza': '#f59e0b',
+    'Salute': '#10b981',
+    'Energia': '#ef4444',
+    'Obbligazionario': '#8b5cf6',
+    'Criptovalute': '#f97316',
+    'Misto / Indici': '#00d4aa',
+    'Beni & Servizi': 'var(--text2)'
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
+        {Object.entries(sectorMap).sort((a,b)=>b[1].total-a[1].total).map(([sec, data]) => {
+          const pct = (data.total / totalValue) * 100;
+          return (
+            <div key={sec} style={{ width: `${pct}%`, background: colors[sec] || 'var(--text2)', transition: 'width 0.5s' }} title={`${sec}: ${pct.toFixed(1)}%`} />
+          );
+        })}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+        {Object.entries(sectorMap).sort((a,b)=>b[1].total-a[1].total).map(([sec, data]) => {
+          const pct = (data.total / totalValue) * 100;
+          return (
+            <div key={sec} style={{ background: 'var(--bg3)', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors[sec] || 'var(--text2)' }} />
+                <span style={{ color: 'var(--text2)', fontWeight: 'bold' }}>{sec}</span>
+                <span style={{ fontWeight: 'bold', marginLeft: 'auto', color: 'var(--text)' }}>{pct.toFixed(1)}%</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {data.assets.sort((a,b)=>b.value-a.value).map(a => (
+                  <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+                    <span title={a.name}>{a.symbol}</span>
+                    <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })}
