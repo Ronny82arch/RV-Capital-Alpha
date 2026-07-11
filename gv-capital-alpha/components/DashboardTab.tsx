@@ -5,6 +5,7 @@ import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
 import ProfessionalChart from './ProfessionalChart';
 import AssetIcon from './AssetIcon';
+import PacScenarioWidget from './PacScenarioWidget';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale } from 'lucide-react';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
@@ -164,14 +165,15 @@ export default function DashboardTab({ portfolio, market }: Props) {
   let displayTotalValue = p.totalValue;
   let displayPnL = p.totalPnL;
   let displayPnLPct = p.totalPnLPercent;
+  let displayInvested = p.positions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
 
   if (selectedTag !== 'Tutti') {
     displayTotalValue = openPositions.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
     const unrealized = openPositions.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
     const realized = closedPositions.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
     displayPnL = unrealized + realized;
-    const invested = openPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0) + closedPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
-    displayPnLPct = invested > 0 ? (displayPnL / invested) * 100 : 0;
+    displayInvested = openPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0) + closedPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
+    displayPnLPct = displayInvested > 0 ? (displayPnL / displayInvested) * 100 : 0;
   }
 
   const progressPct = Math.min(100, (p.totalPnL / targetEur) * 100);
@@ -238,6 +240,12 @@ export default function DashboardTab({ portfolio, market }: Props) {
 
       {/* TOP KPI ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+        <KpiCard
+          label="VALORE ALLOCATO"
+          value={`€${displayInvested.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          sub="somma capitale investito"
+          color="var(--blue)"
+        />
         <KpiCard
           label={selectedTag === 'Tutti' ? "VALORE PORTAFOGLIO" : `VALORE: ${selectedTag.toUpperCase()}`}
           value={`€${displayTotalValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
@@ -478,6 +486,11 @@ export default function DashboardTab({ portfolio, market }: Props) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* PAC SCENARIO WIDGET */}
+      {selectedTag && selectedTag.toUpperCase().includes('PAC') && (
+        <PacScenarioWidget currentValue={displayTotalValue} currentAllocated={displayInvested} />
       )}
     </div>
   );
