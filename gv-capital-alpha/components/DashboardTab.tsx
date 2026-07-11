@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
+import ProfessionalChart from './ProfessionalChart';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon } from 'lucide-react';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
@@ -290,13 +291,11 @@ export default function DashboardTab({ portfolio, market }: Props) {
         )}
       </div>
 
-      {/* EQUITY CURVE */}
-      {p.performanceHistory.length > 1 && (
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>EQUITY CURVE</div>
-          <EquityChart history={p.performanceHistory} capitalBase={p.capitalBase} />
-        </div>
-      )}
+      {/* PROFESSIONAL CHART (Dinamico per Portafoglio) */}
+      <ProfessionalChart 
+        currentValue={displayTotalValue} 
+        label={selectedTag || 'Tutti i portafogli'} 
+      />
 
       {/* STATS ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
