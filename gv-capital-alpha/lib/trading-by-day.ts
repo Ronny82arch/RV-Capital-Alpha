@@ -38,6 +38,7 @@ export interface MarketDataSnapshot {
   zScoreH1: number;        // Z-Score su serie oraria (≤ -2 = ipervenduto, ≥ +2 = ipercomprato)
   chandeMomentumH1: number;// CMO su 14 periodi orari [-100, +100]
   volumeSpike: boolean;    // Anomalia volume istituzionale
+  bollingerSqueeze?: boolean; // Squeeze Bollinger Bands
   assetType: 'CRYPTO' | 'STOCK';
 }
 
