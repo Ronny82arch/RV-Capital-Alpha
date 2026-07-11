@@ -122,11 +122,13 @@ export class TradingByDayEngine {
     for (const asset of marketData) {
       const isBullishSetup =
         asset.zScoreH1 <= -2.0 &&
+        asset.bollingerSqueeze &&
         asset.volumeSpike &&
         asset.chandeMomentumH1 > -50;
 
       const isBearishSetup =
         asset.zScoreH1 >= 2.0 &&
+        asset.bollingerSqueeze &&
         asset.volumeSpike &&
         asset.chandeMomentumH1 < 50;
 
@@ -142,17 +144,14 @@ export class TradingByDayEngine {
         : entryPrice + atrBuffer;
 
       const lossPercentage = Math.abs(entryPrice - stopLoss) / entryPrice;
+      if (lossPercentage === 0) continue;
 
       // Size sicura: garantisce che la perdita massima non superi maxRiskPerSlot
       const safeSizeForRisk = maxRiskPerSlot / lossPercentage;
       const allocatedSize   = Math.min(sizePerSlot, safeSizeForRisk);
 
-      // Take Profit: profitto necessario per raggiungere targetPerSlot
-      const profitPercentage = targetPerSlot / allocatedSize;
-
-      // Enforce R/R minimo (1.5)
-      const minProfitPercentage = lossPercentage * this.config.minRiskRewardRatio;
-      const effectiveProfitPct  = Math.max(profitPercentage, minProfitPercentage);
+      // Take Profit: basato sulla volatilità del mercato e R/R prestabilito
+      const effectiveProfitPct = lossPercentage * this.config.minRiskRewardRatio;
 
       const takeProfit = direction === 'BUY'
         ? entryPrice * (1 + effectiveProfitPct)

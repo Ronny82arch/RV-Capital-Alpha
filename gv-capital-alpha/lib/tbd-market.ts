@@ -74,6 +74,19 @@ function detectVolumeSpike(volumes: number[], threshold = 1.8): boolean {
   return volumes[volumes.length - 1] > avg * threshold;
 }
 
+function detectBollingerSqueeze(closes: number[], period = 20): boolean {
+  if (closes.length < period) return false;
+  const slice = closes.slice(-period);
+  const mean = slice.reduce((a, b) => a + b, 0) / period;
+  if (mean === 0) return false;
+  const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
+  const std = Math.sqrt(variance);
+  // Un "Squeeze" si verifica quando la larghezza delle bande (4 deviazioni standard)
+  // è eccezionalmente stretta (es. < 1.5% del prezzo per Crypto H1).
+  const bandwidthPct = (std * 4) / mean;
+  return bandwidthPct < 0.015;
+}
+
 // ─── BINANCE CRYPTO H1 ────────────────────────────────────────────────────────
 
 async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot | null> {
@@ -101,6 +114,7 @@ async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot
       zScoreH1:          Number(calcZScore(closes).toFixed(3)),
       chandeMomentumH1:  Number(calcCMO(closes).toFixed(2)),
       volumeSpike:       detectVolumeSpike(volumes),
+      bollingerSqueeze:  detectBollingerSqueeze(closes),
       assetType:         'CRYPTO',
     };
   } catch {
@@ -141,6 +155,7 @@ async function fetchTwelveDataH1(symbol: string): Promise<MarketDataSnapshot | n
       zScoreH1:          Number(calcZScore(closes).toFixed(3)),
       chandeMomentumH1:  Number(calcCMO(closes).toFixed(2)),
       volumeSpike:       detectVolumeSpike(volumes),
+      bollingerSqueeze:  detectBollingerSqueeze(closes),
       assetType:         'STOCK',
     };
   } catch {
@@ -160,6 +175,7 @@ function generateMockSnapshot(asset: string, assetType: 'CRYPTO' | 'STOCK'): Mar
     zScoreH1:         Number(zScore.toFixed(3)),
     chandeMomentumH1: Number(((Math.random() * 140) - 70).toFixed(2)),
     volumeSpike:      Math.random() > 0.7,
+    bollingerSqueeze: Math.random() > 0.6,
     assetType,
   };
 }

@@ -91,7 +91,7 @@ export function calculateAdvancedQuantSystem(
   let valuationScore: number;
   if (zScore > 2.25) valuationScore = 10;       // Estensione rialzista estrema (Fascia di Distribuzione)
   else if (zScore < -2.25) valuationScore = 95; // Sottoestensione ribassista (Fascia di Accumulazione)
-  else valuationScore = Math.round(100 - (zScore + 2.25) * 22.2);
+  else valuationScore = Math.round(95 - (zScore + 2.25) * (85 / 4.5));
 
   // 4. MATRICE DEI PESI DINAMICI ADATTIVA (Quadranti Macroeconomici Quantaste)
   let weightTrend = 0.40;

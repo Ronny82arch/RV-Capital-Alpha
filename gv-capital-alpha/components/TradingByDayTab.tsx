@@ -94,7 +94,7 @@ function SignalCard({ signal, onClose }: {
 
   return (
     <div style={{
-      background: "rgba(15,23,42,0.7)",
+      background: "var(--bg2)",
       border: `1px solid ${sc}40`,
       borderLeft: `3px solid ${sc}`,
       borderRadius: "14px",
@@ -102,7 +102,6 @@ function SignalCard({ signal, onClose }: {
       display: "flex",
       flexDirection: "column",
       gap: "12px",
-      backdropFilter: "blur(8px)",
       transition: "border-color 0.2s",
     }}>
       {/* Header */}
@@ -246,10 +245,9 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
 
   return (
     <div style={{
-      background: "rgba(15,23,42,0.6)",
-      border: "1px solid rgba(255,255,255,0.07)",
+      background: "var(--bg2)",
+      border: "1px solid var(--border)",
       borderRadius: "16px", padding: "20px",
-      backdropFilter: "blur(8px)",
     }}>
       <div style={{ marginBottom: "12px" }}>
         <span style={{ fontSize: "10px", fontWeight: 800, color: "#475569", letterSpacing: "0.15em", textTransform: "uppercase" }}>
@@ -618,7 +616,7 @@ export default function TradingByDayTab() {
             </div>
           ) : signals.length === 0 ? (
             <div style={{
-              background: "rgba(15,23,42,0.5)", border: "1px solid rgba(255,255,255,0.06)",
+              background: "var(--bg2)", border: "1px solid var(--border)",
               borderRadius: "14px", padding: "40px", textAlign: "center",
             }}>
               <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔍</div>
@@ -639,7 +637,7 @@ export default function TradingByDayTab() {
 
           {/* Stats giornaliere */}
           <div style={{
-            background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.07)",
+            background: "var(--bg2)", border: "1px solid var(--border)",
             borderRadius: "16px", padding: "18px", display: "flex", flexDirection: "column", gap: "12px",
           }}>
             <span style={{ fontSize: "10px", fontWeight: 800, color: "#475569", letterSpacing: "0.15em", textTransform: "uppercase" }}>

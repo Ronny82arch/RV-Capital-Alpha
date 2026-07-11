@@ -118,7 +118,7 @@ export default function DashboardTab({ portfolio, market, setTab }: Props) {
               const unrealized = openTagPos.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
               const realized = closedTagPos.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
               const totalPnL = unrealized + realized;
-              const invested = openTagPos.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0) + closedTagPos.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
+              const invested = openTagPos.reduce((acc, pos) => acc + (pos.capitalAllocated || (pos.entryPrice * pos.quantity)), 0);
               
               pnlPct = invested > 0 ? (totalPnL / invested) * 100 : 0;
               val = openTagPos.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
@@ -209,14 +209,14 @@ export default function DashboardTab({ portfolio, market, setTab }: Props) {
   let displayTotalValue = p.totalValue;
   let displayPnL = p.totalPnL;
   let displayPnLPct = p.totalPnLPercent;
-  let displayInvested = p.positions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
+  let displayInvested = p.positions.filter(pos => pos.status === 'OPEN').reduce((acc, pos) => acc + (pos.capitalAllocated || (pos.entryPrice * pos.quantity)), 0);
 
   if (selectedTag !== 'Tutti') {
     displayTotalValue = openPositions.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
     const unrealized = openPositions.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
     const realized = closedPositions.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
     displayPnL = unrealized + realized;
-    displayInvested = openPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0) + closedPositions.reduce((acc, pos) => acc + (pos.entryPrice * pos.quantity), 0);
+    displayInvested = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated || (pos.entryPrice * pos.quantity)), 0);
     displayPnLPct = displayInvested > 0 ? (displayPnL / displayInvested) * 100 : 0;
   }
 
@@ -458,6 +458,7 @@ export default function DashboardTab({ portfolio, market, setTab }: Props) {
                         <td style={{ padding: '12px 8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ fontSize: '10px', color: 'var(--text3)' }}>{isExpanded ? '▼' : '▶'}</span>
+                            <AssetIcon symbol={pos.symbol} />
                             <div>
                               <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
                               <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>

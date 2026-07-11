@@ -76,9 +76,14 @@ function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Posi
 
   const pnl = pos.unrealizedPnl ?? 0;
   const pnlPct = pos.unrealizedPnlPercent ?? 0;
+  const isShort = pos.action === 'SELL';
   const currentPrice = pos.currentPrice ?? pos.entryPrice;
-  const distToSL = ((currentPrice - pos.stopLoss) / pos.entryPrice * 100);
-  const distToTP = ((pos.takeProfit - currentPrice) / pos.entryPrice * 100);
+  const distToSL = isShort 
+    ? ((pos.stopLoss - currentPrice) / pos.entryPrice * 100) 
+    : ((currentPrice - pos.stopLoss) / pos.entryPrice * 100);
+  const distToTP = isShort
+    ? ((currentPrice - pos.takeProfit) / pos.entryPrice * 100)
+    : ((pos.takeProfit - currentPrice) / pos.entryPrice * 100);
   const slWarning = distToSL < 3;
 
   const handleClose = async () => {
@@ -131,7 +136,7 @@ function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Posi
           <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(90deg, var(--red), var(--green))', width: '100%', opacity: 0.3 }} />
           <div style={{
             position: 'absolute',
-            left: `${Math.max(2, Math.min(96, (currentPrice - pos.stopLoss) / (pos.takeProfit - pos.stopLoss) * 100))}%`,
+            left: `${Math.max(2, Math.min(96, (isShort ? pos.stopLoss - currentPrice : currentPrice - pos.stopLoss) / (isShort ? pos.stopLoss - pos.takeProfit : pos.takeProfit - pos.stopLoss) * 100))}%`,
             top: '50%', transform: 'translateY(-50%)',
             width: '8px', height: '8px', borderRadius: '50%', background: 'white',
           }} />

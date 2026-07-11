@@ -313,35 +313,43 @@ export default function QuontestTab({ portfolio }: Props) {
         </div>
 
         {/* Barra di selezione Categoria */}
-        <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--border)", paddingBottom: "20px" }}>
           <button
             onClick={() => portfolioAssets.length > 0 ? setActiveCategory("portfolio") : null}
             disabled={portfolioAssets.length === 0}
             style={{
-              padding: "6px 14px",
-              borderRadius: "8px",
-              border: "none",
-              background: activeCategory === "portfolio" ? "rgba(16,185,129,0.15)" : "transparent",
-              color: activeCategory === "portfolio" ? "#10b981" : (portfolioAssets.length === 0 ? "#334155" : "#64748b"),
-              fontSize: "11px",
+              flex: 1,
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: activeCategory === "portfolio" ? "2px solid var(--green)" : "1px solid var(--border)",
+              background: activeCategory === "portfolio" ? "rgba(16,185,129,0.1)" : "var(--bg2)",
+              color: activeCategory === "portfolio" ? "var(--green)" : (portfolioAssets.length === 0 ? "var(--text3)" : "var(--text2)"),
+              fontSize: "13px",
               fontWeight: 800,
               cursor: portfolioAssets.length === 0 ? "not-allowed" : "pointer",
               fontFamily: "var(--font-mono, monospace)",
               letterSpacing: "0.05em",
-              transition: "all 0.2s"
+              transition: "all 0.2s",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              boxShadow: activeCategory === "portfolio" ? "0 4px 12px rgba(16,185,129,0.15)" : "none",
             }}
           >
-            📂 TITOLI IN PORTAFOGLIO ({portfolioAssets.length})
+            <span style={{ fontSize: "18px" }}>📂</span>
+            TITOLI IN PORTAFOGLIO ({portfolioAssets.length})
           </button>
           <button
             onClick={() => setActiveCategory("market")}
             style={{
-              padding: "6px 14px",
-              borderRadius: "8px",
-              border: "none",
-              background: activeCategory === "market" ? "rgba(59,130,246,0.12)" : "transparent",
-              color: activeCategory === "market" ? "#3b82f6" : "#64748b",
-              fontSize: "11px",
+              flex: 1,
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: activeCategory === "market" ? "2px solid var(--blue)" : "1px solid var(--border)",
+              background: activeCategory === "market" ? "rgba(59,130,246,0.1)" : "var(--bg2)",
+              color: activeCategory === "market" ? "var(--blue)" : "var(--text2)",
+              fontSize: "13px",
               fontWeight: 800,
               cursor: "pointer",
               fontFamily: "var(--font-mono, monospace)",
@@ -432,7 +440,7 @@ export default function QuontestTab({ portfolio }: Props) {
             {/* SMART QUANT SCORE */}
             <div
               style={{
-                background: "rgba(15,23,42,0.6)",
+                background: "var(--bg2)",
                 border: `1px solid ${sc}30`,
                 borderRadius: "16px",
                 padding: "24px",
@@ -440,7 +448,6 @@ export default function QuontestTab({ portfolio }: Props) {
                 flexDirection: "column",
                 alignItems: "center",
                 gap: "16px",
-                backdropFilter: "blur(8px)",
               }}
             >
               <span
@@ -523,14 +530,13 @@ export default function QuontestTab({ portfolio }: Props) {
             {/* ANALISI MULTITIMEFRAME + STAGIONALITÀ */}
             <div
               style={{
-                background: "rgba(15,23,42,0.6)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: "var(--bg2)",
+                border: "1px solid var(--border)",
                 borderRadius: "16px",
                 padding: "24px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "18px",
-                backdropFilter: "blur(8px)",
               }}
             >
               <div>
@@ -636,14 +642,13 @@ export default function QuontestTab({ portfolio }: Props) {
             {/* MATRICE SOTTO-PUNTEGGI */}
             <div
               style={{
-                background: "rgba(15,23,42,0.6)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: "var(--bg2)",
+                border: "1px solid var(--border)",
                 borderRadius: "16px",
                 padding: "24px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "16px",
-                backdropFilter: "blur(8px)",
               }}
             >
               <span
@@ -702,11 +707,10 @@ export default function QuontestTab({ portfolio }: Props) {
           {/* ── ROW 2: CANALI OPERATIVI ─────────────────────────────────────── */}
           <div
             style={{
-              background: "rgba(15,23,42,0.6)",
-              border: "1px solid rgba(255,255,255,0.07)",
+              background: "var(--bg2)",
+              border: "1px solid var(--border)",
               borderRadius: "16px",
               padding: "24px",
-              backdropFilter: "blur(8px)",
             }}
           >
             <div
@@ -884,11 +888,10 @@ export default function QuontestTab({ portfolio }: Props) {
           {/* ── ROW 3: SCALING PLAN ─────────────────────────────────────────── */}
           <div
             style={{
-              background: "rgba(15,23,42,0.6)",
-              border: "1px solid rgba(255,255,255,0.07)",
+              background: "var(--bg2)",
+              border: "1px solid var(--border)",
               borderRadius: "16px",
               padding: "24px",
-              backdropFilter: "blur(8px)",
             }}
           >
             <div style={{ marginBottom: "16px" }}>

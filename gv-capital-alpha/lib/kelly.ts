@@ -6,7 +6,7 @@ export interface KellyResult {
   recommendedFraction: number; // capped, safe version
 }
 
-export function calculateKelly(winProbability: number, rewardRiskRatio: number): KellyResult {
+export function calculateKelly(winProbability: number, rewardRiskRatio: number, volatility: number = 0): KellyResult {
   const p = Math.max(0.01, Math.min(0.99, winProbability));
   const b = Math.max(0.1, rewardRiskRatio);
   const q = 1 - p;
@@ -16,8 +16,18 @@ export function calculateKelly(winProbability: number, rewardRiskRatio: number):
   const halfKelly = kellyFraction / 2;
   const expectedValue = b * p - q;
 
-  // Safety cap: max 20% of available capital per trade, use half-Kelly
-  const recommendedFraction = Math.max(0, Math.min(0.20, halfKelly));
+  // Volatility Penalty: reduce fraction if volatility is exceptionally high (e.g., > 5%)
+  let volatilityPenalty = 1;
+  if (volatility > 0.05) {
+    volatilityPenalty = 0.5; // Cut allocation in half during extreme volatility
+  } else if (volatility > 0.03) {
+    volatilityPenalty = 0.75;
+  }
+
+  const fractionWithPenalty = halfKelly * volatilityPenalty;
+
+  // Safety cap: max 20% of available capital per trade, use penalized half-Kelly
+  const recommendedFraction = Math.max(0, Math.min(0.20, fractionWithPenalty));
 
   return {
     kellyFraction: Math.max(0, kellyFraction),
@@ -61,6 +71,7 @@ export function calculateVolatility(prices: number[], period = 20): number {
   if (prices.length < period) return 0;
   const slice = prices.slice(-period);
   const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+  if (mean === 0) return 0;
   const variance = slice.reduce((sum, p) => sum + Math.pow(p - mean, 2), 0) / slice.length;
   return Math.sqrt(variance) / mean; // coefficient of variation
 }
@@ -124,9 +135,10 @@ export function calculatePositionSize(
   stopLossPrice: number
 ): { capitalToAllocate: number; quantity: number; riskAmount: number } {
   const capitalToAllocate = Math.floor(capitalAvailable * kellyFraction / 10) * 10; // round to €10
+  if (price === 0) return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
   const quantity = Math.floor(capitalToAllocate / price);
   const actualCapital = quantity * price;
-  const riskAmount = quantity * (price - stopLossPrice);
+  const riskAmount = quantity * Math.abs(price - stopLossPrice);
 
   return {
     capitalToAllocate: Math.max(100, actualCapital),

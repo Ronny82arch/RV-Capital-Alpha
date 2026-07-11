@@ -47,9 +47,10 @@ export function analyzeAsset(market: MarketData): AnalyzedAsset | null {
     rsi, momentum, priceVsSMA20, priceVsSMA50, volatility
   );
 
-  // Stop loss / take profit based on volatility
-  const slPct = Math.max(0.04, Math.min(0.08, volatility * 2)); // 4-8%
-  const tpPct = slPct * 2.5; // reward:risk = 2.5:1
+  // Chandelier Exit based on Volatility (Standard Deviation Proxy for ATR)
+  // Stop Loss at 2.5 standard deviations (captures ~98% of normal variance)
+  const slPct = Math.max(0.02, Math.min(0.15, volatility * 2.5)); 
+  const tpPct = slPct * 2.0; // reward:risk = 2.0:1
 
   const stopLoss = parseFloat((price * (1 - slPct)).toFixed(2));
   const takeProfit = parseFloat((price * (1 + tpPct)).toFixed(2));
@@ -87,9 +88,16 @@ export function findBestCandidate(
   // Don't re-open existing positions
   const available = analyses.filter(a => !openSymbols.has(a.market.symbol));
 
-  // Filter: only bullish with win probability > 55%
+  // Macro Regime Filter (Risk-On / Risk-Off)
+  const bullishCount = analyses.filter(a => a.trend === 'BULLISH').length;
+  const isRiskOn = (bullishCount / Math.max(1, analyses.length)) >= 0.5;
+
+  // Filter: only bullish with dynamic thresholds based on macro regime
+  const minProbability = isRiskOn ? 0.55 : 0.65; // Require 65% win probability in Risk-Off
+  const minScore = isRiskOn ? 10 : 25;
+
   const candidates = available.filter(
-    a => a.trend === 'BULLISH' && a.winProbability > 0.55 && a.technicalScore > 10
+    a => a.trend === 'BULLISH' && a.winProbability > minProbability && a.technicalScore > minScore
   );
 
   if (candidates.length === 0) return null;
@@ -119,8 +127,8 @@ export async function generateSignalWithAI(
     portfolio.startDate
   );
 
-  const { winProbability, rewardRiskRatio } = candidate;
-  const kelly = calculateKelly(winProbability, rewardRiskRatio);
+  const { winProbability, rewardRiskRatio, volatility } = candidate;
+  const kelly = calculateKelly(winProbability, rewardRiskRatio, volatility);
 
   // Adjust Kelly based on aggression
   let adjustedFraction = kelly.recommendedFraction;
