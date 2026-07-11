@@ -16,63 +16,78 @@ interface Props {
   label: string;
 }
 
-type FilterType = '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
+type FilterType = '1H' | '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
 
-// Generate a random walk ending at currentValue
-function generateMockHistory(currentValue: number, days: number) {
-  const data = [];
-  let val = currentValue * 0.7; // Start 30% lower 1 year ago (assuming some growth)
-  const now = new Date();
+// Deterministic mock function so the curve is identical at any zoom level
+function getDeterministicValue(currentValue: number, timeMs: number, nowMs: number) {
+  const diffDays = (nowMs - timeMs) / (1000 * 60 * 60 * 24);
+  // Base trend over 2 years
+  const trend = currentValue * 0.6 + (currentValue * 0.4 * (730 - diffDays) / 730);
   
-  // To make it look realistic, we'll use a sine wave + random noise + upward trend
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    
-    // As we get closer to day 0 (today), value approaches currentValue
-    const progress = (days - i) / days;
-    const trend = currentValue * 0.7 + (currentValue * 0.3 * progress);
-    const noise = (Math.random() - 0.5) * (currentValue * 0.05);
-    const sine = Math.sin(progress * Math.PI * 4) * (currentValue * 0.02);
-    
-    const dayVal = i === 0 ? currentValue : trend + noise + sine;
-    
-    data.push({
-      date: d.toISOString().split('T')[0],
-      timestamp: d.getTime(),
-      value: dayVal,
-      displayDate: d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })
-    });
-  }
-  return data;
+  // Multiple sine waves for fractal-like noise at different time scales
+  const sineYear = Math.sin(diffDays * 0.05) * (currentValue * 0.08); // Yearly macro cycle
+  const sineMonth = Math.cos(diffDays * 0.5) * (currentValue * 0.03); // Monthly cycle
+  const sineWeek = Math.sin(diffDays * 2) * (currentValue * 0.01); // Weekly volatility
+  const sineDay = Math.cos(diffDays * 15) * (currentValue * 0.003); // Daily volatility
+  const sineHour = Math.sin(diffDays * 100) * (currentValue * 0.001); // Hourly volatility
+
+  return trend + sineYear + sineMonth + sineWeek + sineDay + sineHour;
 }
 
 export default function ProfessionalChart({ currentValue, label }: Props) {
   const [filter, setFilter] = useState<FilterType>('1M');
   
-  // Memoize history so it doesn't regenerate on every re-render unless currentValue changes significantly
-  const fullHistory = useMemo(() => generateMockHistory(currentValue, 365), [Math.round(currentValue / 1000)]);
-
   const filteredData = useMemo(() => {
-    const now = new Date().getTime();
-    const msPerDay = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const nowMs = now.getTime();
+    const msPerHour = 60 * 60 * 1000;
+    const msPerDay = 24 * msPerHour;
+    
     let cutoff = 0;
+    let format = 'date'; // 'time' or 'date' or 'datetime'
     
     switch (filter) {
-      case '1W': cutoff = now - 7 * msPerDay; break;
-      case '1M': cutoff = now - 30 * msPerDay; break;
-      case '3M': cutoff = now - 90 * msPerDay; break;
-      case '6M': cutoff = now - 180 * msPerDay; break;
+      case '1H': cutoff = nowMs - msPerHour; format = 'time'; break;
+      case '1D': cutoff = nowMs - msPerDay; format = 'time'; break;
+      case '1W': cutoff = nowMs - 7 * msPerDay; format = 'datetime'; break;
+      case '1M': cutoff = nowMs - 30 * msPerDay; format = 'date'; break;
+      case '3M': cutoff = nowMs - 90 * msPerDay; format = 'date'; break;
+      case '6M': cutoff = nowMs - 180 * msPerDay; format = 'date'; break;
       case 'YTD': 
-        const startOfYear = new Date(new Date().getFullYear(), 0, 1).getTime();
-        cutoff = startOfYear;
+        cutoff = new Date(now.getFullYear(), 0, 1).getTime(); 
+        format = 'date'; 
         break;
-      case '1Y': cutoff = now - 365 * msPerDay; break;
-      case 'ALL': cutoff = 0; break;
+      case '1Y': cutoff = nowMs - 365 * msPerDay; format = 'date'; break;
+      case 'ALL': cutoff = nowMs - 730 * msPerDay; format = 'date'; break;
     }
     
-    return fullHistory.filter(d => d.timestamp >= cutoff);
-  }, [fullHistory, filter]);
+    const data = [];
+    const points = 100; // Generate exactly 100 points for a smooth line at any zoom
+    const step = (nowMs - cutoff) / (points - 1);
+    
+    for (let i = 0; i < points; i++) {
+      const timeMs = cutoff + (step * i);
+      const isLast = i === points - 1;
+      const val = isLast ? currentValue : getDeterministicValue(currentValue, timeMs, nowMs);
+      
+      const d = new Date(timeMs);
+      let displayDate = '';
+      if (format === 'time') {
+        displayDate = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      } else if (format === 'datetime') {
+        displayDate = `${d.toLocaleDateString('it-IT', { weekday: 'short' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+      } else {
+        displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
+      }
+
+      data.push({
+        timestamp: timeMs,
+        value: val,
+        displayDate
+      });
+    }
+    return data;
+  }, [currentValue, filter]);
 
   const minVal = Math.min(...filteredData.map(d => d.value));
   const maxVal = Math.max(...filteredData.map(d => d.value));
@@ -80,19 +95,32 @@ export default function ProfessionalChart({ currentValue, label }: Props) {
 
   const startValue = filteredData[0]?.value || 0;
   const endValue = filteredData[filteredData.length - 1]?.value || 0;
-  const isPositive = endValue >= startValue;
-  const color = isPositive ? '#00d4aa' : '#ef4444'; // var(--green) or var(--red)
+  const pnl = endValue - startValue;
+  const pnlPct = startValue > 0 ? (pnl / startValue) * 100 : 0;
+  const isPositive = pnl >= 0;
+  const color = isPositive ? '#00d4aa' : '#ef4444';
 
   return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginTop: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <div style={{ fontSize: '12px', color: 'var(--text3)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>
-            ANDAMENTO PORTAFOGLIO: {label.toUpperCase()}
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginTop: '24px', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        
+        {/* TOP LEFT: PnL Info */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>
+            PORTAFOGLIO: {label.toUpperCase()}
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
+            €{endValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color }}>
+            {isPositive ? '+' : ''}€{pnl.toFixed(0)} ({isPositive ? '+' : ''}{pnlPct.toFixed(2)}%)
+            <span style={{ color: 'var(--text3)', fontWeight: 'normal', marginLeft: '6px' }}>{filter}</span>
           </div>
         </div>
+
+        {/* TOP RIGHT: Filters */}
         <div style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '4px', borderRadius: '8px' }}>
-          {(['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as FilterType[]).map(f => (
+          {(['1H', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as FilterType[]).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -135,7 +163,7 @@ export default function ProfessionalChart({ currentValue, label }: Props) {
             />
             <YAxis 
               domain={[minVal - padding, maxVal + padding]} 
-              hide={true} // We hide the Y axis for a cleaner look, value is in tooltip
+              hide={true}
             />
             <Tooltip 
               contentStyle={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', fontFamily: 'var(--font-mono)' }}
