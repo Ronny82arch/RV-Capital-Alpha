@@ -1,12 +1,17 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'RV Capital Alpha',
   description: 'Autonomous Portfolio Engine — Target +25% annuo',
   manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
   themeColor: '#070b14',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
