@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget, getAggression } from '@/lib/kelly';
-import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase } from 'lucide-react';
+import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon } from 'lucide-react';
 
 interface Props { portfolio: PortfolioState | null; market: MarketData[]; }
 
@@ -22,6 +22,15 @@ function getTagIcon(tag: string) {
 export default function DashboardTab({ portfolio, market }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
+  const [isObscured, setIsObscured] = useState(false);
+  const [isLight, setIsLight] = useState(false);
+
+  const toggleTheme = () => {
+    const newLight = !isLight;
+    setIsLight(newLight);
+    if (newLight) document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+  };
 
   if (!portfolio) return <div />;
 
@@ -39,7 +48,29 @@ export default function DashboardTab({ portfolio, market }: Props) {
 
   if (selectedTag === null) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '20px', position: 'relative' }}>
+        {/* ACTION BUTTONS (TOP RIGHT) */}
+        <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '12px' }}>
+          <button 
+            onClick={() => setIsObscured(!isObscured)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s' }}
+            onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+            title="Nascondi importi"
+          >
+            {isObscured ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+          <button 
+            onClick={toggleTheme}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s' }}
+            onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--yellow)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+            title="Cambia tema"
+          >
+            {isLight ? <Moon size={20} /> : <Sun size={20} />}
+          </button>
+        </div>
+
         <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '32px', textAlign: 'center' }}>
           Seleziona il Portafoglio
         </div>
@@ -102,10 +133,12 @@ export default function DashboardTab({ portfolio, market }: Props) {
             PATRIMONIO COMPLESSIVO
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
-            €{p.totalValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+            {isObscured ? '€ *****' : `€${p.totalValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: p.totalPnL >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            {p.totalPnL >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{p.totalPnL.toFixed(0)} ({p.totalPnLPercent >= 0 ? '+' : ''}{p.totalPnLPercent.toFixed(2)}%)
+          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: isObscured ? 'var(--text3)' : (p.totalPnL >= 0 ? 'var(--green)' : 'var(--red)') }}>
+            {isObscured ? '*****' : (
+              <>{p.totalPnL >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{p.totalPnL.toFixed(0)} ({p.totalPnLPercent >= 0 ? '+' : ''}{p.totalPnLPercent.toFixed(2)}%)</>
+            )}
           </div>
         </div>
       </div>
