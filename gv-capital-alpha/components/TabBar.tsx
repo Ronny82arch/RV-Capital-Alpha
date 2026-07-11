@@ -30,12 +30,12 @@ export default function TabBar({ tab, setTab, portfolio }: Props) {
   const openCount = portfolio?.positions.filter(p => p.status === 'OPEN').length ?? 0;
 
   const tabs: { id: Tab; label: string; icon: string; badge?: number }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: '◈' },
-    { id: 'signals', label: 'Segnali', icon: '⚡', badge: pendingCount },
+    { id: 'dashboard', label: 'Dashboard', icon: '🧭' },
+    { id: 'signals', label: 'Segnali', icon: '🎯', badge: pendingCount },
     { id: 'trading', label: 'Trading', icon: '⚡', badge: tbdCount },
-    { id: 'positions', label: 'Posizioni', icon: '📊', badge: openCount },
-    { id: 'market', label: 'Mercato', icon: '◉' },
-    { id: 'quontest', label: 'Quontest', icon: '⟨ψ⟩' },
+    { id: 'positions', label: 'Posizioni', icon: '💼', badge: openCount },
+    { id: 'market', label: 'Mercato', icon: '📈' },
+    { id: 'quontest', label: 'Quontest', icon: '🔬' },
   ];
 
   return (
