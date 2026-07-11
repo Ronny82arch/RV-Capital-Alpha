@@ -62,3 +62,80 @@ button { cursor: pointer; font-family: var(--font-sans); }
 .animate-fade { animation: fadeIn 0.4s ease; }
 .animate-pulse { animation: pulse 2s infinite; }
 .font-mono { font-family: var(--font-mono); }
+
+/* ─── STILI RESPONSIVE PER CELLULARE ────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  /* Spaziature principali ridotte su mobile */
+  main {
+    padding: 12px !important;
+    padding-bottom: 80px !important; /* spazio extra per la barra inferiore su mobile */
+  }
+
+  /* Ottimizzazione Header */
+  header {
+    padding: 10px 12px !important;
+  }
+  header > div:first-child > div > div:last-child {
+    font-size: 8px !important; /* rimpicciolisce capitale e engine su mobile */
+  }
+  header > div:last-child {
+    gap: 6px !important;
+  }
+  header > div:last-child > div:first-child {
+    display: none !important; /* nasconde il P&L YTD testuale per non affollare la barra superiore */
+  }
+
+  /* Ottimizzazione TabBar inferiore */
+  nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    background: var(--bg2) !important;
+    border-top: 1px solid var(--border) !important;
+    border-bottom: none !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4) !important;
+  }
+  nav button {
+    padding: 10px 4px !important;
+    font-size: 9px !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+  nav button span:first-child {
+    font-size: 14px !important;
+  }
+
+  /* Griglie responsive */
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .canali-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Tabelle scorrevoli su mobile */
+  table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Cards del portafoglio nella home */
+  div[style*="grid-template-columns"] {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  /* Layout KPI e statistiche a griglia singola */
+  div[style*="grid-template-columns: repeat(auto-fit"] {
+    grid-template-columns: 1fr !important;
+  }
+}
