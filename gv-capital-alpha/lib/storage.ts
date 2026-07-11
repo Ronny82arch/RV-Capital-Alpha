@@ -41,19 +41,39 @@ async function kvSet(key: string, value: string): Promise<void> {
 
 // ─── DEFAULT PORTFOLIO ────────────────────────────────────────────────────────
 function defaultPortfolio(): PortfolioState {
+  // Se non c'è eToro o database collegato, mostriamo un portafoglio fittizio per far provare l'app
   return {
     capitalBase: CAPITAL_BASE,
-    capitalAvailable: CAPITAL_BASE,
-    positions: [],
+    capitalAvailable: 15000,
+    positions: [
+      {
+        id: 'dummy_1', signalId: 'dummy', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY',
+        entryPrice: 60000, quantity: 0.1, capitalAllocated: 6000, stopLoss: 55000, takeProfit: 80000,
+        entryDate: new Date().toISOString(), status: 'OPEN', currentPrice: 65000, unrealizedPnl: 500, unrealizedPnlPercent: 8.33, tags: ['Cripto', 'Core']
+      },
+      {
+        id: 'dummy_2', signalId: 'dummy', symbol: 'AAPL', name: 'Apple', type: 'STOCK', action: 'BUY',
+        entryPrice: 150, quantity: 20, capitalAllocated: 3000, stopLoss: 140, takeProfit: 200,
+        entryDate: new Date().toISOString(), status: 'OPEN', currentPrice: 145, unrealizedPnl: -100, unrealizedPnlPercent: -3.33, tags: ['Azioni', 'Satellite']
+      },
+      {
+        id: 'dummy_3', signalId: 'dummy', symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', action: 'BUY',
+        entryPrice: 500, quantity: 12, capitalAllocated: 6000, stopLoss: 480, takeProfit: 600,
+        entryDate: new Date().toISOString(), status: 'OPEN', currentPrice: 510, unrealizedPnl: 120, unrealizedPnlPercent: 2.4, tags: ['Fondo', 'PAC']
+      }
+    ],
     signals: [],
-    totalValue: CAPITAL_BASE,
-    totalPnL: 0,
-    totalPnLPercent: 0,
+    totalValue: 30520,
+    totalPnL: 520,
+    totalPnLPercent: 1.73,
     targetAnnualReturn: TARGET_RETURN,
     startDate: new Date().toISOString().split('T')[0],
-    performanceHistory: [{ date: new Date().toISOString().split('T')[0], totalValue: CAPITAL_BASE, pnlPercent: 0 }],
-    alerts: [],
-    aiManagedTags: [],
+    performanceHistory: [
+      { date: new Date(Date.now() - 86400000).toISOString().split('T')[0], totalValue: CAPITAL_BASE, pnlPercent: 0 },
+      { date: new Date().toISOString().split('T')[0], totalValue: 30520, pnlPercent: 1.73 }
+    ],
+    alerts: [{ id: '1', title: 'Benvenuto', message: 'Questo è un portafoglio di simulazione. Collega eToro aggiungendo ETORO_API_KEY su Vercel.', date: new Date().toISOString(), type: 'INFO', read: false }],
+    aiManagedTags: ['Core', 'Satellite'],
     updatedAt: new Date().toISOString(),
   };
 }
