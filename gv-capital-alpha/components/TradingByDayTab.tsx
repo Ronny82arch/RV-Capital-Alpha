@@ -646,19 +646,25 @@ export default function TradingByDayTab() {
               Statistiche Oggi
             </span>
             {[
-              { label: "Trade Totali",   val: String(data?.today?.totalTrades ?? 0) },
-              { label: "Trade Vincenti", val: String(data?.today?.winningTrades ?? 0) },
+              { label: "Trade Totali",   val: String(data?.today?.totalTrades ?? 0), color: "#e2e8f0" },
+              { label: "Trade Vincenti", val: String(data?.today?.winningTrades ?? 0), color: "#e2e8f0" },
               {
                 label: "Win Rate",
                 val: data?.today?.totalTrades
                   ? `${Math.round((data.today.winningTrades / data.today.totalTrades) * 100)}%`
                   : "—",
+                color: "#e2e8f0"
               },
-              { label: "Capitale",       val: `${totalCapital.toLocaleString()}€` },
+              { label: "Capitale",       val: `${totalCapital.toLocaleString()}€`, color: "#e2e8f0" },
+              {
+                label: "Guadagno/Perdita",
+                val: `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
+                color: pnlColor(pnl)
+              },
             ].map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                 <span style={{ color: "#64748b" }}>{item.label}</span>
-                <span style={{ color: "#e2e8f0", fontWeight: 700, fontFamily: "var(--font-mono, monospace)" }}>{item.val}</span>
+                <span style={{ color: item.color, fontWeight: 700, fontFamily: "var(--font-mono, monospace)" }}>{item.val}</span>
               </div>
             ))}
           </div>
