@@ -213,8 +213,9 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     displayPnLPct = displayInvested > 0 ? (displayPnL / displayInvested) * 100 : 0;
   }
 
-  const progressPct = Math.min(100, (p.totalPnL / targetEur) * 100);
-  const ahead = isAheadOfTarget(p.totalPnLPercent, target, p.startDate);
+  const currentPnLForProgress = selectedTag === 'Tutti' ? p.totalPnL : displayPnL;
+  const progressPct = Math.max(0, Math.min(100, (currentPnLForProgress / Math.max(1, targetEur)) * 100));
+  const ahead = isAheadOfTarget(selectedTag === 'Tutti' ? p.totalPnLPercent : displayPnLPct, target, p.startDate);
   const getAggressionStr = (pnlPercent: number, targetPercent: number, startDate: string) => {
     const daysPassed = Math.max(1, (Date.now() - new Date(startDate).getTime()) / 86400000);
     const expected = (targetPercent / 365) * daysPassed;
@@ -348,7 +349,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
       {/* PROGRESS BAR */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>PROGRESSO OBIETTIVO +25%</span>
+          <span style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>PROGRESSO OBIETTIVO +{target}%</span>
           <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: ahead ? 'var(--green)' : 'var(--yellow)', fontWeight: '700' }}>
             {progressPct.toFixed(1)}%
           </span>
