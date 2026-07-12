@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { TbdSignal, TradingDayLog, TbdSignalStatus } from "@/lib/trading-by-day";
 
 // ─── TIPI LOCALI ──────────────────────────────────────────────────────────────
@@ -224,6 +224,140 @@ function SignalCard({ signal, onClose }: {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── GRAFICO DI ANDAMENTO TBD ──────────────────────────────────────────────────
+
+function TbdPerformanceChart({ history }: { history: TradingDayLog[] }) {
+  const chartPoints = useMemo(() => {
+    if (history.length === 0) return [];
+    const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+    
+    let currentCash = sorted[0]?.startingCash ?? 5000;
+    const points = [{ date: 'Inizio', cash: currentCash }];
+    
+    sorted.forEach(log => {
+      currentCash += log.realizedPnL;
+      points.push({
+        date: log.date.split('-').slice(1).reverse().join('/'), // DD/MM
+        cash: currentCash
+      });
+    });
+    return points;
+  }, [history]);
+
+  if (chartPoints.length < 2) {
+    return (
+      <div style={{
+        background: "var(--bg2)", border: "1px solid var(--border)",
+        borderRadius: "16px", padding: "24px 18px", textAlign: "center", color: "#64748b", fontSize: "11px",
+        fontFamily: "var(--font-mono)"
+      }}>
+        📈 Grafico performance disponibile dopo il primo trade.
+      </div>
+    );
+  }
+
+  const cashes = chartPoints.map(p => p.cash);
+  const minCash = Math.min(...cashes);
+  const maxCash = Math.max(...cashes);
+  const cashDiff = maxCash - minCash;
+  const range = cashDiff === 0 ? 100 : cashDiff;
+  
+  const padding = range * 0.1;
+  const yMin = minCash - padding;
+  const yMax = maxCash + padding;
+  const yRange = yMax - yMin;
+
+  const width = 500;
+  const height = 150;
+  const paddingX = 15;
+  const paddingY = 15;
+
+  const pointsSvg = chartPoints.map((p, idx) => {
+    const x = paddingX + (idx / (chartPoints.length - 1)) * (width - 2 * paddingX);
+    const y = height - paddingY - ((p.cash - yMin) / yRange) * (height - 2 * paddingY);
+    return { x, y, ...p };
+  });
+
+  const linePath = pointsSvg.reduce((acc, p, idx) => {
+    return idx === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
+  }, "");
+
+  const areaPath = pointsSvg.length > 0 
+    ? `${linePath} L ${pointsSvg[pointsSvg.length - 1].x} ${height - paddingY} L ${pointsSvg[0].x} ${height - paddingY} Z`
+    : "";
+
+  const totalReturn = chartPoints[chartPoints.length - 1].cash - chartPoints[0].cash;
+  const totalReturnPct = (totalReturn / chartPoints[0].cash) * 100;
+  const isUp = totalReturn >= 0;
+
+  return (
+    <div style={{
+      background: "var(--bg2)",
+      border: "1px solid var(--border)",
+      borderRadius: "16px", padding: "18px",
+      display: "flex", flexDirection: "column", gap: "12px",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: "10px", fontWeight: 800, color: "#475569", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+          Andamento Portfolio TBD
+        </span>
+        <span style={{ fontSize: "12px", fontWeight: 700, fontFamily: "var(--font-mono)", color: isUp ? "var(--green)" : "var(--red)" }}>
+          {isUp ? "+" : ""}{totalReturn.toFixed(2)}€ ({isUp ? "+" : ""}{totalReturnPct.toFixed(1)}%)
+        </span>
+      </div>
+
+      <div style={{ position: "relative", width: "100%", height: `${height}px` }}>
+        <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "100%", overflow: "visible" }}>
+          <defs>
+            <linearGradient id="tbdChartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={isUp ? "#10b981" : "#ef4444"} stopOpacity="0.2" />
+              <stop offset="100%" stopColor={isUp ? "#10b981" : "#ef4444"} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines */}
+          <line x1={paddingX} y1={paddingY} x2={width - paddingX} y2={paddingY} stroke="rgba(255,255,255,0.04)" strokeDasharray="3,3" />
+          <line x1={paddingX} y1={height / 2} x2={width - paddingX} y2={height / 2} stroke="rgba(255,255,255,0.04)" strokeDasharray="3,3" />
+          <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="rgba(255,255,255,0.04)" strokeDasharray="3,3" />
+
+          {/* Fill Area */}
+          {areaPath && <path d={areaPath} fill="url(#tbdChartGrad)" />}
+
+          {/* Line */}
+          {linePath && (
+            <path
+              d={linePath}
+              fill="none"
+              stroke={isUp ? "#10b981" : "#ef4444"}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* End Dot */}
+          {pointsSvg.length > 0 && (
+            <circle
+              cx={pointsSvg[pointsSvg.length - 1].x}
+              cy={pointsSvg[pointsSvg.length - 1].y}
+              r="4"
+              fill={isUp ? "#10b981" : "#ef4444"}
+              stroke="var(--bg2)"
+              strokeWidth="1.5"
+            />
+          )}
+        </svg>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#64748b", fontFamily: "var(--font-mono)" }}>
+        <span>{chartPoints[0].date}</span>
+        <span>Cash: {chartPoints[chartPoints.length - 1].cash.toFixed(0)}€</span>
+        <span>{chartPoints[chartPoints.length - 1].date}</span>
+      </div>
     </div>
   );
 }
@@ -630,6 +764,9 @@ export default function TradingByDayTab({ tbdData, onRefresh }: Props) {
 
         {/* Colonna destra: Stats + Calendario */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+          {/* Grafico Andamento TBD */}
+          <TbdPerformanceChart history={history} />
 
           {/* Stats giornaliere */}
           <div style={{
