@@ -7,7 +7,7 @@
  * Bayesian shrinkage: con pochi dati, la stima rimane vicina al prior neutro 50%.
  */
 
-import { calculateRSI, calculateSMA, calculateMomentum, calculateVolatility } from './kelly';
+import { calculateRSI, calculateSMA, calculateMomentum, calculateVolatility, calculateATR } from './kelly';
 
 // ─── BUCKET DEFINITIONS ───────────────────────────────────────────────────────
 export type RsiBucket     = 'oversold' | 'low' | 'mid' | 'high' | 'overbought';
@@ -95,8 +95,10 @@ export function calibrateSetupsForSymbol(
       bucketTrend(price - sma20, price - sma50)
     );
 
-    // Stessa regola di ai.ts::analyzeAsset()
-    const slPct = Math.max(0.04, Math.min(0.08, volatility * 2));
+    // Stessa regola di ai.ts::analyzeAsset() (ATR based)
+    const atr = calculateATR(w, 14);
+    const atrPct = atr / price;
+    const slPct = atrPct > 0 ? atrPct * 2.0 : 0.05;
     const tpPct = slPct * 2.0;
     const stopPrice   = price * (1 - slPct);
     const targetPrice = price * (1 + tpPct);
