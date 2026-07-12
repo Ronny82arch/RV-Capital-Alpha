@@ -29,11 +29,11 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
       zIndex: 100
     }}>
       {/* ── LOGO CENTRATO (CAPITAL α ALPHA) ─────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', paddingBottom: '16px' }}>
         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#475569', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>CAPITAL</span>
-        {/* SVG Alpha symbol */}
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 8px rgba(132,204,22,0.4))' }}>
-          <path d="M21 5C18 7 15.5 10 12 11.5C8.5 13 4 11 4 7.5C4 4 8.5 2 12 4C15.5 6 18 9 21 11" stroke="#84cc16" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        {/* SVG Alpha symbol (ingrandito per abbinarsi all'immagine di riferimento) */}
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 8px rgba(132,204,22,0.45))' }}>
+          <path d="M20 5C17.3 7.7 14.7 10.3 12 11.5C9.3 12.7 6 12 6 8.5C6 5 9.3 4.3 12 5.5C14.7 6.7 17.3 9.3 20 12" stroke="#84cc16" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#ffffff', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>ALPHA</span>
       </div>
