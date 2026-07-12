@@ -5,7 +5,7 @@ import { PortfolioState } from "@/types";
 
 // ─── TIPI ─────────────────────────────────────────────────────────────────────
 
-type MarketRegime = "GOLDILOCKS" | "REFLATION" | "STAGFLATION" | "DEFLATION";
+type MarketRegime = "AUTO" | "GOLDILOCKS" | "REFLATION" | "STAGFLATION" | "DEFLATION";
 
 interface Props {
   portfolio: PortfolioState | null;
@@ -17,8 +17,11 @@ interface QuantData {
   zScoreRaw: number;
   regime: string;
   sentiment: string;
+  detectedRegime?: string;
+  growthUp?: boolean;
+  inflationUp?: boolean;
   breakdown: {
-    macro: number;
+    macro?: number;
     trend: number;
     momentum: number;
     valuation: number;
@@ -45,6 +48,7 @@ const ASSETS = [
 ];
 
 const REGIMES: { id: MarketRegime; label: string; color: string }[] = [
+  { id: "AUTO", label: "Auto (Rilevamento)", color: "#10b981" },
   { id: "GOLDILOCKS", label: "Goldilocks", color: "#3b82f6" },
   { id: "REFLATION", label: "Reflation", color: "#f59e0b" },
   { id: "STAGFLATION", label: "Stagflation", color: "#ef4444" },
@@ -176,7 +180,7 @@ export default function QuontestTab({ portfolio }: Props) {
     }
   }, [currentAssets, ticker]);
 
-  const [regime, setRegime] = useState<MarketRegime>("REFLATION");
+  const [regime, setRegime] = useState<MarketRegime>("AUTO");
   const [data, setData] = useState<QuantData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<"live" | "mock">("live");
@@ -411,6 +415,29 @@ export default function QuontestTab({ portfolio }: Props) {
             </button>
           ))}
         </div>
+        
+        {/* Dettagli Rilevamento Automatico Regime */}
+        {data && (data.growthUp !== undefined || data.inflationUp !== undefined) && (
+          <div className="animate-fade" style={{
+            background: "rgba(16,185,129,0.04)",
+            border: "1px solid rgba(16,185,129,0.12)",
+            borderRadius: "12px",
+            padding: "14px 18px",
+            fontSize: "11px",
+            lineHeight: "1.6",
+            fontFamily: "var(--font-mono, monospace)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#10b981", fontWeight: "bold", marginBottom: "6px" }}>
+              <span className="pulse" style={{ display: "inline-block", width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />
+              <span>RILEVAMENTO MACRO REALE COMPLETATO:</span>
+              <span style={{ color: "#e2e8f0", textTransform: "uppercase", background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: "6px" }}>{data.detectedRegime}</span>
+            </div>
+            <div style={{ color: "#94a3b8", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+              <div>• Crescita (S&P 500): <span style={{ color: data.growthUp ? "#10b981" : "#ef4444", fontWeight: 800 }}>{data.growthUp ? "ESPANSIONE" : "CONTRAZIONE"}</span><br /><span style={{ color: "#64748b", fontSize: "10px" }}>Indice SPY {data.growthUp ? "sopra" : "sotto"} la media mobile a 200gg</span></div>
+              <div>• Inflazione (Gold futures): <span style={{ color: data.inflationUp ? "#10b981" : "#ef4444", fontWeight: 800 }}>{data.inflationUp ? "ALTA" : "BASSA"}</span><br /><span style={{ color: "#64748b", fontSize: "10px" }}>Oro {data.inflationUp ? "sopra" : "sotto"} la media mobile a 200gg</span></div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── LOADING ─────────────────────────────────────────────────────────── */}

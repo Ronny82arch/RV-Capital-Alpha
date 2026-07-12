@@ -15,7 +15,7 @@ interface HistoricalData {
   volume: number[];
 }
 
-export type MarketRegime = 'GOLDILOCKS' | 'REFLATION' | 'STAGFLATION' | 'DEFLATION';
+export type MarketRegime = 'AUTO' | 'GOLDILOCKS' | 'REFLATION' | 'STAGFLATION' | 'DEFLATION';
 
 // ─── EMA CORRETTA ─────────────────────────────────────────────────────────────
 function calculateEMA(prices: number[], period: number): number {
@@ -113,10 +113,53 @@ export function calculateAdvancedQuantSystem(history: HistoricalData, regime: Ma
 }
 
 // ─── REGIME ATTIVO (da env, non hardcodato) ───────────────────────────────────
-const VALID_REGIMES: MarketRegime[] = ['GOLDILOCKS', 'REFLATION', 'STAGFLATION', 'DEFLATION'];
+const VALID_REGIMES: MarketRegime[] = ['AUTO', 'GOLDILOCKS', 'REFLATION', 'STAGFLATION', 'DEFLATION'];
 
 export function getActiveRegime(override?: string | null): MarketRegime {
   const env = (process.env.NEXT_PUBLIC_MARKET_REGIME ?? '').toUpperCase();
   const candidate = (override ?? env) as MarketRegime;
-  return VALID_REGIMES.includes(candidate) ? candidate : 'REFLATION';
+  return VALID_REGIMES.includes(candidate) ? candidate : 'AUTO';
+}
+
+export async function detectMacroRegime(): Promise<{ regime: 'GOLDILOCKS' | 'REFLATION' | 'STAGFLATION' | 'DEFLATION'; growthUp: boolean; inflationUp: boolean }> {
+  try {
+    const fetchTickerHistory = async (symbol: string) => {
+      const res = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=200d`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RV-Capital-Alpha/1.0)' }, next: { revalidate: 14400 } } // Cache 4h
+      );
+      if (!res.ok) return null;
+      const json = await res.json();
+      const close = json.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+      return close?.filter((c: number | null) => c !== null) as number[] || null;
+    };
+
+    const [sp500History, goldHistory] = await Promise.all([
+      fetchTickerHistory('^GSPC'),
+      fetchTickerHistory('GC=F')
+    ]);
+
+    if (!sp500History || sp500History.length === 0 || !goldHistory || goldHistory.length === 0) {
+      return { regime: 'REFLATION', growthUp: true, inflationUp: true }; // fallback
+    }
+
+    const currentSP = sp500History[sp500History.length - 1];
+    const smaSP = sp500History.reduce((a, b) => a + b, 0) / sp500History.length;
+    const growthUp = currentSP > smaSP;
+
+    const currentGold = goldHistory[goldHistory.length - 1];
+    const smaGold = goldHistory.reduce((a, b) => a + b, 0) / goldHistory.length;
+    const inflationUp = currentGold > smaGold;
+
+    let regime: 'GOLDILOCKS' | 'REFLATION' | 'STAGFLATION' | 'DEFLATION' = 'REFLATION';
+    if (growthUp && inflationUp) regime = 'REFLATION';
+    else if (growthUp && !inflationUp) regime = 'GOLDILOCKS';
+    else if (!growthUp && inflationUp) regime = 'STAGFLATION';
+    else if (!growthUp && !inflationUp) regime = 'DEFLATION';
+
+    return { regime, growthUp, inflationUp };
+  } catch (err) {
+    console.error('Failed to detect macro regime:', err);
+    return { regime: 'REFLATION', growthUp: true, inflationUp: true };
+  }
 }

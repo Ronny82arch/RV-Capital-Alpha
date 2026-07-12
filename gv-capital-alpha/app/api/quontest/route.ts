@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { calculateAdvancedQuantSystem, getActiveRegime, MarketRegime } from '@/lib/quontest';
+import { calculateAdvancedQuantSystem, getActiveRegime, detectMacroRegime, MarketRegime } from '@/lib/quontest';
 import { WATCHLIST } from '@/lib/market';
 
 interface HistoricalOHLCV { close: number[]; high: number[]; low: number[]; volume: number[]; }
@@ -52,12 +52,28 @@ export async function GET(request: Request) {
   const regimeOverride = searchParams.get('regime')?.toUpperCase();
   const activeRegime = getActiveRegime(regimeOverride);
 
+  // Resolve AUTO regime
+  let targetRegime: 'GOLDILOCKS' | 'REFLATION' | 'STAGFLATION' | 'DEFLATION' = 'REFLATION';
+  let growthUp = true;
+  let inflationUp = true;
+  let isAuto = false;
+
+  if (activeRegime === 'AUTO') {
+    isAuto = true;
+    const detection = await detectMacroRegime();
+    targetRegime = detection.regime;
+    growthUp = detection.growthUp;
+    inflationUp = detection.inflationUp;
+  } else {
+    targetRegime = activeRegime;
+  }
+
   const history = await fetchDeepHistory(ticker);
   if (!history || history.close.length < 22) {
     return NextResponse.json({ success: false, error: `Dati insufficienti per ${ticker}` }, { status: 404 });
   }
 
-  const result = calculateAdvancedQuantSystem(history, activeRegime);
+  const result = calculateAdvancedQuantSystem(history, targetRegime);
 
   let sentiment = 'Fase Neutrale — Consolidamento Quantitativo';
   if (result.score >= 75)      sentiment = 'Fortemente Rialzista — Setup Quantitativo ad Alta Probabilità';
@@ -69,8 +85,13 @@ export async function GET(request: Request) {
     success: true,
     dataSource: 'live',
     data: {
-      ticker, score: result.score, zScoreRaw: result.zScoreRaw,
-      regime: `${activeRegime} (Matrice Adattiva)`,
+      ticker, 
+      score: result.score, 
+      zScoreRaw: result.zScoreRaw,
+      regime: isAuto ? `AUTO (${targetRegime})` : targetRegime,
+      detectedRegime: targetRegime,
+      growthUp,
+      inflationUp,
       breakdown: { trend: result.breakdown.trend, momentum: result.breakdown.momentum, valuation: result.breakdown.valuation },
       levels: result.levels,
       sentiment,
