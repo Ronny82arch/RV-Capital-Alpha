@@ -7,13 +7,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllMarketData } from '@/lib/market';
-import { analyzeAsset, findBestCandidate, generateSignalWithAI } from '@/lib/ai';
+import { analyzeAsset, findPromisingCandidatesBatch, evaluateCandidatesWithAIBatch } from '@/lib/ai';
 import {
   getPortfolio, addSignal, updatePositionPrices,
   getCalibrationTable, getCalibrationUpdatedAt,
 } from '@/lib/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
+
+export const maxDuration = 60;
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://gv-capital-alpha.vercel.app';
 
@@ -25,7 +27,13 @@ export async function GET(req: NextRequest) {
   return runScan();
 }
 
-export async function POST() { return runScan(); }
+export async function POST(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return runScan();
+}
 
 async function runScan() {
   try {
@@ -64,7 +72,7 @@ async function runScan() {
       .map(md => analyzeAsset(md, calibrationTable))
       .filter((a): a is NonNullable<typeof a> => a !== null);
 
-    const { candidate, skippedForCorrelation, skippedUntrusted } = findBestCandidate(
+    const { candidates, skippedForCorrelation, skippedUntrusted } = findPromisingCandidatesBatch(
       analyses, portfolio, correlationMatrix
     );
 
@@ -76,7 +84,7 @@ async function runScan() {
       portfolio.targetAnnualReturn,
       openPositions.length
     );
-    if (!candidate) {
+    if (candidates.length === 0) {
       return NextResponse.json({
         success: true,
         message: 'Nessun segnale: nessun setup con probabilità storicamente validata (≥30 osservazioni, >55%) e decorrelato dalle posizioni aperte.',
@@ -87,17 +95,23 @@ async function runScan() {
       });
     }
 
-    // ── Genera segnale con AI reasoning ─────────────────────────────────────
-    const signal = await generateSignalWithAI(candidate, portfolio);
-    if (!signal) return NextResponse.json({ success: false, message: 'Generazione segnale AI fallita.' });
+    // ── Genera segnali con AI in Batch ─────────────────────────────────────
+    const signals = await evaluateCandidatesWithAIBatch(candidates.slice(0, 5), portfolio); // Top 5 max per evitare payload enormi
+    
+    if (signals.length === 0) {
+      return NextResponse.json({ success: true, message: 'Nessun segnale approvato dall\'AI.' });
+    }
 
-    await addSignal(signal);
-    await notifyNewSignal(signal, APP_URL);
+    // Salva i segnali (uno per uno o batch)
+    for (const signal of signals) {
+      await addSignal(signal);
+      await notifyNewSignal(signal, APP_URL);
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Segnale: ${signal.action} ${signal.symbol} | Prob calibrata: ${(signal.winProbability * 100).toFixed(1)}% (n=${signal.winProbabilitySampleSize})`,
-      signal,
+      message: `${signals.length} Segnali generati dall'AI.`,
+      signals,
       calibrationUpdatedAt,
     });
   } catch (err) {
