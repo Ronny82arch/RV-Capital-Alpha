@@ -118,7 +118,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             }
 
             const isPositive = pnlPct >= 0;
-            const pnlColor = isPositive ? 'var(--green)' : 'var(--red)';
+            const pnlColor = isPositive ? '#84cc16' : 'var(--red)';
 
             return (
               <button
@@ -166,7 +166,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               Trading by Day
             </span>
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'var(--bg)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--bg3)' }}>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: (tbdData?.realizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)', fontFamily: 'var(--font-mono)' }}>
+              <span style={{ fontSize: '14px', fontWeight: 'bold', color: (tbdData?.realizedPnL ?? 0) >= 0 ? '#84cc16' : 'var(--red)', fontFamily: 'var(--font-mono)' }}>
                 {(tbdData?.realizedPnL ?? 0) >= 0 ? '+' : ''}{(tbdData?.realizedPnL ?? 0).toFixed(2)}€
               </span>
               <span style={{ fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
@@ -182,7 +182,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
           <div style={{ fontSize: '32px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
             {isObscured ? '€ *****' : `€${p.totalValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: isObscured ? 'var(--text3)' : (p.totalPnL >= 0 ? 'var(--green)' : 'var(--red)') }}>
+          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: isObscured ? 'var(--text3)' : (p.totalPnL >= 0 ? '#84cc16' : 'var(--red)') }}>
             {isObscured ? '*****' : (
               <>{p.totalPnL >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{p.totalPnL.toFixed(0)} ({p.totalPnLPercent >= 0 ? '+' : ''}{p.totalPnLPercent.toFixed(2)}%)</>
             )}
@@ -301,7 +301,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
           label="P&L TOTALE"
           value={`${displayPnL >= 0 ? '+' : ''}€${displayPnL.toFixed(0)}`}
           sub={`${displayPnLPct >= 0 ? '+' : ''}${displayPnLPct.toFixed(2)}%`}
-          color={displayPnL >= 0 ? 'var(--green)' : 'var(--red)'}
+          color={displayPnL >= 0 ? '#84cc16' : 'var(--red)'}
         />
         {selectedTag !== 'Tutti' && (
           <KpiCard

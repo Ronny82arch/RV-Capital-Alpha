@@ -18,18 +18,159 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
   const unreadAlerts = portfolio?.alerts?.filter(a => !a.read) ?? [];
 
   return (
-    <header style={{
-      background: '#000000',
-      padding: '16px 12px 12px 12px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      position: 'sticky',
-      top: 0,
-      zIndex: 100
-    }}>
+    <header className="header-container">
+      <style>{`
+        .header-container {
+          background: #000000;
+          padding: 16px 12px 12px 12px;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+        .logo-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding-bottom: 16px;
+        }
+        .action-bar {
+          background: #1c1c1e;
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 16px;
+          padding: 10px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: relative;
+        }
+        .action-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .avatar-circle {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: #84cc16;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 13px;
+          color: #090d16;
+        }
+        .monitor-badge {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          background: rgba(132, 204, 22, 0.08);
+          border: 1px solid rgba(132, 204, 22, 0.2);
+          padding: 4px 8px;
+          border-radius: 20px;
+        }
+        .monitor-text {
+          font-size: 9px;
+          font-weight: bold;
+          color: #84cc16;
+          font-family: var(--font-mono);
+          letter-spacing: 0.05em;
+        }
+        .action-right {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .action-btn {
+          background: #2c2c2e;
+          border: none;
+          border-radius: 10px;
+          color: #ffffff;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          cursor: pointer;
+        }
+        .scan-btn {
+          background: linear-gradient(135deg, #bef264 0%, #84cc16 100%);
+          border: none;
+          border-radius: 10px;
+          color: #070b14;
+          width: 70px;
+          height: 36px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-weight: 800;
+          box-shadow: 0 3px 8px rgba(132,204,22,0.3);
+          transition: all 0.2s;
+        }
+        
+        @keyframes pulse {
+          0% { opacity: 0.4; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.1); }
+          100% { opacity: 0.4; transform: scale(0.9); }
+        }
+        
+        @media (max-width: 420px) {
+          .header-container {
+            padding: 12px 8px 8px 8px;
+          }
+          .logo-row {
+            padding-bottom: 12px;
+          }
+          .action-bar {
+            padding: 8px 10px;
+            border-radius: 12px;
+          }
+          .action-left {
+            gap: 6px;
+          }
+          .avatar-circle {
+            width: 32px;
+            height: 32px;
+            font-size: 12px;
+          }
+          .monitor-badge {
+            padding: 3px 6px;
+            gap: 4px;
+          }
+          .monitor-text {
+            font-size: 8px;
+            letter-spacing: 0.02em;
+          }
+          .action-right {
+            gap: 6px;
+          }
+          .action-btn {
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
+          }
+          .scan-btn {
+            width: 62px;
+            height: 32px;
+          }
+          .scan-btn-play {
+            font-size: 7px !important;
+          }
+          .scan-btn-txt {
+            font-size: 8px !important;
+          }
+        }
+      `}</style>
+
       {/* ── LOGO CENTRATO (CAPITAL α ALPHA) ─────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', paddingBottom: '16px' }}>
+      <div className="logo-row">
         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#475569', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>CAPITAL</span>
         {/* SVG Alpha symbol (ingrandito per abbinarsi all'immagine di riferimento) */}
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 8px rgba(132,204,22,0.45))' }}>
@@ -39,38 +180,15 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
       </div>
 
       {/* ── BARRA DI AZIONE INFERIORE (CARD DARK GREY) ───────────────────────── */}
-      <div style={{
-        background: '#1c1c1e', // Sfondo grigio scuro del pannello
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: '16px',
-        padding: '10px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'relative'
-      }}>
+      <div className="action-bar">
         {/* Left: RV Circle + Monitoring active indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: '36px', height: '36px',
-            borderRadius: '50%',
-            background: '#84cc16', // Cerchio verde
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: '700', fontSize: '13px', color: '#090d16'
-          }}>
+        <div className="action-left">
+          <div className="avatar-circle">
             RV
           </div>
           
           {/* Indicatore monitoraggio attivo */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            background: 'rgba(132, 204, 22, 0.08)',
-            border: '1px solid rgba(132, 204, 22, 0.2)',
-            padding: '4px 8px',
-            borderRadius: '20px'
-          }}>
+          <div className="monitor-badge">
             <span style={{
               display: 'inline-block',
               width: '6px',
@@ -80,42 +198,19 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
               boxShadow: '0 0 6px #84cc16',
               animation: 'pulse 1.8s infinite ease-in-out'
             }} />
-            <style>{`
-              @keyframes pulse {
-                0% { opacity: 0.4; transform: scale(0.9); }
-                50% { opacity: 1; transform: scale(1.1); }
-                100% { opacity: 0.4; transform: scale(0.9); }
-              }
-            `}</style>
-            <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#84cc16', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>MONITORAGGIO</span>
+            <span className="monitor-text">MONITORAGGIO</span>
           </div>
         </div>
 
         {/* Right: Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="action-right">
           {/* Tasto Chat AI */}
-          <button onClick={onToggleChat} style={{
-            background: '#2c2c2e',
-            border: 'none',
-            borderRadius: '10px',
-            color: '#ffffff',
-            width: '36px', height: '36px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '15px', cursor: 'pointer'
-          }} title="Chat AI">
+          <button className="action-btn" onClick={onToggleChat} title="Chat AI">
             🤖
           </button>
 
           {/* Notifiche / Laptop icon */}
-          <button onClick={() => setShowMenu(!showMenu)} style={{
-            background: '#2c2c2e',
-            border: 'none',
-            borderRadius: '10px',
-            color: '#94a3b8',
-            width: '36px', height: '36px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', position: 'relative'
-          }} title="Notifiche">
+          <button className="action-btn" onClick={() => setShowMenu(!showMenu)} title="Notifiche" style={{ position: 'relative' }}>
             {/* Laptop icon SVG */}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
@@ -129,30 +224,17 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
 
           {/* Scan Button (Lime Gradient) */}
           <button
+            className="scan-btn"
             onClick={onScan}
             disabled={scanning}
-            style={{
-              background: scanning ? '#2c2c2e' : 'linear-gradient(135deg, #bef264 0%, #84cc16 100%)',
-              border: 'none',
-              borderRadius: '10px',
-              color: '#070b14',
-              width: '70px', height: '36px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: scanning ? 'not-allowed' : 'pointer',
-              fontWeight: '800',
-              boxShadow: scanning ? 'none' : '0 3px 8px rgba(132,204,22,0.3)',
-              transition: 'all 0.2s'
-            }}
+            style={scanning ? { background: '#2c2c2e', color: '#94a3b8', boxShadow: 'none' } : undefined}
           >
             {scanning ? (
-              <span style={{ fontSize: '9px', fontWeight: 800 }}>SCAN...</span>
+              <span className="scan-btn-txt" style={{ fontSize: '9px', fontWeight: 800 }}>SCAN...</span>
             ) : (
               <>
-                <span style={{ fontSize: '8px', lineHeight: '1', marginBottom: '1px' }}>▶</span>
-                <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.05em' }}>SCAN</span>
+                <span className="scan-btn-play" style={{ fontSize: '8px', lineHeight: '1', marginBottom: '1px' }}>▶</span>
+                <span className="scan-btn-txt" style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.05em' }}>SCAN</span>
               </>
             )}
           </button>
