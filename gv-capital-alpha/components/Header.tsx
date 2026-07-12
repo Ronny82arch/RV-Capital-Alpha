@@ -51,6 +51,7 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
           display: flex;
           align-items: center;
           gap: 8px;
+          flex-shrink: 0;
         }
         .avatar-circle {
           width: 36px;
@@ -72,6 +73,7 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
           border: 1px solid rgba(132, 204, 22, 0.2);
           padding: 4px 8px;
           border-radius: 20px;
+          flex-shrink: 0;
         }
         .monitor-text {
           font-size: 9px;
@@ -84,6 +86,7 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
           display: flex;
           align-items: center;
           gap: 10px;
+          flex-shrink: 0;
         }
         .action-btn {
           background: #2c2c2e;
@@ -141,12 +144,14 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
             font-size: 12px;
           }
           .monitor-badge {
-            padding: 3px 6px;
-            gap: 4px;
+            padding: 4px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
           .monitor-text {
-            font-size: 8px;
-            letter-spacing: 0.02em;
+            display: none;
           }
           .action-right {
             gap: 6px;
