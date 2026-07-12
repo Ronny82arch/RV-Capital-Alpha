@@ -96,7 +96,8 @@ export function calibrateSetupsForSymbol(
     );
 
     // Stessa regola di ai.ts::analyzeAsset() (ATR based)
-    const atr = calculateATR(w, 14);
+    const atrHistory = history.slice(0, t + 1);
+    const atr = calculateATR(atrHistory, 14);
     const atrPct = atr / price;
     const slPct = atrPct > 0 ? atrPct * 2.0 : 0.05;
     const tpPct = slPct * 2.0;
