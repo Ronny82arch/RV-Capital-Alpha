@@ -93,30 +93,28 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationTable |
 }
 
 // ─── SELEZIONE CANDIDATO ──────────────────────────────────────────────────────
-export interface CandidateResult {
-  candidate: AnalyzedAsset | null;
+export interface CandidatesBatchResult {
+  candidates: AnalyzedAsset[];
   skippedForCorrelation: { symbol: string; conflictWith: string; correlation: number }[];
   skippedUntrusted: string[];
 }
 
-export function findBestCandidate(
+export function findPromisingCandidatesBatch(
   analyses: AnalyzedAsset[],
   portfolio: PortfolioState,
   correlationMatrix: CorrelationMatrix,
   maxPositions = 5,
   correlationThreshold = 0.70
-): CandidateResult {
+): CandidatesBatchResult {
   const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
   const openSymbols   = openPositions.map(p => p.symbol);
   const openSet       = new Set(openSymbols);
 
-  if (openSet.size >= maxPositions) return { candidate: null, skippedForCorrelation: [], skippedUntrusted: [] };
+  if (openSet.size >= maxPositions) return { candidates: [], skippedForCorrelation: [], skippedUntrusted: [] };
 
   const available  = analyses.filter(a => !openSet.has(a.market.symbol));
   const skippedUntrusted: string[] = [];
 
-  // Solo setup BULLISH con probabilità STORICAMENTE VALIDATA (≥30 osservazioni)
-  // e win rate calibrato > 55% (edge reale sopra il baseline 50%)
   const bullish = available.filter(a => {
     if (a.trend !== 'BULLISH') return false;
     if (!a.winProbabilityTrusted || a.winProbability <= 0.55) {
@@ -126,133 +124,170 @@ export function findBestCandidate(
     return true;
   });
 
-  // Ordina per expected value (EV = winProb × R/R)
   bullish.sort((a, b) => b.winProbability * b.rewardRiskRatio - a.winProbability * a.rewardRiskRatio);
 
+  const candidates: AnalyzedAsset[] = [];
   const skippedForCorrelation: { symbol: string; conflictWith: string; correlation: number }[] = [];
 
   for (const c of bullish) {
-    const check = checkCorrelationAgainstOpenPositions(c.market.symbol, openSymbols, correlationMatrix, correlationThreshold);
-    if (!check.blocked) return { candidate: c, skippedForCorrelation, skippedUntrusted };
-    skippedForCorrelation.push({ symbol: c.market.symbol, conflictWith: check.conflictWith!, correlation: check.correlation! });
+    const check = checkCorrelationAgainstOpenPositions(c.market.symbol, [...openSymbols, ...candidates.map(x => x.market.symbol)], correlationMatrix, correlationThreshold);
+    if (!check.blocked) {
+      candidates.push(c);
+      if (openSet.size + candidates.length >= maxPositions) break;
+    } else {
+      skippedForCorrelation.push({ symbol: c.market.symbol, conflictWith: check.conflictWith!, correlation: check.correlation! });
+    }
   }
 
-  return { candidate: null, skippedForCorrelation, skippedUntrusted };
+  return { candidates, skippedForCorrelation, skippedUntrusted };
 }
 
 // ─── GENERAZIONE SEGNALE CON AI ───────────────────────────────────────────────
-export async function generateSignalWithAI(
-  candidate: AnalyzedAsset,
+export async function evaluateCandidatesWithAIBatch(
+  candidates: AnalyzedAsset[],
   portfolio: PortfolioState
-): Promise<Signal | null> {
+): Promise<Signal[]> {
+  if (candidates.length === 0) return [];
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { console.error('ANTHROPIC_API_KEY not set'); return null; }
+  if (!apiKey) { console.error('ANTHROPIC_API_KEY non settato'); return []; }
 
-  // Drawdown-based risk: riduce il Kelly quando ci allontaniamo dal picco
-  // Non amplifica MAI la size dopo le perdite (vecchio bug getAggression rimosso)
   const { multiplier: drawdownMultiplier, drawdownPercent } = getDrawdownRiskMultiplier(
     portfolio.performanceHistory, portfolio.totalValue
   );
 
-  const { winProbability, rewardRiskRatio, volatility } = candidate;
-  const kelly = calculateKelly(winProbability, rewardRiskRatio, volatility);
-  const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
+  const candidatesPayload = candidates.map(c => {
+    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility);
+    const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
+    const { capitalToAllocate, quantity } = calculatePositionSize(
+      portfolio.capitalAvailable, adjustedFraction, c.market.price, c.stopLoss
+    );
+    return {
+      symbol: c.market.symbol,
+      name: c.market.name,
+      price: c.market.price,
+      change24h: c.market.changePercent,
+      technicals: { rsi: c.rsi, momentum: c.momentum, ema10: c.ema10, ema50: c.ema50, trend: c.trend, volatility: c.volatility },
+      quant: {
+        winProbability: c.winProbability,
+        sampleSize: c.winProbabilitySampleSize,
+        kellyFraction: adjustedFraction,
+        capitalToAllocate,
+        quantity,
+        stopLoss: c.stopLoss,
+        takeProfit: c.takeProfit,
+        rewardRiskRatio: c.rewardRiskRatio
+      }
+    };
+  }).filter(c => c.quant.capitalToAllocate >= 100 && c.quant.quantity >= 1);
 
-  const { capitalToAllocate, quantity } = calculatePositionSize(
-    portfolio.capitalAvailable, adjustedFraction, candidate.market.price, candidate.stopLoss
-  );
+  if (candidatesPayload.length === 0) return [];
 
-  if (capitalToAllocate < 100 || quantity < 1) return null;
+  const systemPrompt = `Sei l'Executive Committee di RV Capital Alpha.
+Obiettivo: +25% annuo.
+Drawdown dal picco: ${drawdownPercent.toFixed(1)}% (Moltiplicatore Kelly: ${drawdownMultiplier}x).
+Capitale Disponibile: €${portfolio.capitalAvailable.toFixed(0)}.
+Posizioni Aperte: ${portfolio.positions.filter(p => p.status === 'OPEN').length}.
 
-  const systemPrompt = `Sei ALPHA, il motore decisionale di RV Capital Alpha.
-Obiettivo: portare il portafoglio a +25% annuo (€${(portfolio.capitalBase * portfolio.targetAnnualReturn).toFixed(0)} su €${portfolio.capitalBase}).
+Riceverai un JSON array con i candidati pre-filtrati dal Technical Quant Agent. 
+Devi valutare l'intero array e restituire un JSON array con i trade che decidi di approvare. Puoi approvarli tutti, alcuni o nessuno.
 
-Stato attuale:
-- Capitale disponibile: €${portfolio.capitalAvailable.toFixed(0)}
-- P&L: ${portfolio.totalPnLPercent >= 0 ? '+' : ''}${portfolio.totalPnLPercent.toFixed(2)}%
-- Posizioni aperte: ${portfolio.positions.filter(p => p.status === 'OPEN').length}
-- Drawdown dal picco: ${drawdownPercent.toFixed(1)}% → moltiplicatore rischio ${drawdownMultiplier}x
-- Win probability calibrata su ${candidate.winProbabilitySampleSize} trade storici reali
+Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'array):
+[
+  {
+    "symbol": "TICKER",
+    "reasoning": "Breve spiegazione sul perché approvi (max 50 parole)",
+    "strategy": "Nome strategia",
+    "urgency": "LOW|MEDIUM|HIGH",
+    "confidence": 0-100
+  }
+]`;
 
-Rispondi SOLO in JSON (no markdown, no testo fuori):
-{
-  "reasoning": "spiegazione max 150 parole, cita la probabilità calibrata e il drawdown",
-  "strategy": "nome breve (es: Momentum ETF, Oversold Bounce)",
-  "urgency": "LOW|MEDIUM|HIGH",
-  "confidence": 0-100
-}`;
-
-  const userPrompt = `Segnale BUY: ${candidate.market.name} (${candidate.market.symbol})
-Prezzo: €${candidate.market.price.toFixed(2)} | 24h: ${candidate.market.changePercent >= 0 ? '+' : ''}${candidate.market.changePercent.toFixed(2)}%
-
-Tecnica:
-- RSI: ${candidate.rsi} | Momentum 20gg: ${(candidate.momentum * 100).toFixed(2)}%
-- EMA10: ${candidate.ema10.toFixed(2)} | EMA50: ${candidate.ema50.toFixed(2)}
-- Trend: ${candidate.trend} | Volatilità: ${(candidate.volatility * 100).toFixed(1)}%
-
-Decisione algoritmica:
-- Win prob calibrata: ${(winProbability * 100).toFixed(1)}% (n=${candidate.winProbabilitySampleSize} osservazioni)
-- Kelly (post-drawdown): ${(adjustedFraction * 100).toFixed(1)}%
-- Capitale: €${capitalToAllocate.toFixed(0)} | Qty: ${quantity}
-- SL: €${candidate.stopLoss.toFixed(2)} (-${((1 - candidate.stopLoss / candidate.market.price)*100).toFixed(1)}%)
-- TP: €${candidate.takeProfit.toFixed(2)} (+${((candidate.takeProfit / candidate.market.price - 1)*100).toFixed(1)}%)
-- R/R: ${candidate.rewardRiskRatio.toFixed(1)}:1`;
-
-  try {
-    const res = await fetch(ANTHROPIC_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 500,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    });
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '{}';
-
-    let parsed: { reasoning: string; strategy: string; urgency: string; confidence: number };
+  let attempt = 0;
+  let success = false;
+  let text = '[]';
+  
+  while (attempt < 3 && !success) {
     try {
-      parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-    } catch {
-      parsed = { reasoning: text.slice(0, 200), strategy: 'Technical Analysis', urgency: 'MEDIUM', confidence: 60 };
+      const res = await fetch(ANTHROPIC_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-3-5-sonnet-20240620',
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: JSON.stringify(candidatesPayload, null, 2) }],
+        }),
+      });
+
+      if (res.status === 429) {
+        attempt++;
+        const waitTime = Math.pow(2, attempt) * 1000;
+        console.warn(`[AI] Rate limit 429. Retry in ${waitTime}ms...`);
+        await new Promise(r => setTimeout(r, waitTime));
+        continue;
+      }
+      
+      if (!res.ok) {
+        console.error(`[AI] API Error ${res.status}: ${await res.text()}`);
+        return [];
+      }
+
+      const data = await res.json();
+      text = data.content?.[0]?.text || '[]';
+      success = true;
+    } catch (err) {
+      console.error('[AI] Fetch error:', err);
+      attempt++;
+      await new Promise(r => setTimeout(r, 2000));
     }
+  }
 
-    const slPct = ((candidate.market.price - candidate.stopLoss) / candidate.market.price) * 100;
-    const tpPct = ((candidate.takeProfit - candidate.market.price) / candidate.market.price) * 100;
+  if (!success) return [];
 
-    const signal: Signal = {
+  let parsed: Array<{ symbol: string; reasoning: string; strategy: string; urgency: string; confidence: number }> = [];
+  try {
+    parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    if (!Array.isArray(parsed)) parsed = [];
+  } catch {
+    console.error('[AI] Failed to parse JSON response:', text);
+    return [];
+  }
+
+  const signals: Signal[] = [];
+  for (const approved of parsed) {
+    const c = candidates.find(x => x.market.symbol === approved.symbol);
+    const p = candidatesPayload.find(x => x.symbol === approved.symbol);
+    if (!c || !p) continue;
+
+    const slPct = ((c.market.price - c.stopLoss) / c.market.price) * 100;
+    const tpPct = ((c.takeProfit - c.market.price) / c.market.price) * 100;
+
+    signals.push({
       id: generateId(),
-      symbol: candidate.market.symbol,
-      name: candidate.market.name,
-      type: candidate.market.type,
+      symbol: c.market.symbol,
+      name: c.market.name,
+      type: c.market.type,
       action: 'BUY',
-      suggestedPrice: candidate.market.price,
-      quantity,
-      capitalToAllocate,
-      stopLoss: candidate.stopLoss,
-      takeProfit: candidate.takeProfit,
+      suggestedPrice: c.market.price,
+      quantity: p.quant.quantity,
+      capitalToAllocate: p.quant.capitalToAllocate,
+      stopLoss: c.stopLoss,
+      takeProfit: c.takeProfit,
       stopLossPercent: slPct,
       takeProfitPercent: tpPct,
-      kellyFraction: adjustedFraction,
-      winProbability,
-      winProbabilitySampleSize: candidate.winProbabilitySampleSize,
-      winProbabilityTrusted: candidate.winProbabilityTrusted,
-      expectedReturn: winProbability * tpPct - (1 - winProbability) * slPct,
-      reasoning: parsed.reasoning,
-      strategy: parsed.strategy,
-      urgency: (parsed.urgency as Signal['urgency']) || 'MEDIUM',
-      technicals: { rsi: candidate.rsi, momentum: candidate.momentum, sma20: candidate.sma20, sma50: candidate.sma50, trend: candidate.trend },
+      kellyFraction: p.quant.kellyFraction,
+      winProbability: c.winProbability,
+      winProbabilitySampleSize: c.winProbabilitySampleSize,
+      winProbabilityTrusted: c.winProbabilityTrusted,
+      expectedReturn: c.winProbability * tpPct - (1 - c.winProbability) * slPct,
+      reasoning: approved.reasoning || 'Approved by Executive Committee',
+      strategy: approved.strategy || 'Multi-Agent Selection',
+      urgency: (approved.urgency as Signal['urgency']) || 'MEDIUM',
+      technicals: { rsi: c.rsi, momentum: c.momentum, sma20: c.sma20, sma50: c.sma50, trend: c.trend },
       createdAt: new Date().toISOString(),
       status: 'PENDING',
-    };
-
-    return signal;
-  } catch (err) {
-    console.error('AI signal generation error:', err);
-    return null;
+    });
   }
+
+  return signals;
 }
