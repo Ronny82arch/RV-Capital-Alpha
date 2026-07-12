@@ -6,11 +6,12 @@ import AssetIcon from './AssetIcon';
 interface Props {
   portfolio: PortfolioState | null;
   onClose: (positionId: string, price: number) => Promise<boolean>;
+  onDelete: (positionId: string) => Promise<boolean>;
   onUpdateTags?: (positionId: string, tags: string[]) => Promise<boolean>;
   onUpdateAIFilters?: (aiManagedTags: string[]) => Promise<boolean>;
 }
 
-export default function PositionsTab({ portfolio, onClose, onUpdateTags, onUpdateAIFilters }: Props) {
+export default function PositionsTab({ portfolio, onClose, onDelete, onUpdateTags, onUpdateAIFilters }: Props) {
   const openPositions = portfolio?.positions.filter(p => p.status === 'OPEN') ?? [];
   const closedPositions = portfolio?.positions.filter(p => p.status === 'CLOSED') ?? [];
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);
@@ -50,7 +51,7 @@ export default function PositionsTab({ portfolio, onClose, onUpdateTags, onUpdat
         <div>
           <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>POSIZIONI APERTE ({openPositions.length})</div>
           {openPositions.map(pos => (
-            <PositionCard key={pos.id} position={pos} onClose={onClose} onUpdateTags={onUpdateTags} />
+            <PositionCard key={pos.id} position={pos} onClose={onClose} onDelete={onDelete} onUpdateTags={onUpdateTags} />
           ))}
         </div>
       )}
@@ -65,7 +66,7 @@ export default function PositionsTab({ portfolio, onClose, onUpdateTags, onUpdat
   );
 }
 
-function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Position; onClose: (id: string, p: number) => Promise<boolean>; onUpdateTags?: (id: string, t: string[]) => Promise<boolean> }) {
+function PositionCard({ position: pos, onClose, onDelete, onUpdateTags }: { position: Position; onClose: (id: string, p: number) => Promise<boolean>; onDelete: (id: string) => Promise<boolean>; onUpdateTags?: (id: string, t: string[]) => Promise<boolean> }) {
   const [showClose, setShowClose] = useState(false);
   const [showTags, setShowTags] = useState(false);
   const [priceInput, setPriceInput] = useState('');
@@ -192,11 +193,22 @@ function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Posi
       )}
 
       {!showClose ? (
-        <button onClick={() => setShowClose(true)} style={{
-          width: '100%', padding: '11px', borderRadius: '8px',
-          border: '1px solid var(--border)', background: 'transparent',
-          color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em',
-        }}>CHIUDI POSIZIONE SU ETORO</button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+          <button onClick={() => setShowClose(true)} style={{
+            padding: '11px', borderRadius: '8px',
+            border: '1px solid var(--border)', background: 'transparent',
+            color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em',
+          }}>CHIUDI SU ETORO</button>
+          <button onClick={async () => {
+            if (confirm(`Sei sicuro di voler rifiutare questa operazione (${pos.symbol})? La posizione verrà eliminata e il capitale di €${pos.capitalAllocated} sarà ripristinato.`)) {
+              await onDelete(pos.id);
+            }
+          }} style={{
+            padding: '11px', borderRadius: '8px',
+            border: '1px solid var(--red)', background: 'transparent',
+            color: 'var(--red)', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em',
+          }}>✕ RIFIUTA OPERAZIONE</button>
+        </div>
       ) : (
         <div className="animate-fade">
           <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>

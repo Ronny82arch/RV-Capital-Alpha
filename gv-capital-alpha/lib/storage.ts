@@ -229,6 +229,32 @@ export async function closePosition(
   return portfolio.positions[idx];
 }
 
+export async function deletePosition(positionId: string): Promise<Position | null> {
+  const portfolio = await getPortfolio();
+  const idx = portfolio.positions.findIndex(p => p.id === positionId);
+  if (idx === -1) return null;
+
+  const pos = portfolio.positions[idx];
+  
+  // Remove position
+  portfolio.positions.splice(idx, 1);
+  
+  // Restore capital
+  portfolio.capitalAvailable += pos.capitalAllocated;
+  
+  // Update original signal status to REJECTED if it exists
+  if (pos.signalId) {
+    const sIdx = portfolio.signals.findIndex(s => s.id === pos.signalId);
+    if (sIdx !== -1) {
+      portfolio.signals[sIdx].status = 'REJECTED';
+    }
+  }
+
+  await recalcPortfolio(portfolio);
+  await savePortfolio(portfolio);
+  return pos;
+}
+
 // ─── RECALCULATE TOTALS ───────────────────────────────────────────────────────
 export async function recalcPortfolio(portfolio: PortfolioState): Promise<void> {
   const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');

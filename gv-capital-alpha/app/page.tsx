@@ -112,6 +112,18 @@ export default function Home() {
     return data.success;
   };
 
+  const handleDeletePosition = async (positionId: string) => {
+    const res = await fetch('/api/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signalId: positionId, action: 'delete' }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
   const handleUpdateTags = async (positionId: string, tags: string[]) => {
     const res = await fetch('/api/tags', {
       method: 'POST',
@@ -165,6 +177,7 @@ export default function Home() {
           <PositionsTab 
             portfolio={portfolio} 
             onClose={handleClose} 
+            onDelete={handleDeletePosition}
             onUpdateTags={handleUpdateTags}
             onUpdateAIFilters={handleUpdateAIFilters}
           />

@@ -4,6 +4,7 @@ import {
   updateSignalStatus,
   openPosition,
   closePosition,
+  deletePosition,
   generateId,
 } from '@/lib/storage';
 import { Position } from '@/types';
@@ -102,6 +103,19 @@ export async function POST(req: NextRequest) {
         message: `Posizione chiusa — P&L: ${closed.realizedPnl! >= 0 ? '+' : ''}€${closed.realizedPnl!.toFixed(2)} (${closed.realizedPnlPercent!.toFixed(2)}%)`,
         pnl: closed.realizedPnl,
         pnlPercent: closed.realizedPnlPercent,
+      });
+    }
+
+    // ── DELETE/CANCEL POSITION ───────────────────────────────────────────────
+    if (action === 'delete') {
+      const deleted = await deletePosition(signalId);
+      if (!deleted) {
+        return NextResponse.json({ success: false, error: 'Posizione non trovata' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Operazione rifiutata. Posizione cancellata e capitale ripristinato.',
       });
     }
 
