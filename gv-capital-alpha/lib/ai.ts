@@ -10,7 +10,7 @@
 
 import { Signal, MarketData, PortfolioState } from '@/types';
 import {
-  calculateRSI, calculateSMA, calculateEMA, calculateMomentum, calculateVolatility,
+  calculateRSI, calculateSMA, calculateEMA, calculateMomentum, calculateVolatility, calculateATR,
   estimateFallbackWinProbability, calculateKelly, calculatePositionSize,
   getDrawdownRiskMultiplier,
 } from './kelly';
@@ -76,11 +76,15 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationTable |
     trend = fb.trend; technicalScore = fb.score;
   }
 
-  // SL/TP — IDENTICO alla regola in lib/backtest.ts::calibrateSetupsForSymbol()
-  // (se cambi qui, cambia anche lì — altrimenti la probabilità calibrata
-  // si riferisce a un trade diverso da quello eseguito live)
-  const slPct = Math.max(0.04, Math.min(0.08, volatility * 2));
+  // SL/TP — ATR Based Risk Management
+  // Lo Stop Loss viene posizionato matematicamente a 2x ATR per uscire dal rumore statistico.
+  const atr = calculateATR(market.history, 14);
+  const atrPct = atr / price;
+  
+  // Se l'ATR non è disponibile (pochi dati), usiamo un fallback generico conservativo.
+  const slPct = atrPct > 0 ? atrPct * 2.0 : 0.05;
   const tpPct = slPct * 2.0;
+  
   const stopLoss  = parseFloat((price * (1 - slPct)).toFixed(2));
   const takeProfit = parseFloat((price * (1 + tpPct)).toFixed(2));
 
