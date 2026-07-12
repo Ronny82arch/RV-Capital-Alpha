@@ -156,7 +156,7 @@ export async function evaluateCandidatesWithAIBatch(
   );
 
   const candidatesPayload = candidates.map(c => {
-    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility);
+    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, portfolio.targetAnnualReturn);
     const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
     const { capitalToAllocate, quantity } = calculatePositionSize(
       portfolio.capitalAvailable, adjustedFraction, c.market.price, c.stopLoss
