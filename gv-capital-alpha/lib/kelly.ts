@@ -9,7 +9,8 @@ export interface KellyResult {
 export function calculateKelly(
   winProbability: number,
   rewardRiskRatio: number,
-  volatility: number = 0
+  volatility: number = 0,
+  targetAnnualReturn: number = 0.25
 ): KellyResult {
   const p = Math.max(0.01, Math.min(0.99, winProbability));
   const b = Math.max(0.1, rewardRiskRatio);
@@ -24,7 +25,20 @@ export function calculateKelly(
   if (volatility > 0.05) volatilityPenalty = 0.5;
   else if (volatility > 0.03) volatilityPenalty = 0.75;
 
-  const recommendedFraction = Math.max(0, Math.min(0.20, halfKelly * volatilityPenalty));
+  // Dynamic Target Adaptation
+  // Target bassi usano frazioni sicure, target aggressivi si espandono verso il Full-Kelly
+  const targetMultiplier = Math.max(0.25, Math.min(1.0, Math.sqrt(targetAnnualReturn)));
+  
+  let maxCap = 0.20;
+  if (targetAnnualReturn < 0.20) maxCap = 0.10;
+  else if (targetAnnualReturn > 0.60) maxCap = 0.40;
+  else if (targetAnnualReturn > 0.40) maxCap = 0.30;
+
+  // Base di partenza: Half-Kelly (normale) scalato dal targetMultiplier (es. 0.5 * 2 = Full Kelly se target = 100%)
+  // Poiché targetMultiplier va da 0.25 a 1.0, e vogliamo che 1.0 dia Full-Kelly, moltiplichiamo il kellyFraction per targetMultiplier
+  const dynamicKelly = kellyFraction * targetMultiplier;
+  
+  const recommendedFraction = Math.max(0, Math.min(maxCap, dynamicKelly * volatilityPenalty));
 
   return {
     kellyFraction: Math.max(0, kellyFraction),
@@ -40,8 +54,16 @@ export function calculateRSI(prices: number[], period = 14): number {
   const changes = prices.slice(1).map((p, i) => p - prices[i]);
   const gains = changes.map(c => (c > 0 ? c : 0));
   const losses = changes.map(c => (c < 0 ? -c : 0));
-  const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period;
-  const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period;
+  // First avgGain/avgLoss as simple moving average
+  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  
+  // Wilder's smoothing
+  for (let i = period; i < gains.length; i++) {
+    avgGain = (avgGain * (period - 1) + gains[i]) / period;
+    avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+  }
+  
   if (avgLoss === 0) return 100;
   return Math.round(100 - 100 / (1 + avgGain / avgLoss));
 }
@@ -121,10 +143,11 @@ export function calculatePositionSize(
   if (price === 0) return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
   const quantity = Math.floor(capitalToAllocate / price);
   const actualCapital = quantity * price;
-  const riskAmount = quantity * Math.abs(price - stopLossPrice);
+  const clampedQty = Math.max(1, quantity);
+  const riskAmount = clampedQty * Math.abs(price - stopLossPrice);
   return {
     capitalToAllocate: Math.max(100, actualCapital),
-    quantity: Math.max(1, quantity),
+    quantity: clampedQty,
     riskAmount,
   };
 }
