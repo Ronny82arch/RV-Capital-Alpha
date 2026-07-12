@@ -200,16 +200,32 @@ function PositionCard({ position: pos, onClose, onUpdateTags }: { position: Posi
       ) : (
         <div className="animate-fade">
           <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>
-            Inserisci il prezzo di chiusura da eToro:
+            Inserisci il prezzo di chiusura ottenuto su eToro:
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input type="number" step="0.01" placeholder={`es. ${currentPrice.toFixed(2)}`} value={priceInput} onChange={e => setPriceInput(e.target.value)} style={{ flex: 1 }} />
+          <input 
+            type="number" 
+            step="0.01" 
+            placeholder={`es. ${currentPrice.toFixed(2)}`} 
+            value={priceInput} 
+            onChange={e => setPriceInput(e.target.value)} 
+            style={{ width: '100%', marginBottom: '10px' }} 
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
             <button onClick={handleClose} disabled={closing || !priceInput} style={{
               background: 'var(--green)', border: 'none', borderRadius: '8px', color: '#070b14',
-              fontFamily: 'var(--font-mono)', fontWeight: '800', padding: '10px 16px', fontSize: '12px',
+              fontFamily: 'var(--font-mono)', fontWeight: '800', padding: '12px 10px', fontSize: '11px',
               opacity: (!priceInput || closing) ? 0.5 : 1,
-            }}>{closing ? '...' : 'OK'}</button>
-            <button onClick={() => setShowClose(false)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', padding: '10px 12px', fontSize: '12px' }}>✕</button>
+              letterSpacing: '0.05em'
+            }}>
+              {closing ? '...' : '✓ CONFERMA CHIUSURA'}
+            </button>
+            <button onClick={() => setShowClose(false)} style={{ 
+              background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', 
+              color: 'var(--text3)', fontFamily: 'var(--font-mono)', padding: '12px 10px', fontSize: '11px',
+              letterSpacing: '0.05em'
+            }}>
+              ✕ ANNULLA
+            </button>
           </div>
         </div>
       )}

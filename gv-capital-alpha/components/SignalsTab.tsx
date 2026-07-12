@@ -140,31 +140,42 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
         </div>
       ) : (
         <div className="animate-fade">
-          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '10px', fontFamily: 'var(--font-mono)' }}>
-            Inserisci il prezzo di esecuzione che hai ottenuto su eToro:
+          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>
+            Prezzo di esecuzione ottenuto su eToro:
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <input
-              type="number"
-              step="0.01"
-              placeholder={`es. ${signal.suggestedPrice.toFixed(2)}`}
-              value={priceInput}
-              onChange={e => setPriceInput(e.target.value)}
-              style={{ flex: 1 }}
-            />
+          <input
+            type="number"
+            step="0.01"
+            placeholder={`es. ${signal.suggestedPrice.toFixed(2)}`}
+            value={priceInput}
+            onChange={e => setPriceInput(e.target.value)}
+            style={{ width: '100%', marginBottom: '12px' }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
             <button onClick={handleConfirm} disabled={confirming || !priceInput} style={{
               background: 'linear-gradient(135deg, #00d4aa, #3b82f6)',
               border: 'none', borderRadius: '8px', color: '#070b14',
-              fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '12px',
-              padding: '10px 20px', opacity: (!priceInput || confirming) ? 0.5 : 1,
+              fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '11px',
+              padding: '12px 6px', opacity: (!priceInput || confirming) ? 0.5 : 1,
+              letterSpacing: '0.05em'
             }}>
-              {confirming ? '...' : 'CONFERMA'}
+              {confirming ? '...' : '✓ CONFERMA ESECUZIONE'}
             </button>
-            <button onClick={() => setShowConfirm(false)} style={{
-              background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px',
-              color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontSize: '12px', padding: '10px 14px',
-            }}>✕</button>
+            <button onClick={() => onReject(signal.id)} style={{
+              background: 'transparent', border: '1px solid var(--red)', borderRadius: '8px',
+              color: 'var(--red)', fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '11px',
+              padding: '12px 6px', letterSpacing: '0.05em'
+            }}>
+              ✕ RIFIUTA SEGNALE
+            </button>
           </div>
+          <button onClick={() => setShowConfirm(false)} style={{
+            width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px',
+            color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontSize: '11px', padding: '10px',
+            letterSpacing: '0.05em'
+          }}>
+            ✕ ANNULLA e TORNA INDIETRO
+          </button>
         </div>
       )}
 
