@@ -10,6 +10,7 @@ import PositionsTab from '@/components/PositionsTab';
 import MarketTab from '@/components/MarketTab';
 import QuontestTab from '@/components/QuontestTab';
 import TradingByDayTab from '@/components/TradingByDayTab';
+import ChatWidget from '@/components/ChatWidget';
 
 export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading';
 
@@ -17,8 +18,10 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
   const [market, setMarket] = useState<MarketData[]>([]);
+  const [tbdData, setTbdData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -29,14 +32,23 @@ export default function Home() {
 
   const refresh = useCallback(async () => {
     try {
-      const [pRes, mRes] = await Promise.all([
+      const [pRes, mRes, tbdRes] = await Promise.allSettled([
         fetch('/api/portfolio'),
         fetch('/api/market'),
+        fetch('/api/tbd/log'),
       ]);
-      const pData = await pRes.json();
-      const mData = await mRes.json();
-      if (pData.success) setPortfolio(pData.data);
-      if (mData.success) setMarket(mData.data);
+      if (pRes.status === 'fulfilled') {
+        const pData = await pRes.value.json().catch(() => ({}));
+        if (pData.success) setPortfolio(pData.data);
+      }
+      if (mRes.status === 'fulfilled') {
+        const mData = await mRes.value.json().catch(() => ({}));
+        if (mData.success) setMarket(mData.data);
+      }
+      if (tbdRes.status === 'fulfilled') {
+        const tData = await tbdRes.value.json().catch(() => ({}));
+        if (tData.success) setTbdData(tData.data);
+      }
       setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (e) {
       console.error(e);
@@ -134,11 +146,12 @@ export default function Home() {
         onScan={handleScan}
         scanning={scanning}
         onRefresh={refresh}
+        onToggleChat={() => setIsChatOpen(!isChatOpen)}
       />
-      <TabBar tab={tab} setTab={setTab} portfolio={portfolio} />
+      <TabBar tab={tab} setTab={setTab} portfolio={portfolio} tbdData={tbdData} />
 
       <main style={{ flex: 1, padding: '20px', overflowY: 'auto', paddingBottom: '32px' }}>
-        {tab === 'dashboard' && <DashboardTab portfolio={portfolio} market={market} setTab={setTab} />}
+        {tab === 'dashboard' && <DashboardTab portfolio={portfolio} market={market} setTab={setTab} tbdData={tbdData} />}
         {tab === 'signals' && (
           <SignalsTab
             portfolio={portfolio}
@@ -151,7 +164,6 @@ export default function Home() {
         {tab === 'positions' && (
           <PositionsTab 
             portfolio={portfolio} 
-            market={market} 
             onClose={handleClose} 
             onUpdateTags={handleUpdateTags}
             onUpdateAIFilters={handleUpdateAIFilters}
@@ -159,8 +171,15 @@ export default function Home() {
         )}
         {tab === 'market' && <MarketTab market={market} />}
         {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
-        {tab === 'trading' && <TradingByDayTab />}
+        {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} />}
       </main>
+
+      <ChatWidget 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+        portfolio={portfolio} 
+        market={market} 
+      />
 
       {toast && (
         <div className="animate-fade" style={{
