@@ -19,9 +19,8 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
 
   return (
     <header style={{
-      background: '#090d16',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
-      padding: '12px 16px 14px 16px',
+      background: '#000000',
+      padding: '16px 12px 12px 12px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'stretch',
@@ -30,21 +29,32 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
       zIndex: 100
     }}>
       {/* ── LOGO CENTRATO (CAPITAL α ALPHA) ─────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '4px 0 12px 0' }}>
-        <span style={{ fontSize: '19px', fontWeight: '800', color: '#475569', letterSpacing: '0.05em', fontFamily: 'var(--font-sans, system-ui)' }}>CAPITAL</span>
-        <span style={{ fontSize: '28px', fontWeight: '900', color: '#84cc16', lineHeight: 1, fontFamily: 'var(--font-sans, system-ui)', margin: '0 2px' }}>α</span>
-        <span style={{ fontSize: '19px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.05em', fontFamily: 'var(--font-sans, system-ui)' }}>ALPHA</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', paddingBottom: '16px' }}>
+        <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#475569', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>CAPITAL</span>
+        {/* SVG Alpha symbol */}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 8px rgba(132,204,22,0.4))' }}>
+          <path d="M21 5C18 7 15.5 10 12 11.5C8.5 13 4 11 4 7.5C4 4 8.5 2 12 4C15.5 6 18 9 21 11" stroke="#84cc16" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#ffffff', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>ALPHA</span>
       </div>
 
-      {/* ── BARRA DI AZIONE INFERIORE ───────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+      {/* ── BARRA DI AZIONE INFERIORE (CARD DARK GREY) ───────────────────────── */}
+      <div style={{
+        background: '#1c1c1e', // Sfondo grigio scuro del pannello
+        border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: '16px',
+        padding: '10px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
         {/* Left: RV Circle */}
         <div style={{
-          width: '38px', height: '38px',
+          width: '36px', height: '36px',
           borderRadius: '50%',
-          background: '#84cc16',
+          background: '#84cc16', // Cerchio verde
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: '800', fontSize: '13px', color: '#070b14'
+          fontWeight: '700', fontSize: '13px', color: '#090d16'
         }}>
           RV
         </div>
@@ -53,29 +63,34 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Cerca */}
           <button style={{
-            background: '#161b26',
+            background: '#2c2c2e', // Bottone scuro
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '10px',
             color: '#94a3b8',
-            width: '38px', height: '38px',
+            width: '36px', height: '36px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '15px', cursor: 'pointer'
+            fontSize: '14px', cursor: 'pointer'
           }} title="Cerca">
             🔍
           </button>
 
-          {/* Notifiche */}
+          {/* Notifiche / Laptop icon */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowMenu(!showMenu)} style={{
-              background: '#161b26',
+              background: '#2c2c2e',
               border: 'none',
-              borderRadius: '12px',
-              color: '#ffffff',
-              width: '38px', height: '38px',
+              borderRadius: '10px',
+              color: '#94a3b8',
+              width: '36px', height: '36px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '15px', cursor: 'pointer', position: 'relative'
+              cursor: 'pointer', position: 'relative'
             }} title="Notifiche">
-              🔔
+              {/* Laptop icon SVG */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="2" y1="20" x2="22" y2="20" />
+                <line x1="12" y1="17" x2="12" y2="20" />
+              </svg>
               {unreadAlerts.length > 0 && (
                 <span style={{ position: 'absolute', top: -3, right: -3, background: 'var(--red)', color: '#fff', fontSize: '8px', padding: '1px 3px', borderRadius: '10px', fontWeight: 'bold' }}>{unreadAlerts.length}</span>
               )}
@@ -104,24 +119,24 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
             )}
           </div>
 
-          {/* Scan Button (Cyan Gradient) */}
+          {/* Scan Button (Teal/Cyan Gradient) */}
           <button
             onClick={onScan}
             disabled={scanning}
             style={{
-              background: scanning ? '#161b26' : 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
+              background: scanning ? '#2c2c2e' : 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
               border: 'none',
-              borderRadius: '12px',
+              borderRadius: '10px',
               color: '#070b14',
-              width: '74px', height: '38px',
+              width: '70px', height: '36px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: scanning ? 'not-allowed' : 'pointer',
               fontWeight: '800',
-              transition: 'all 0.2s',
-              boxShadow: scanning ? 'none' : '0 3px 8px rgba(79,172,254,0.2)'
+              boxShadow: scanning ? 'none' : '0 3px 8px rgba(79,172,254,0.2)',
+              transition: 'all 0.2s'
             }}
           >
             {scanning ? (
