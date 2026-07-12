@@ -308,3 +308,21 @@ export async function syncEtoroPortfolio(): Promise<void> {
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
+
+// ─── CALIBRATION TABLE ────────────────────────────────────────────────────────
+// Persistita su Vercel KV. Ricostruita ogni giorno da /api/cron/calibrate
+// (ore 6:00 UTC), letta ad ogni scan (ore 8:00 UTC).
+export async function getCalibrationTable(): Promise<import('./backtest').CalibrationTable | null> {
+  const raw = await kvGet('calibration_table');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export async function saveCalibrationTable(table: import('./backtest').CalibrationTable): Promise<void> {
+  await kvSet('calibration_table', JSON.stringify(table));
+  await kvSet('calibration_updated_at', new Date().toISOString());
+}
+
+export async function getCalibrationUpdatedAt(): Promise<string | null> {
+  return kvGet('calibration_updated_at');
+}

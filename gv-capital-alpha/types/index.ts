@@ -27,6 +27,8 @@ export interface Signal {
   takeProfitPercent: number;
   kellyFraction: number;
   winProbability: number;
+  winProbabilitySampleSize: number;   // NEW: n. osservazioni storiche usate
+  winProbabilityTrusted: boolean;     // NEW: true se campione >= 30
   expectedReturn: number;
   reasoning: string;
   strategy: string;
@@ -105,7 +107,8 @@ export interface MarketData {
   high24h: number;
   low24h: number;
   volume: number;
-  history: { date: string; close: number }[];
+  // high/low inclusi per backtest realistico (stop/target H+L invece di solo close)
+  history: { date: string; close: number; high?: number; low?: number }[];
 }
 
 export interface WatchlistItem {

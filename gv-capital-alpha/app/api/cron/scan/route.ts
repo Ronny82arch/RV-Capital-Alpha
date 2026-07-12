@@ -1,112 +1,107 @@
+/**
+ * GET /api/cron/scan
+ * Cron Vercel: ogni giorno alle 08:00 UTC (dopo calibrate alle 06:00).
+ * Scansiona il watchlist, applica la probabilità calibrata + filtro correlazione
+ * + drawdown risk multiplier, genera segnale su Telegram se c'è un'opportunità.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllMarketData } from '@/lib/market';
 import { analyzeAsset, findBestCandidate, generateSignalWithAI } from '@/lib/ai';
-import { getPortfolio, addSignal } from '@/lib/storage';
+import {
+  getPortfolio, addSignal, updatePositionPrices,
+  getCalibrationTable, getCalibrationUpdatedAt,
+} from '@/lib/storage';
+import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rv-capital-alpha.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://gv-capital-alpha.vercel.app';
 
-// ─── CRON JOB ─────────────────────────────────────────────────────────────────
-// Called by Vercel Cron every 2 hours
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = req.headers.get('authorization');
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
   return runScan();
 }
 
-// Manual trigger from UI
-export async function POST(req: NextRequest) {
-  return runScan();
-}
+export async function POST() { return runScan(); }
 
 async function runScan() {
   try {
-    // Sync with eToro before processing if configured
-    const { syncEtoroPortfolio } = await import('@/lib/storage');
-    await syncEtoroPortfolio();
-
-    const [marketData, portfolio] = await Promise.all([
-      fetchAllMarketData(),
+    const [portfolio, marketData, calibrationTable, calibrationUpdatedAt] = await Promise.all([
       getPortfolio(),
+      fetchAllMarketData(),
+      getCalibrationTable(),
+      getCalibrationUpdatedAt(),
     ]);
 
-    // ── CHECK STOP LOSS / TAKE PROFIT ALERTS ─────────────────────────────────
-    const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
-    const aiManagedTags = portfolio.aiManagedTags || [];
-    
-    // Filter out positions the AI is not allowed to manage
-    const managedPositions = openPositions.filter(p => {
-      if (aiManagedTags.length === 0) return true; // If no tags configured, manage all
-      if (!p.tags || p.tags.length === 0) return false; // If position has no tags but AI is restricted, ignore
-      return p.tags.some(tag => aiManagedTags.includes(tag));
-    });
+    if (!calibrationTable) {
+      console.warn('[scan] Nessuna tabella di calibrazione: le probabilità usano il prior neutro 50%. Attendi che /api/cron/calibrate giri almeno una volta.');
+    }
 
-    for (const pos of managedPositions) {
+    // ── Aggiorna prezzi posizioni aperte ─────────────────────────────────────
+    const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
+    const priceUpdates  = marketData
+      .filter(md => openPositions.some(p => p.symbol === md.symbol))
+      .map(md => ({ positionId: openPositions.find(p => p.symbol === md.symbol)!.id, currentPrice: md.price }));
+
+    if (priceUpdates.length > 0) await updatePositionPrices(priceUpdates);
+
+    // ── Alert SL/TP ──────────────────────────────────────────────────────────
+    for (const pos of openPositions) {
       const md = marketData.find(m => m.symbol === pos.symbol);
       if (!md) continue;
-
-      const distanceToSL = (md.price - pos.stopLoss) / pos.entryPrice;
-      const distanceToTP = (pos.takeProfit - md.price) / pos.entryPrice;
-
-      if (distanceToSL < 0.02) {
-        await notifyStopLossAlert(pos, md.price);
-      } else if (distanceToTP < 0.01 || md.price >= pos.takeProfit) {
-        await notifyTakeProfitAlert(pos, md.price);
-      }
+      if (md.price <= pos.stopLoss)   await notifyStopLossAlert(pos, md.price);
+      if (md.price >= pos.takeProfit) await notifyTakeProfitAlert(pos, md.price);
     }
 
-    // ── CHECK IF DAILY SUMMARY TIME (8:00 UTC) ────────────────────────────────
-    const hour = new Date().getUTCHours();
-    if (hour === 7) {
-      await notifyDailySummary(
-        portfolio.totalValue,
-        portfolio.totalPnL,
-        portfolio.totalPnLPercent,
-        portfolio.targetAnnualReturn,
-        openPositions.length
-      );
-    }
+    // ── Matrice di correlazione su dati live ─────────────────────────────────
+    const correlationMatrix = buildCorrelationMatrix(marketData);
 
-    // ── SIGNAL GENERATION ─────────────────────────────────────────────────────
-    // Don't generate if there's already a pending signal
-    const hasPending = portfolio.signals.some(s => s.status === 'PENDING');
-    if (hasPending) {
-      return NextResponse.json({ success: true, message: 'Segnale in attesa di conferma — scan saltato.' });
-    }
-
+    // ── Analisi tecnica + selezione candidato ────────────────────────────────
     const analyses = marketData
-      .map(analyzeAsset)
-      .filter(Boolean) as ReturnType<typeof analyzeAsset>[];
+      .map(md => analyzeAsset(md, calibrationTable))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
-    const filtered = analyses.filter(a => a !== null) as NonNullable<ReturnType<typeof analyzeAsset>>[];
-    const candidate = findBestCandidate(filtered, portfolio);
+    const { candidate, skippedForCorrelation, skippedUntrusted } = findBestCandidate(
+      analyses, portfolio, correlationMatrix
+    );
 
+    // ── Daily summary Telegram ───────────────────────────────────────────────
+    await notifyDailySummary(
+      portfolio.totalValue,
+      portfolio.totalPnL,
+      portfolio.totalPnLPercent,
+      portfolio.targetAnnualReturn,
+      openPositions.length
+    );
     if (!candidate) {
       return NextResponse.json({
         success: true,
-        message: 'Nessun segnale trovato. Mercato non offre opportunità valide ora.',
-        scanned: filtered.length,
+        message: 'Nessun segnale: nessun setup con probabilità storicamente validata (≥30 osservazioni, >55%) e decorrelato dalle posizioni aperte.',
+        scanned: analyses.length,
+        skippedForCorrelation,
+        skippedUntrusted,
+        calibrationUpdatedAt,
       });
     }
 
+    // ── Genera segnale con AI reasoning ─────────────────────────────────────
     const signal = await generateSignalWithAI(candidate, portfolio);
-    if (!signal) {
-      return NextResponse.json({ success: false, message: 'Generazione segnale AI fallita.' });
-    }
+    if (!signal) return NextResponse.json({ success: false, message: 'Generazione segnale AI fallita.' });
 
     await addSignal(signal);
     await notifyNewSignal(signal, APP_URL);
 
     return NextResponse.json({
       success: true,
-      message: `Segnale generato: ${signal.action} ${signal.symbol}`,
+      message: `Segnale: ${signal.action} ${signal.symbol} | Prob calibrata: ${(signal.winProbability * 100).toFixed(1)}% (n=${signal.winProbabilitySampleSize})`,
       signal,
+      calibrationUpdatedAt,
     });
   } catch (err) {
-    console.error('Scan error:', err);
+    console.error('[scan] Error:', err);
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
 }

@@ -140,3 +140,61 @@ export async function fetchCurrentPrice(symbol: string, type: AssetType): Promis
   const data = await fetchMarketData(item);
   return data?.price ?? null;
 }
+
+// ─── FETCH LUNGO PERIODO (per calibrazione storica) ──────────────────────────
+// Usato SOLO da /api/cron/calibrate — non dal cron di scan giornaliero.
+// 2 anni di storia per avere campioni statisticamente significativi per bucket.
+async function fetchYahooFinanceForCalibration(item: WatchlistItem): Promise<MarketData | null> {
+  const yahooSymbol = item.yahooSymbol || item.symbol;
+  try {
+    const url = `${YAHOO_BASE}/v8/finance/chart/${yahooSymbol}?interval=1d&range=2y`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RV-Capital-Alpha/1.0)' },
+      next: { revalidate: 86400 }, // cache 24h — dati solo per calibrazione offline
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const result = data.chart?.result?.[0];
+    if (!result) return null;
+
+    const meta = result.meta;
+    const timestamps: number[] = result.timestamp || [];
+    const closes: number[] = result.indicators?.quote?.[0]?.close || [];
+    const highs:  number[] = result.indicators?.quote?.[0]?.high  || [];
+    const lows:   number[] = result.indicators?.quote?.[0]?.low   || [];
+
+    const history = timestamps
+      .map((ts, i) => ({
+        date:  new Date(ts * 1000).toISOString().split('T')[0],
+        close: closes[i],
+        high:  highs[i],
+        low:   lows[i],
+      }))
+      .filter(h => h.close != null && h.close > 0);
+
+    const currentPrice = meta.regularMarketPrice || meta.previousClose;
+    const prevClose    = meta.previousClose || currentPrice;
+
+    return {
+      symbol: item.symbol, name: item.name, type: item.type,
+      price: currentPrice,
+      change: currentPrice - prevClose,
+      changePercent: ((currentPrice - prevClose) / prevClose) * 100,
+      high24h: meta.regularMarketDayHigh || currentPrice,
+      low24h:  meta.regularMarketDayLow  || currentPrice,
+      volume:  meta.regularMarketVolume  || 0,
+      history,
+    };
+  } catch { return null; }
+}
+
+export async function fetchAllMarketDataForCalibration(): Promise<MarketData[]> {
+  const results = await Promise.allSettled(
+    WATCHLIST.map(item =>
+      item.type === 'CRYPTO' ? fetchCryptoData(item) : fetchYahooFinanceForCalibration(item)
+    )
+  );
+  return results
+    .filter(r => r.status === 'fulfilled' && r.value !== null)
+    .map(r => (r as PromiseFulfilledResult<MarketData>).value);
+}
