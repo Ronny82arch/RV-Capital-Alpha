@@ -38,8 +38,8 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
       {tabs.map(t => (
         <button key={t.id} onClick={() => setTab(t.id)} style={{
           flex: 1, padding: '16px 16px', background: 'none', border: 'none',
-          borderBottom: tab === t.id ? '3px solid var(--green)' : '3px solid transparent',
-          color: tab === t.id ? 'var(--green)' : 'var(--text3)',
+          borderBottom: tab === t.id ? '3px solid #84cc16' : '3px solid transparent',
+          color: tab === t.id ? '#84cc16' : 'var(--text3)',
           fontSize: '12px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
           fontWeight: tab === t.id ? '700' : '400', transition: 'all 0.2s',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
