@@ -82,9 +82,6 @@ button { cursor: pointer; font-family: var(--font-sans); }
   header > div:last-child {
     gap: 6px !important;
   }
-  header > div:last-child > div:first-child {
-    display: none !important; /* nasconde il P&L YTD testuale per non affollare la barra superiore */
-  }
 
   /* Ottimizzazione TabBar inferiore */
   nav {
