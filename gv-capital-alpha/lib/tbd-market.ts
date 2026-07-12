@@ -1,18 +1,16 @@
 /**
  * TBD MARKET — Feed dati H1 per lo scanner speculativo
- * Fonte CRYPTO: Binance API pubblica (gratuita, no key)
- * Fonte STOCK:  Twelve Data (placeholder key — da configurare a fine sviluppo)
+ * Fonte CRYPTO: Binance WebSocket (real-time + Level 2 depth) & REST fallback
+ * Fonte STOCK:  Yahoo Finance WebSocket (Protobuf stream) & query1 REST fallback
  * Output: MarketDataSnapshot[] normalizzato per il TradingByDayEngine
  */
 
+import WebSocket from 'ws';
 import { MarketDataSnapshot } from './trading-by-day';
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-// TODO: Aggiungere TWELVE_DATA_API_KEY nelle env vars Vercel quando pronto
-const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY ?? 'PLACEHOLDER_KEY';
-const BINANCE_BASE    = 'https://api.binance.com/api/v3';
-const TWELVE_BASE     = 'https://api.twelvedata.com';
+const BINANCE_BASE = 'https://api.binance.com/api/v3';
 
 // Paniere speculativo H1
 const CRYPTO_ASSETS = [
@@ -27,6 +25,198 @@ const STOCK_ASSETS = [
   { symbol: 'AAPL', display: 'AAPL' },
 ];
 
+// ─── CACHE GLOBAL (Next.js hot-reloading safe) ────────────────────────────────
+
+const globalAny = global as any;
+if (!globalAny.tbdPriceCache) globalAny.tbdPriceCache = new Map<string, number>();
+if (!globalAny.tbdBookCache)  globalAny.tbdBookCache  = new Map<string, number>();
+
+const priceCache: Map<string, number> = globalAny.tbdPriceCache;
+const bookCache: Map<string, number>  = globalAny.tbdBookCache;
+
+let binanceWS: WebSocket | null = globalAny.tbdBinanceWS ?? null;
+let yahooWS: WebSocket | null   = globalAny.tbdYahooWS   ?? null;
+let isConnectingBinance = false;
+let isConnectingYahoo   = false;
+
+// ─── PROTOBUF DECODER (Yahoo Finance WS stream) ───────────────────────────────
+
+/**
+ * Decodifica manuale del payload Protobuf di Yahoo Finance
+ * Tag 1: id (string)
+ * Tag 2: price (float)
+ */
+function decodeYahooProtobuf(base64Str: string): { id: string; price: number } | null {
+  try {
+    const buffer = Buffer.from(base64Str, 'base64');
+    let offset = 0;
+    let id = '';
+    let price = 0;
+
+    while (offset < buffer.length) {
+      const key = buffer[offset++];
+      const tag = key >> 3;
+      const wireType = key & 7;
+
+      if (tag === 1 && wireType === 2) {
+        // String id
+        let len = 0;
+        let shift = 0;
+        while (true) {
+          const byte = buffer[offset++];
+          len |= (byte & 0x7f) << shift;
+          if ((byte & 0x80) === 0) break;
+          shift += 7;
+        }
+        id = buffer.toString('utf8', offset, offset + len);
+        offset += len;
+      } else if (tag === 2 && wireType === 5) {
+        // Float price (4 bytes)
+        price = buffer.readFloatLE(offset);
+        offset += 4;
+      } else {
+        // Skip altri campi
+        if (wireType === 0) {
+          while ((buffer[offset++] & 0x80) !== 0) {}
+        } else if (wireType === 1) {
+          offset += 8;
+        } else if (wireType === 2) {
+          let len = 0;
+          let shift = 0;
+          while (true) {
+            const byte = buffer[offset++];
+            len |= (byte & 0x7f) << shift;
+            if ((byte & 0x80) === 0) break;
+            shift += 7;
+          }
+          offset += len;
+        } else if (wireType === 5) {
+          offset += 4;
+        } else {
+          break;
+        }
+      }
+    }
+    return { id, price };
+  } catch {
+    return null;
+  }
+}
+
+// ─── WEBSOCKET CLIENTS ────────────────────────────────────────────────────────
+
+function connectBinance() {
+  if (isConnectingBinance || (globalAny.tbdBinanceWS && globalAny.tbdBinanceWS.readyState === 1)) return;
+  isConnectingBinance = true;
+
+  try {
+    const streams = 'btcusdt@ticker/ethusdt@ticker/solusdt@ticker/bnbusdt@ticker/btcusdt@depth5/ethusdt@depth5/solusdt@depth5/bnbusdt@depth5';
+    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+
+    ws.on('open', () => {
+      console.log('Binance Spot WS Connected');
+      isConnectingBinance = false;
+      globalAny.tbdBinanceWS = ws;
+      binanceWS = ws;
+    });
+
+    ws.on('message', (data: any) => {
+      try {
+        const json = JSON.parse(data.toString());
+        const stream = json.stream;
+        const msg = json.data;
+
+        if (stream.endsWith('@ticker')) {
+          const symbol = msg.s.toUpperCase(); // e.g. BTCUSDT
+          const price = parseFloat(msg.c);
+          priceCache.set(symbol, price);
+        } else if (stream.endsWith('@depth5')) {
+          const symbol = stream.split('@')[0].toUpperCase(); // e.g. BTCUSDT
+          const bids = msg.bids.map((b: any) => ({ qty: parseFloat(b[1]) }));
+          const asks = msg.asks.map((a: any) => ({ qty: parseFloat(a[1]) }));
+
+          const bidVol = bids.reduce((acc: number, b: any) => acc + b.qty, 0);
+          const askVol = asks.reduce((acc: number, a: any) => acc + a.qty, 0);
+          const totalVol = bidVol + askVol;
+          const imbalance = totalVol > 0 ? (bidVol - askVol) / totalVol : 0;
+
+          bookCache.set(symbol, imbalance);
+        }
+      } catch (e) {
+        // ignore
+      }
+    });
+
+    ws.on('error', (err) => {
+      console.error('Binance Spot WS Error:', err);
+      isConnectingBinance = false;
+    });
+
+    ws.on('close', () => {
+      console.log('Binance Spot WS Closed. Retrying in 10s...');
+      isConnectingBinance = false;
+      globalAny.tbdBinanceWS = null;
+      setTimeout(connectBinance, 10000);
+    });
+  } catch (e) {
+    isConnectingBinance = false;
+    setTimeout(connectBinance, 10000);
+  }
+}
+
+function connectYahoo() {
+  if (isConnectingYahoo || (globalAny.tbdYahooWS && globalAny.tbdYahooWS.readyState === 1)) return;
+  isConnectingYahoo = true;
+
+  try {
+    const ws = new WebSocket('wss://streamer.finance.yahoo.com', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    ws.on('open', () => {
+      console.log('Yahoo Finance WS Connected');
+      isConnectingYahoo = false;
+      globalAny.tbdYahooWS = ws;
+      yahooWS = ws;
+      ws.send(JSON.stringify({ subscribe: ['AAPL', 'NVDA'] }));
+    });
+
+    ws.on('message', (data: any) => {
+      try {
+        const payload = decodeYahooProtobuf(data.toString());
+        if (payload && payload.id && payload.price) {
+          priceCache.set(payload.id.toUpperCase(), payload.price);
+        }
+      } catch (e) {
+        // ignore
+      }
+    });
+
+    ws.on('error', (err) => {
+      console.error('Yahoo Finance WS Error:', err);
+      isConnectingYahoo = false;
+    });
+
+    ws.on('close', () => {
+      console.log('Yahoo Finance WS Closed. Retrying in 10s...');
+      isConnectingYahoo = false;
+      globalAny.tbdYahooWS = null;
+      setTimeout(connectYahoo, 10000);
+    });
+  } catch (e) {
+    isConnectingYahoo = false;
+    setTimeout(connectYahoo, 10000);
+  }
+}
+
+// Inizializza le connessioni in background
+export function initTbdWebSockets() {
+  connectBinance();
+  connectYahoo();
+}
+
 // ─── CALCOLI STATISTICI ───────────────────────────────────────────────────────
 
 function calcATR(candles: { h: number; l: number; c: number }[], period = 14): number {
@@ -39,7 +229,6 @@ function calcATR(candles: { h: number; l: number; c: number }[], period = 14): n
       Math.abs(candles[i].l - candles[i - 1].c),
     ));
   }
-  // Wilder's smoothing
   let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
   for (let i = period; i < trs.length; i++) {
     atr = (atr * (period - 1) + trs[i]) / period;
@@ -81,13 +270,11 @@ function detectBollingerSqueeze(closes: number[], period = 20): boolean {
   if (mean === 0) return false;
   const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
   const std = Math.sqrt(variance);
-  // Un "Squeeze" si verifica quando la larghezza delle bande (4 deviazioni standard)
-  // è eccezionalmente stretta (es. < 1.5% del prezzo per Crypto H1).
   const bandwidthPct = (std * 4) / mean;
   return bandwidthPct < 0.015;
 }
 
-// ─── BINANCE CRYPTO H1 ────────────────────────────────────────────────────────
+// ─── DATA FETCHERS & FALLBACKS ───────────────────────────────────────────────
 
 async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot | null> {
   try {
@@ -107,9 +294,17 @@ async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot
     const closes  = candles.map(c => c.c);
     const volumes = candles.map(c => c.v);
 
+    // Sovrascrivi il prezzo corrente con quello del WebSocket in tempo reale (se disponibile)
+    let currentPrice = closes[closes.length - 1];
+    const wsPrice = priceCache.get(symbol.toUpperCase());
+    if (wsPrice) {
+      currentPrice = wsPrice;
+      candles[candles.length - 1].c = wsPrice;
+    }
+
     return {
       asset:             symbol.replace('USDT', '/USDT'),
-      currentPrice:      closes[closes.length - 1],
+      currentPrice,
       atrH1:             calcATR(candles),
       zScoreH1:          Number(calcZScore(closes).toFixed(3)),
       chandeMomentumH1:  Number(calcCMO(closes).toFixed(2)),
@@ -122,35 +317,46 @@ async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot
   }
 }
 
-// ─── TWELVE DATA STOCK H1 ─────────────────────────────────────────────────────
-
-async function fetchTwelveDataH1(symbol: string): Promise<MarketDataSnapshot | null> {
-  // Non chiamare se la key è placeholder
-  if (TWELVE_DATA_KEY === 'PLACEHOLDER_KEY') return null;
-
+async function fetchYahooRESTCandlesH1(symbol: string): Promise<MarketDataSnapshot | null> {
   try {
-    const url = `${TWELVE_BASE}/time_series?symbol=${symbol}&interval=1h&outputsize=50&apikey=${TWELVE_DATA_KEY}`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1h&range=5d`;
     const res = await fetch(url, { next: { revalidate: 1800 } });
     if (!res.ok) return null;
     const data = await res.json();
-    if (data.status === 'error' || !data.values) return null;
+    const result = data.chart?.result?.[0];
+    if (!result) return null;
 
-    const values: { high: string; low: string; close: string; volume: string }[] =
-      data.values.reverse(); // Twelve Data è in ordine decrescente
+    const timestamps = result.timestamp;
+    const quote = result.indicators?.quote?.[0];
+    if (!timestamps || !quote) return null;
 
-    const candles = values.map(v => ({
-      h: parseFloat(v.high),
-      l: parseFloat(v.low),
-      c: parseFloat(v.close),
-      v: parseFloat(v.volume),
-    }));
+    const candles: { h: number; l: number; c: number; v: number }[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const h = quote.high[i];
+      const l = quote.low[i];
+      const c = quote.close[i];
+      const v = quote.volume[i];
+      if (h !== null && l !== null && c !== null) {
+        candles.push({ h, l, c, v: v ?? 0 });
+      }
+    }
+
+    if (candles.length < 25) return null;
 
     const closes  = candles.map(c => c.c);
     const volumes = candles.map(c => c.v);
 
+    // Sovrascrivi il prezzo corrente con quello del WebSocket in tempo reale (se disponibile)
+    let currentPrice = closes[closes.length - 1];
+    const wsPrice = priceCache.get(symbol.toUpperCase());
+    if (wsPrice) {
+      currentPrice = wsPrice;
+      candles[candles.length - 1].c = wsPrice;
+    }
+
     return {
       asset:             symbol,
-      currentPrice:      closes[closes.length - 1],
+      currentPrice,
       atrH1:             calcATR(candles),
       zScoreH1:          Number(calcZScore(closes).toFixed(3)),
       chandeMomentumH1:  Number(calcCMO(closes).toFixed(2)),
@@ -163,15 +369,15 @@ async function fetchTwelveDataH1(symbol: string): Promise<MarketDataSnapshot | n
   }
 }
 
-// ─── MOCK FALLBACK (quando le API non sono disponibili) ───────────────────────
+// ─── MOCK FALLBACK (Solo come salvagente estremo) ────────────────────────────
 
 function generateMockSnapshot(asset: string, assetType: 'CRYPTO' | 'STOCK'): MarketDataSnapshot {
   const basePrice = assetType === 'CRYPTO' ? 95000 + Math.random() * 5000 : 150 + Math.random() * 50;
-  const zScore    = (Math.random() * 6) - 3; // [-3, +3]
+  const zScore    = (Math.random() * 6) - 3;
   return {
     asset,
     currentPrice:     Number(basePrice.toFixed(2)),
-    atrH1:            Number((basePrice * 0.008).toFixed(4)), // ~0.8% del prezzo
+    atrH1:            Number((basePrice * 0.008).toFixed(4)),
     zScoreH1:         Number(zScore.toFixed(3)),
     chandeMomentumH1: Number(((Math.random() * 140) - 70).toFixed(2)),
     volumeSpike:      Math.random() > 0.7,
@@ -185,7 +391,10 @@ function generateMockSnapshot(asset: string, assetType: 'CRYPTO' | 'STOCK'): Mar
 export async function fetchAllTbdMarketData(): Promise<MarketDataSnapshot[]> {
   const results: MarketDataSnapshot[] = [];
 
-  // Fetch crypto via Binance (sempre disponibile)
+  // Assicura che i WebSocket siano connessi/attivi
+  initTbdWebSockets();
+
+  // 1. Fetch Crypto via Binance
   const cryptoPromises = CRYPTO_ASSETS.map(a => fetchBinanceCandlesH1(a.symbol));
   const cryptoResults  = await Promise.allSettled(cryptoPromises);
 
@@ -193,20 +402,20 @@ export async function fetchAllTbdMarketData(): Promise<MarketDataSnapshot[]> {
     if (r.status === 'fulfilled' && r.value) {
       results.push(r.value);
     } else {
-      // Fallback mock
       results.push(generateMockSnapshot(CRYPTO_ASSETS[i].display, 'CRYPTO'));
     }
   });
 
-  // Fetch stocks via Twelve Data (quando key disponibile)
-  const stockPromises = STOCK_ASSETS.map(a => fetchTwelveDataH1(a.symbol));
+  // 2. Fetch Stocks via Yahoo Finance (con real-time WebSocket cache & query1 REST fallback)
+  const stockPromises = STOCK_ASSETS.map(a => fetchYahooRESTCandlesH1(a.symbol));
   const stockResults  = await Promise.allSettled(stockPromises);
 
   stockResults.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value) {
       results.push(r.value);
+    } else {
+      results.push(generateMockSnapshot(STOCK_ASSETS[i].display, 'STOCK'));
     }
-    // Se Twelve Data non disponibile, non aggiunge mock per stocks (dati poco realistici)
   });
 
   return results;
