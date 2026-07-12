@@ -18,19 +18,30 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {pending.length === 0 && (
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
-          <div style={{ fontSize: '28px', marginBottom: '12px' }}>◉</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text3)', marginBottom: '16px' }}>
-            Nessun segnale in attesa.<br />Premi SCAN per analizzare il mercato.
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0, 212, 170, 0.1)', padding: '6px 14px', borderRadius: '20px', border: '1px solid #00d4aa33' }}>
+            <span style={{ 
+              display: 'inline-block', 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              background: '#00d4aa',
+              boxShadow: '0 0 8px #00d4aa',
+              animation: 'pulse 1.8s infinite ease-in-out'
+            }} />
+            <style>{`
+              @keyframes pulse {
+                0% { opacity: 0.4; transform: scale(0.9); }
+                50% { opacity: 1; transform: scale(1.1); }
+                100% { opacity: 0.4; transform: scale(0.9); }
+              }
+            `}</style>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#00d4aa', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>MONITORAGGIO AI ATTIVO</span>
           </div>
-          <button onClick={onScan} disabled={scanning} style={{
-            background: scanning ? 'var(--bg3)' : 'linear-gradient(135deg, #00d4aa, #3b82f6)',
-            border: 'none', borderRadius: '10px', color: scanning ? 'var(--text3)' : '#070b14',
-            fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '12px',
-            letterSpacing: '0.1em', padding: '12px 28px',
-          }}>
-            {scanning ? '◉ SCANSIONE IN CORSO...' : '▶ AVVIA SCANSIONE AI'}
-          </button>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text2)', lineHeight: '1.6' }}>
+            Nessun segnale in attesa.<br />
+            <span style={{ fontSize: '11px', color: 'var(--text3)' }}>L'intelligenza artificiale scansiona i mercati in background 24/7.</span>
+          </div>
         </div>
       )}
 

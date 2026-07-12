@@ -531,22 +531,25 @@ export default function TradingByDayTab({ tbdData, onRefresh }: Props) {
               <span>· 4 Cluster Attivi</span>
             </div>
           </div>
-          <button
-            onClick={handleScan}
-            disabled={scanning || breaker?.stopTrading}
-            style={{
-              padding: "10px 22px", borderRadius: "12px", fontWeight: 800, fontSize: "13px",
-              cursor: scanning || breaker?.stopTrading ? "not-allowed" : "pointer",
-              border: "none",
-              background: scanning || breaker?.stopTrading
-                ? "rgba(255,255,255,0.05)"
-                : "linear-gradient(135deg, #f59e0b, #ef4444)",
-              color: scanning || breaker?.stopTrading ? "#475569" : "#0f172a",
-              transition: "all 0.2s",
-            }}
-          >
-            {scanning ? "⏳ Scansione..." : "🔍 Avvia Scanner"}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(245, 158, 11, 0.1)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <span style={{ 
+              display: 'inline-block', 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              background: '#f59e0b',
+              boxShadow: '0 0 8px #f59e0b',
+              animation: 'pulse-tbd 1.8s infinite ease-in-out'
+            }} />
+            <style>{`
+              @keyframes pulse-tbd {
+                0% { opacity: 0.4; transform: scale(0.9); }
+                50% { opacity: 1; transform: scale(1.1); }
+                100% { opacity: 0.4; transform: scale(0.9); }
+              }
+            `}</style>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>TBD SWARM LIVE</span>
+          </div>
         </div>
 
         {/* Progress bar target */}
@@ -615,7 +618,7 @@ export default function TradingByDayTab({ tbdData, onRefresh }: Props) {
               <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔍</div>
               <div style={{ fontSize: "13px", color: "#94a3b8", fontWeight: 600 }}>Nessun setup valido rilevato</div>
               <div style={{ fontSize: "11px", color: "#475569", marginTop: "6px" }}>
-                Clicca "Avvia Scanner" per analizzare i mercati H1
+                L'algoritmo analizza i mercati H1 in background ad ogni tick
               </div>
             </div>
           ) : (
