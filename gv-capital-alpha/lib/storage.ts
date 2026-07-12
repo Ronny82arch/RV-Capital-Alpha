@@ -39,6 +39,25 @@ async function kvSet(key: string, value: string): Promise<void> {
   } catch {}
 }
 
+async function acquireLock(key: string, maxWaitMs = 5000): Promise<boolean> {
+  const lockKey = `${key}_lock`;
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const isLocked = await kvGet(lockKey);
+    if (!isLocked) {
+      await kvSet(lockKey, Date.now().toString());
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return false;
+}
+
+async function releaseLock(key: string): Promise<void> {
+  const lockKey = `${key}_lock`;
+  await kvSet(lockKey, '');
+}
+
 // ─── DEFAULT PORTFOLIO ────────────────────────────────────────────────────────
 function defaultPortfolio(): PortfolioState {
   // Se non c'è eToro o database collegato, mostriamo un portafoglio fittizio per far provare l'app
@@ -97,8 +116,26 @@ export async function getPortfolio(): Promise<PortfolioState> {
 }
 
 export async function savePortfolio(state: PortfolioState): Promise<void> {
-  state.updatedAt = new Date().toISOString();
-  await kvSet('portfolio', JSON.stringify(state));
+  const locked = await acquireLock('portfolio');
+  try {
+    state.updatedAt = new Date().toISOString();
+    await kvSet('portfolio', JSON.stringify(state));
+  } finally {
+    if (locked) await releaseLock('portfolio');
+  }
+}
+
+export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> | T): Promise<T> {
+  const locked = await acquireLock('portfolio');
+  try {
+    const portfolio = await getPortfolio();
+    const result = await fn(portfolio);
+    portfolio.updatedAt = new Date().toISOString();
+    await kvSet('portfolio', JSON.stringify(portfolio));
+    return result;
+  } finally {
+    if (locked) await releaseLock('portfolio');
+  }
 }
 
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
@@ -133,12 +170,9 @@ export async function markAllAlertsAsRead(): Promise<void> {
 
 // ─── SIGNAL OPERATIONS ────────────────────────────────────────────────────────
 export async function addSignal(signal: Signal): Promise<void> {
-  const portfolio = await getPortfolio();
-
-  // Keep max 50 signals in history
-  const signals = [signal, ...portfolio.signals].slice(0, 50);
-  portfolio.signals = signals;
-  await savePortfolio(portfolio);
+  await mutatePortfolio(p => {
+    p.signals = [signal, ...p.signals].slice(0, 50);
+  });
 }
 
 export async function updateSignalStatus(
@@ -226,30 +260,28 @@ export async function recalcPortfolio(portfolio: PortfolioState): Promise<void> 
 export async function updatePositionPrices(
   updates: { positionId: string; currentPrice: number }[]
 ): Promise<void> {
-  const portfolio = await getPortfolio();
-  let changed = false;
+  await mutatePortfolio(async (p) => {
+    let changed = false;
+    for (const update of updates) {
+      const idx = p.positions.findIndex(pos => pos.id === update.positionId);
+      if (idx === -1 || p.positions[idx].status !== 'OPEN') continue;
 
-  for (const update of updates) {
-    const idx = portfolio.positions.findIndex(p => p.id === update.positionId);
-    if (idx === -1 || portfolio.positions[idx].status !== 'OPEN') continue;
+      const pos = p.positions[idx];
+      const unrealizedPnl = (update.currentPrice - pos.entryPrice) * pos.quantity;
+      const unrealizedPnlPercent = ((update.currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
 
-    const pos = portfolio.positions[idx];
-    const unrealizedPnl = (update.currentPrice - pos.entryPrice) * pos.quantity;
-    const unrealizedPnlPercent = ((update.currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
-
-    portfolio.positions[idx] = {
-      ...pos,
-      currentPrice: update.currentPrice,
-      unrealizedPnl,
-      unrealizedPnlPercent,
-    };
-    changed = true;
-  }
-
-  if (changed) {
-    await recalcPortfolio(portfolio);
-    await savePortfolio(portfolio);
-  }
+      p.positions[idx] = {
+        ...pos,
+        currentPrice: update.currentPrice,
+        unrealizedPnl,
+        unrealizedPnlPercent,
+      };
+      changed = true;
+    }
+    if (changed) {
+      await recalcPortfolio(p);
+    }
+  });
 }
 
 export async function updatePositionTags(positionId: string, tags: string[]): Promise<void> {
@@ -306,7 +338,7 @@ export async function syncEtoroPortfolio(): Promise<void> {
 }
 
 export function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  return crypto.randomUUID();
 }
 
 // ─── CALIBRATION TABLE ────────────────────────────────────────────────────────
@@ -319,8 +351,12 @@ export async function getCalibrationTable(): Promise<import('./backtest').Calibr
 }
 
 export async function saveCalibrationTable(table: import('./backtest').CalibrationTable): Promise<void> {
-  await kvSet('calibration_table', JSON.stringify(table));
-  await kvSet('calibration_updated_at', new Date().toISOString());
+  try {
+    await kvSet('calibration_table', JSON.stringify(table));
+    await kvSet('calibration_updated_at', new Date().toISOString());
+  } catch (error) {
+    console.error('Failed to save calibration table:', error);
+  }
 }
 
 export async function getCalibrationUpdatedAt(): Promise<string | null> {
