@@ -140,7 +140,7 @@ export function buildCalibrationTable(
 
   for (const symbol of Object.keys(historyBySymbol)) {
     const perSymbol = calibrateSetupsForSymbol(historyBySymbol[symbol], holdingDays);
-    for (const [key, v] of perSymbol) {
+    for (const [key, v] of Array.from(perSymbol.entries())) {
       const acc = merged.get(key) || { wins: 0, total: 0, winReturns: [], lossReturns: [] };
       acc.wins += v.wins;
       acc.total += v.total;
@@ -151,9 +151,9 @@ export function buildCalibrationTable(
   }
 
   const table: CalibrationTable = {};
-  for (const [key, v] of merged) {
-    const avgWin  = v.winReturns.length  ? v.winReturns.reduce((a,b)=>a+b,0)  / v.winReturns.length  : 0;
-    const avgLoss = v.lossReturns.length ? Math.abs(v.lossReturns.reduce((a,b)=>a+b,0) / v.lossReturns.length) : 0;
+  for (const [key, v] of Array.from(merged.entries())) {
+    const avgWin  = v.winReturns.length  ? v.winReturns.reduce((a: number, b: number)=>a+b,0)  / v.winReturns.length  : 0;
+    const avgLoss = v.lossReturns.length ? Math.abs(v.lossReturns.reduce((a: number, b: number)=>a+b,0) / v.lossReturns.length) : 0;
     table[key] = {
       setupKey: key,
       sampleSize: v.total,

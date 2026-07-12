@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
-import { isAheadOfTarget, getAggression } from '@/lib/kelly';
+import { isAheadOfTarget } from '@/lib/kelly';
 import { Tab } from '@/app/page';
 import ProfessionalChart from './ProfessionalChart';
 import AssetIcon from './AssetIcon';
@@ -222,7 +222,14 @@ export default function DashboardTab({ portfolio, market, setTab }: Props) {
 
   const progressPct = Math.min(100, (p.totalPnL / targetEur) * 100);
   const ahead = isAheadOfTarget(p.totalPnLPercent, target, p.startDate);
-  const aggression = getAggression(p.totalPnLPercent, target, p.startDate);
+  const getAggressionStr = (pnlPercent: number, targetPercent: number, startDate: string) => {
+    const daysPassed = Math.max(1, (Date.now() - new Date(startDate).getTime()) / 86400000);
+    const expected = (targetPercent / 365) * daysPassed;
+    if (pnlPercent < expected - 5) return 'AGGRESSIVE';
+    if (pnlPercent > expected + 2) return 'CONSERVATIVE';
+    return 'MODERATE';
+  };
+  const aggression = getAggressionStr(p.totalPnLPercent, target, p.startDate);
 
   const winRate = closedPositions.length > 0
     ? (closedPositions.filter(pos => (pos.realizedPnl ?? 0) > 0).length / closedPositions.length * 100)
