@@ -20,10 +20,11 @@ export function calculateKelly(
   const halfKelly = kellyFraction / 2;
   const expectedValue = b * p - q;
 
-  // Penalità volatilità: riduce (mai amplifica) la size in contesti ad alta volatilità
-  let volatilityPenalty = 1;
-  if (volatility > 0.05) volatilityPenalty = 0.5;
-  else if (volatility > 0.03) volatilityPenalty = 0.75;
+  // Inverse Volatility Scaling (Risk Parity)
+  // Utilizziamo un baseline benchmark dell'1.5% (mercato azionario standard).
+  // Curva continua matematica invece di scaglioni fissi.
+  const BASELINE_VOL = 0.015;
+  const volatilityPenalty = volatility > 0 ? Math.min(1.0, BASELINE_VOL / volatility) : 1.0;
 
   // Dynamic Target Adaptation
   // Target bassi usano frazioni sicure, target aggressivi si espandono verso il Full-Kelly
@@ -100,6 +101,37 @@ export function calculateVolatility(prices: number[], period = 20): number {
   return Math.sqrt(variance) / mean;
 }
 
+export function calculateATR(
+  history: { high?: number; low?: number; close: number }[],
+  period = 14
+): number {
+  if (history.length < 2) return 0;
+  const trueRanges: number[] = [];
+  
+  for (let i = 1; i < history.length; i++) {
+    const current = history[i];
+    const prevClose = history[i - 1].close;
+    const high = current.high ?? current.close;
+    const low = current.low ?? current.close;
+    
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    trueRanges.push(tr);
+  }
+  
+  if (trueRanges.length === 0) return 0;
+  
+  // Wilder's Smoothing for ATR
+  let atr = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+  }
+  return atr;
+}
+
 // ─── WIN PROBABILITY — FALLBACK NEUTRO ───────────────────────────────────────
 // USATO SOLO se la tabella di calibrazione storica (lib/backtest.ts) non è
 // ancora disponibile (primo deploy, prima che /api/cron/calibrate giri).
@@ -117,19 +149,13 @@ export function estimateFallbackWinProbability(
   priceVsSMA20: number,
   priceVsSMA50: number
 ): TechnicalScore {
-  let score = 0;
-  if (rsi < 30) score += 1;
-  else if (rsi > 70) score -= 1;
-  if (momentum > 0.04) score += 1;
-  else if (momentum < -0.04) score -= 1;
-  if (priceVsSMA20 > 0 && priceVsSMA50 > 0) score += 1;
-  else if (priceVsSMA20 < 0 && priceVsSMA50 < 0) score -= 1;
+  // Pure moving average trend definition
+  const trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 
+    (priceVsSMA20 > 0 && priceVsSMA50 > 0) ? 'BULLISH' : 
+    (priceVsSMA20 < 0 && priceVsSMA50 < 0) ? 'BEARISH' : 'NEUTRAL';
 
-  const trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' =
-    score >= 2 ? 'BULLISH' : score <= -2 ? 'BEARISH' : 'NEUTRAL';
-
-  // Prior neutro: senza calibrazione storica non assumiamo nessun edge
-  return { winProbability: 0.5, trend, score };
+  // Maximum Entropy Principle: senza calibrazione storica non assumiamo nessun edge
+  return { winProbability: 0.5, trend, score: 0 };
 }
 
 // ─── POSITION SIZING ──────────────────────────────────────────────────────────
@@ -178,11 +204,9 @@ export function isAheadOfTarget(
   return currentPnlPercent >= proRataTarget;
 }
 
-// ─── DRAWDOWN RISK MULTIPLIER (sostituisce getAggression) ────────────────────
-// RIDUCE il Kelly proporzionalmente al drawdown dal picco storico.
-// Non amplifica MAI la size dopo le perdite (loss-chasing rimosso).
-// Logica: più siamo lontani dal picco, meno rischiamo — esattamente il
-// contrario della vecchia getAggression() che faceva l'opposto.
+// ─── DRAWDOWN RISK MULTIPLIER (Continuous Anti-Martingale) ───────────────────
+// RIDUCE il Kelly in modo lineare proporzionalmente al drawdown dal picco.
+// Fissa il limite di "Rovina" al 20%. Se drawdown >= 20%, rischio = 0.
 export function getDrawdownRiskMultiplier(
   performanceHistory: { date: string; totalValue: number }[],
   currentTotalValue: number
@@ -190,10 +214,8 @@ export function getDrawdownRiskMultiplier(
   const peak = Math.max(currentTotalValue, ...performanceHistory.map(p => p.totalValue), 1);
   const drawdown = (peak - currentTotalValue) / peak;
 
-  let multiplier = 1;
-  if (drawdown > 0.15) multiplier = 0.25;      // -15% dal picco: rischio al 25%
-  else if (drawdown > 0.10) multiplier = 0.50; // -10%: rischio al 50%
-  else if (drawdown > 0.05) multiplier = 0.75; // -5%: rischio al 75%
+  const MAX_DRAWDOWN = 0.20;
+  const multiplier = Math.max(0, 1 - (drawdown / MAX_DRAWDOWN));
 
   return { multiplier, drawdownPercent: drawdown * 100 };
 }
