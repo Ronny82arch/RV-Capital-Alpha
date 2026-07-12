@@ -175,13 +175,13 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
       `}</style>
 
       {/* ── LOGO CENTRATO (CAPITAL α ALPHA) ─────────────────────────────────── */}
-      <div className="logo-row">
+      <div className="logo-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0px' }}>
         <span style={{ fontSize: '18px', fontWeight: '400', color: '#52525b', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>CAPITAL</span>
-        {/* SVG Alpha symbol (ingrandito e modellato esattemente come da immagine) */}
-        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 8px rgba(132,204,22,0.45))', alignSelf: 'center' }}>
-          <path d="M21 6C18 8, 14 11, 11 12C7 13.5, 4 11.5, 4 8C4 4.5, 7.5 3, 11 4.5C14.5 6, 18 10, 21 13" stroke="#84cc16" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+        {/* SVG Alpha symbol (modellato per corrispondere esattamente all'immagine) */}
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 8px rgba(132,204,22,0.45))', alignSelf: 'center', zIndex: 1 }}>
+          <path d="M22 5C18.5 8.5, 15 11, 13.5 12 C9.5 16.5, 4 16.5, 4 12 C4 7.5, 9.5 7.5, 13.5 12 C15 13, 18.5 15.5, 22 19" stroke="#84cc16" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)' }}>ALPHA</span>
+        <span style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.08em', fontFamily: 'var(--font-sans, system-ui)', marginLeft: '-10px', zIndex: 2 }}>ALPHA</span>
       </div>
 
       {/* ── BARRA DI AZIONE INFERIORE (CARD DARK GREY) ───────────────────────── */}
