@@ -33,17 +33,17 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
   return (
     <nav style={{
       background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
-      display: 'flex', overflowX: 'auto',
+      display: 'flex', overflowX: 'auto', gap: '8px', padding: '0 16px'
     }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => setTab(t.id)} style={{
-          flex: 1, padding: '13px 8px', background: 'none', border: 'none',
-          borderBottom: tab === t.id ? '2px solid var(--green)' : '2px solid transparent',
+          flex: 1, padding: '16px 16px', background: 'none', border: 'none',
+          borderBottom: tab === t.id ? '3px solid var(--green)' : '3px solid transparent',
           color: tab === t.id ? 'var(--green)' : 'var(--text3)',
-          fontSize: '11px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
+          fontSize: '12px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
           fontWeight: tab === t.id ? '700' : '400', transition: 'all 0.2s',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-          position: 'relative', whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+          position: 'relative', whiteSpace: 'nowrap', cursor: 'pointer',
         }}>
           <span style={{ display: 'flex', alignItems: 'center' }}>{t.icon}</span>
           <span>{t.label}</span>

@@ -434,6 +434,8 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 <tr style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>ASSET</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>CATEGORIA</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>APERTURA</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>ATTUALE</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ALLOCATO</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ATTUALE</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>PESO %</th>
@@ -445,7 +447,8 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                   const pnl = pos.unrealizedPnl ?? 0;
                   const pnlPct = pos.unrealizedPnlPercent ?? 0;
                   const allocated = pos.capitalAllocated ?? (pos.entryPrice * pos.quantity);
-                  const currentVal = (pos.currentPrice ?? pos.entryPrice) * pos.quantity;
+                  const currentPrice = pos.currentPrice ?? pos.entryPrice;
+                  const currentVal = currentPrice * pos.quantity;
                   const weight = displayTotalValue > 0 ? (currentVal / displayTotalValue) * 100 : 0;
                   const isExpanded = expandedPosId === pos.id;
 
@@ -471,6 +474,12 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                           <span style={{ padding: '4px 8px', background: 'var(--bg3)', borderRadius: '12px', fontSize: '10px' }}>
                             {getMacroCategory(pos)}
                           </span>
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text2)' }}>
+                          €{pos.entryPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text)' }}>
+                          €{currentPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                           <div style={{ color: 'var(--text2)' }}>
@@ -501,7 +510,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                       </tr>
                       {isExpanded && (
                         <tr style={{ borderBottom: '1px solid var(--bg3)', background: 'rgba(0,0,0,0.1)' }}>
-                          <td colSpan={6} style={{ padding: '16px', borderLeft: '2px solid var(--blue)' }}>
+                          <td colSpan={8} style={{ padding: '16px', borderLeft: '2px solid var(--blue)' }}>
                             <div style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '8px', letterSpacing: '0.1em' }}>STORICO OPERAZIONI</div>
                             <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', background: 'var(--bg2)', borderRadius: '8px', overflow: 'hidden' }}>
                               <thead>
