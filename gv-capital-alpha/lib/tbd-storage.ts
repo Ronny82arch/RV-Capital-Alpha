@@ -32,7 +32,7 @@ async function kvSet(key: string, value: string, exSeconds?: number): Promise<vo
         Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(value),
+      body: value,
     });
   }
 }
@@ -71,16 +71,20 @@ export async function saveTodayLog(log: TradingDayLog): Promise<void> {
 }
 
 export async function getLast30DaysLogs(): Promise<TradingDayLog[]> {
-  const logs: TradingDayLog[] = [];
+  const promises = [];
   for (let i = 0; i < 30; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const key = d.toISOString().split('T')[0];
-    const raw = await kvGet(`tbd:log:${key}`);
-    if (raw) {
-      try { logs.push(JSON.parse(raw) as TradingDayLog); } catch { /* skip */ }
-    }
+    promises.push(kvGet(`tbd:log:${key}`));
   }
+  const results = await Promise.allSettled(promises);
+  const logs: TradingDayLog[] = [];
+  results.forEach(res => {
+    if (res.status === 'fulfilled' && res.value) {
+      try { logs.push(JSON.parse(res.value) as TradingDayLog); } catch { /* skip */ }
+    }
+  });
   return logs.sort((a, b) => b.date.localeCompare(a.date));
 }
 

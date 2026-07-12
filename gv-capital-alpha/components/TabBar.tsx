@@ -4,28 +4,19 @@ import { PortfolioState } from '@/types';
 import { useState, useEffect } from 'react';
 import { Compass, Target, Zap, Briefcase, LineChart, FlaskConical } from 'lucide-react';
 
-interface Props { tab: Tab; setTab: (t: Tab) => void; portfolio: PortfolioState | null; }
+interface Props { tab: Tab; setTab: (t: Tab) => void; portfolio: PortfolioState | null; tbdData?: any; }
 
-export default function TabBar({ tab, setTab, portfolio }: Props) {
+export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
   const [tbdCount, setTbdCount] = useState(0);
 
   useEffect(() => {
-    async function fetchTbd() {
-      try {
-        const res = await fetch('/api/tbd/log');
-        const json = await res.json();
-        if (json.success && json.data.activeSignals) {
-          const active = json.data.activeSignals.filter((s: any) => 
-            ['PRE_ALERT', 'ACTIVE', 'TRIGGERED'].includes(s.status)
-          ).length;
-          setTbdCount(active);
-        }
-      } catch (e) {}
+    if (tbdData && tbdData.activeSignals) {
+      const active = tbdData.activeSignals.filter((s: any) => 
+        ['PRE_ALERT', 'ACTIVE', 'TRIGGERED'].includes(s.status)
+      ).length;
+      setTbdCount(active);
     }
-    fetchTbd();
-    const interval = setInterval(fetchTbd, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [tbdData]);
 
   const pendingCount = portfolio?.signals.filter(s => s.status === 'PENDING').length ?? 0;
   const openCount = portfolio?.positions.filter(p => p.status === 'OPEN').length ?? 0;

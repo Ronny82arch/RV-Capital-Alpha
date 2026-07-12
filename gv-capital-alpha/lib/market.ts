@@ -47,7 +47,12 @@ export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData
     const lows: number[] = result.indicators?.quote?.[0]?.low || [];
 
     const history = timestamps
-      .map((ts, i) => ({ date: new Date(ts * 1000).toISOString().split('T')[0], close: closes[i] }))
+      .map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString().split('T')[0],
+        close: closes[i],
+        high: highs[i],
+        low: lows[i]
+      }))
       .filter(h => h.close != null && h.close > 0);
 
     const currentPrice = meta.regularMarketPrice || meta.previousClose;
@@ -144,6 +149,57 @@ export async function fetchCurrentPrice(symbol: string, type: AssetType): Promis
 // ─── FETCH LUNGO PERIODO (per calibrazione storica) ──────────────────────────
 // Usato SOLO da /api/cron/calibrate — non dal cron di scan giornaliero.
 // 2 anni di storia per avere campioni statisticamente significativi per bucket.
+async function fetchCryptoDataForCalibration(item: WatchlistItem): Promise<MarketData | null> {
+  if (!item.coinId) return null;
+
+  try {
+    const [priceRes, histRes] = await Promise.all([
+      fetch(
+        `${COINGECKO_BASE}/simple/price?ids=${item.coinId}&vs_currencies=eur&include_24hr_change=true&include_24hr_vol=true&include_24hr_high=true&include_24hr_low=true`,
+        { next: { revalidate: 86400 } }
+      ),
+      fetch(
+        `${COINGECKO_BASE}/coins/${item.coinId}/market_chart?vs_currency=eur&days=730&interval=daily`,
+        { next: { revalidate: 86400 } }
+      ),
+    ]);
+
+    if (!priceRes.ok) return null;
+
+    const priceData = await priceRes.json();
+    const histData = histRes.ok ? await histRes.json() : { prices: [] };
+
+    const coin = priceData[item.coinId!];
+    if (!coin) return null;
+
+    const currentPrice = coin.eur;
+    const change24h = coin.eur_24h_change || 0;
+    const previousPrice = currentPrice / (1 + change24h / 100);
+
+    const history = (histData.prices || []).map(([ts, price]: [number, number]) => ({
+      date: new Date(ts).toISOString().split('T')[0],
+      close: price,
+      high: price * 1.005, // Mock high/low for crypto history since CoinGecko doesn't provide it
+      low: price * 0.995,
+    }));
+
+    return {
+      symbol: item.symbol,
+      name: item.name,
+      type: item.type,
+      price: currentPrice,
+      change: currentPrice - previousPrice,
+      changePercent: change24h,
+      high24h: coin.eur_24h_high || currentPrice * 1.05,
+      low24h: coin.eur_24h_low || currentPrice * 0.95,
+      volume: coin.eur_24h_vol || 0,
+      history,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchYahooFinanceForCalibration(item: WatchlistItem): Promise<MarketData | null> {
   const yahooSymbol = item.yahooSymbol || item.symbol;
   try {
@@ -191,7 +247,7 @@ async function fetchYahooFinanceForCalibration(item: WatchlistItem): Promise<Mar
 export async function fetchAllMarketDataForCalibration(): Promise<MarketData[]> {
   const results = await Promise.allSettled(
     WATCHLIST.map(item =>
-      item.type === 'CRYPTO' ? fetchCryptoData(item) : fetchYahooFinanceForCalibration(item)
+      item.type === 'CRYPTO' ? fetchCryptoDataForCalibration(item) : fetchYahooFinanceForCalibration(item)
     )
   );
   return results

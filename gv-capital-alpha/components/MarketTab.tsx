@@ -72,7 +72,7 @@ function MicroChart({ closes, color }: { closes: number[]; color: string }) {
   const range = max - min || 1;
   const W = 60; const H = 28;
   const points = closes.map((v, i) => {
-    const x = (i / (closes.length - 1)) * W;
+    const x = (i / Math.max(1, closes.length - 1)) * W;
     const y = H - ((v - min) / range) * H;
     return `${x},${y}`;
   }).join(' ');

@@ -5,13 +5,12 @@ import AssetIcon from './AssetIcon';
 
 interface Props {
   portfolio: PortfolioState | null;
-  market: MarketData[];
   onClose: (positionId: string, price: number) => Promise<boolean>;
   onUpdateTags?: (positionId: string, tags: string[]) => Promise<boolean>;
   onUpdateAIFilters?: (aiManagedTags: string[]) => Promise<boolean>;
 }
 
-export default function PositionsTab({ portfolio, market, onClose, onUpdateTags, onUpdateAIFilters }: Props) {
+export default function PositionsTab({ portfolio, onClose, onUpdateTags, onUpdateAIFilters }: Props) {
   const openPositions = portfolio?.positions.filter(p => p.status === 'OPEN') ?? [];
   const closedPositions = portfolio?.positions.filter(p => p.status === 'CLOSED') ?? [];
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);

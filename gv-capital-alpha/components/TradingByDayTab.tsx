@@ -23,6 +23,11 @@ interface TbdPageData {
   };
 }
 
+interface Props {
+  tbdData?: TbdPageData | null;
+  onRefresh?: () => Promise<void>;
+}
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function pnlColor(pnl: number) {
@@ -312,42 +317,30 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
 
 // ─── TAB PRINCIPALE ───────────────────────────────────────────────────────────
 
-export default function TradingByDayTab() {
-  const [data, setData]       = useState<TbdPageData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
+export default function TradingByDayTab({ tbdData, onRefresh }: Props) {
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [editingCapital, setEditingCapital] = useState(false);
   const [capitalInput, setCapitalInput] = useState("");
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState("");
+  const editingCapitalRef = React.useRef(editingCapital);
+  const editingTargetRef = React.useRef(editingTarget);
+
+  useEffect(() => { editingCapitalRef.current = editingCapital; }, [editingCapital]);
+  useEffect(() => { editingTargetRef.current = editingTarget; }, [editingTarget]);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res  = await fetch("/api/tbd/log");
-      const json = await res.json();
-      if (json.success) {
-        setData(json.data);
-        setCapitalInput(String(json.data.config?.totalCapital ?? 5000));
-        setTargetInput(String(json.data.config?.dailyTarget ?? 50));
-      }
-    } catch {
-      /* silent */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 60000); // refresh ogni minuto
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    if (tbdData) {
+      if (!editingCapitalRef.current) setCapitalInput(String(tbdData.config?.totalCapital ?? 5000));
+      if (!editingTargetRef.current) setTargetInput(String(tbdData.config?.dailyTarget ?? 50));
+    }
+  }, [tbdData]);
 
   const handleSaveCapital = async () => {
     const val = parseFloat(capitalInput);
@@ -365,7 +358,7 @@ export default function TradingByDayTab() {
       if (json.success) {
         showToast("Capitale aggiornato correttamente");
         setEditingCapital(false);
-        await fetchData();
+        if (onRefresh) await onRefresh();
       }
     } catch {
       showToast("Errore durante il salvataggio del capitale", false);
@@ -388,7 +381,7 @@ export default function TradingByDayTab() {
       if (json.success) {
         showToast("Target giornaliero aggiornato correttamente");
         setEditingTarget(false);
-        await fetchData();
+        if (onRefresh) await onRefresh();
       }
     } catch {
       showToast("Errore durante il salvataggio del target", false);
@@ -410,7 +403,7 @@ export default function TradingByDayTab() {
           true,
         );
       }
-      await fetchData();
+      if (onRefresh) await onRefresh();
     } catch {
       showToast("Errore scanner", false);
     } finally {
@@ -432,20 +425,20 @@ export default function TradingByDayTab() {
       const json = await res.json();
       if (json.success) {
         showToast(json.message ?? `Segnale aggiornato: ${status}`);
-        await fetchData();
+        if (onRefresh) await onRefresh();
       }
     } catch {
       showToast("Errore aggiornamento segnale", false);
     }
   };
 
-  const pnl       = data?.today?.realizedPnL ?? 0;
-  const totalCapital = data?.config?.totalCapital ?? 5000;
-  const dailyTarget  = data?.config?.dailyTarget ?? 50;
+  const pnl       = tbdData?.today?.realizedPnL ?? 0;
+  const totalCapital = tbdData?.config?.totalCapital ?? 5000;
+  const dailyTarget  = tbdData?.config?.dailyTarget ?? 50;
   const progress  = Math.max(0, Math.min(100, (pnl / dailyTarget) * 100));
-  const breaker   = data?.circuitBreaker;
-  const signals   = data?.activeSignals ?? [];
-  const history   = data?.history ?? [];
+  const breaker   = tbdData?.circuitBreaker;
+  const signals   = tbdData?.activeSignals ?? [];
+  const history   = tbdData?.history ?? [];
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "20px", position: "relative" }}>
@@ -610,7 +603,7 @@ export default function TradingByDayTab() {
             </span>
           </div>
 
-          {loading ? (
+          {!tbdData ? (
             <div style={{ textAlign: "center", padding: "40px", color: "#334155", fontSize: "12px" }}>
               Caricamento motore speculativo...
             </div>
@@ -644,12 +637,12 @@ export default function TradingByDayTab() {
               Statistiche Oggi
             </span>
             {[
-              { label: "Trade Totali",   val: String(data?.today?.totalTrades ?? 0), color: "#e2e8f0" },
-              { label: "Trade Vincenti", val: String(data?.today?.winningTrades ?? 0), color: "#e2e8f0" },
+              { label: "Trade Totali",   val: String(tbdData?.today?.totalTrades ?? 0), color: "#e2e8f0" },
+              { label: "Trade Vincenti", val: String(tbdData?.today?.winningTrades ?? 0), color: "#e2e8f0" },
               {
                 label: "Win Rate",
-                val: data?.today?.totalTrades
-                  ? `${Math.round((data.today.winningTrades / data.today.totalTrades) * 100)}%`
+                val: tbdData?.today?.totalTrades
+                  ? `${Math.round((tbdData.today.winningTrades / tbdData.today.totalTrades) * 100)}%`
                   : "—",
                 color: "#e2e8f0"
               },

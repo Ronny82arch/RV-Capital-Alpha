@@ -3,7 +3,7 @@
  * Avvia lo scanner H1, genera segnali PRE_ALERT e gestisce il circuit breaker.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { TradingByDayEngine } from '@/lib/trading-by-day';
 import { fetchAllTbdMarketData } from '@/lib/tbd-market';
 import {
@@ -12,9 +12,15 @@ import {
 } from '@/lib/tbd-storage';
 import { sendPreAlertNotification, sendCircuitBreakerNotification } from '@/lib/tbd-notifications';
 
-export const runtime = 'edge';
+export const maxDuration = 60;
 
-export async function POST() {
+
+
+export async function POST(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const config  = await getTbdConfig();
     const engine  = new TradingByDayEngine(config);

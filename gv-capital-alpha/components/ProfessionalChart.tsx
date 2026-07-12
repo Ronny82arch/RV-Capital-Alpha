@@ -14,6 +14,7 @@ import {
 interface Props {
   currentValue: number;
   label: string;
+  history?: { date: string; totalValue: number; pnlPercent: number }[];
 }
 
 type FilterType = '1H' | '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
@@ -34,7 +35,7 @@ function getDeterministicValue(currentValue: number, timeMs: number, nowMs: numb
   return trend + sineYear + sineMonth + sineWeek + sineDay + sineHour;
 }
 
-export default function ProfessionalChart({ currentValue, label }: Props) {
+export default function ProfessionalChart({ currentValue, label, history }: Props) {
   const [filter, setFilter] = useState<FilterType>('1M');
   
   const filteredData = useMemo(() => {
@@ -62,32 +63,68 @@ export default function ProfessionalChart({ currentValue, label }: Props) {
     }
     
     const data = [];
-    const points = 100; // Generate exactly 100 points for a smooth line at any zoom
-    const step = (nowMs - cutoff) / (points - 1);
     
-    for (let i = 0; i < points; i++) {
-      const timeMs = cutoff + (step * i);
-      const isLast = i === points - 1;
-      const val = isLast ? currentValue : getDeterministicValue(currentValue, timeMs, nowMs);
-      
-      const d = new Date(timeMs);
-      let displayDate = '';
-      if (format === 'time') {
-        displayDate = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-      } else if (format === 'datetime') {
-        displayDate = `${d.toLocaleDateString('it-IT', { weekday: 'short' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
-      } else {
-        displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
+    // Se abbiamo dati reali a sufficienza, usiamoli
+    if (history && history.length > 0) {
+      const historyPoints = history.map(h => ({
+        timestamp: new Date(h.date).getTime(),
+        value: h.totalValue,
+      }));
+      // Aggiungiamo il valore corrente come ultimo punto
+      if (historyPoints[historyPoints.length - 1].timestamp < nowMs) {
+        historyPoints.push({ timestamp: nowMs, value: currentValue });
       }
 
-      data.push({
-        timestamp: timeMs,
-        value: val,
-        displayDate
-      });
+      // Filtra in base al cutoff
+      const filtered = historyPoints.filter(p => p.timestamp >= cutoff);
+      
+      // Assicuriamoci di avere almeno 2 punti per tirare una linea, altrimenti prendiamo i due più recenti dal db intero
+      let finalPoints = filtered;
+      if (finalPoints.length < 2 && historyPoints.length >= 2) {
+        finalPoints = historyPoints.slice(-2);
+      }
+
+      for (const p of finalPoints) {
+        const d = new Date(p.timestamp);
+        let displayDate = '';
+        if (format === 'time') {
+          displayDate = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        } else if (format === 'datetime') {
+          displayDate = `${d.toLocaleDateString('it-IT', { weekday: 'short' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+          displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
+        }
+        data.push({ timestamp: p.timestamp, value: p.value, displayDate });
+      }
+    } else {
+      // Mock deterministico fallback
+      const points = 100;
+      const step = (nowMs - cutoff) / (points - 1);
+      
+      for (let i = 0; i < points; i++) {
+        const timeMs = cutoff + (step * i);
+        const isLast = i === points - 1;
+        const val = isLast ? currentValue : getDeterministicValue(currentValue, timeMs, nowMs);
+        
+        const d = new Date(timeMs);
+        let displayDate = '';
+        if (format === 'time') {
+          displayDate = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        } else if (format === 'datetime') {
+          displayDate = `${d.toLocaleDateString('it-IT', { weekday: 'short' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+          displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
+        }
+
+        data.push({
+          timestamp: timeMs,
+          value: val,
+          displayDate
+        });
+      }
     }
     return data;
-  }, [currentValue, filter]);
+  }, [currentValue, filter, history]);
 
   const minVal = Math.min(...filteredData.map(d => d.value));
   const maxVal = Math.max(...filteredData.map(d => d.value));
@@ -115,6 +152,9 @@ export default function ProfessionalChart({ currentValue, label }: Props) {
           <div style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color }}>
             {isPositive ? '+' : ''}€{pnl.toFixed(0)} ({isPositive ? '+' : ''}{pnlPct.toFixed(2)}%)
             <span style={{ color: 'var(--text3)', fontWeight: 'normal', marginLeft: '6px' }}>{filter}</span>
+            {(!history || history.length === 0) && (
+              <span style={{ fontSize: '9px', background: '#f59e0b22', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px', fontWeight: 'bold' }}>DATI DIMOSTRATIVI</span>
+            )}
           </div>
         </div>
 

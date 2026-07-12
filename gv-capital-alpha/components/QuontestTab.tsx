@@ -45,17 +45,17 @@ const ASSETS = [
 ];
 
 const REGIMES: { id: MarketRegime; label: string; color: string }[] = [
-  { id: "GOLDILOCKS", label: "Goldilocks", color: "#22d3ee" },
+  { id: "GOLDILOCKS", label: "Goldilocks", color: "#3b82f6" },
   { id: "REFLATION", label: "Reflation", color: "#f59e0b" },
-  { id: "STAGFLATION", label: "Stagflation", color: "#f97316" },
-  { id: "DEFLATION", label: "Deflation", color: "#a78bfa" },
+  { id: "STAGFLATION", label: "Stagflation", color: "#ef4444" },
+  { id: "DEFLATION", label: "Deflation", color: "#8b5cf6" },
 ];
 
 // ─── HELPER UI ────────────────────────────────────────────────────────────────
 
 function scoreColor(score: number): string {
-  if (score >= 75) return "#10b981";
-  if (score >= 55) return "#22d3ee";
+  if (score >= 75) return "#00d4aa";
+  if (score >= 55) return "#3b82f6";
   if (score >= 35) return "#f59e0b";
   return "#ef4444";
 }
@@ -69,7 +69,7 @@ function scoreLabel(score: number): string {
 
 function TrendBadge({ val }: { val: string }) {
   const color =
-    val === "Rialzista" ? "#10b981" : val === "Ribassista" ? "#ef4444" : "#94a3b8";
+    val === "Rialzista" ? "#00d4aa" : val === "Ribassista" ? "#ef4444" : "#94a3b8";
   return (
     <span
       style={{
@@ -91,7 +91,7 @@ function TrendBadge({ val }: { val: string }) {
 function BarRow({
   label,
   value,
-  color = "#10b981",
+  color = "#00d4aa",
 }: {
   label: string;
   value: number;
@@ -234,7 +234,7 @@ export default function QuontestTab({ portfolio }: Props) {
     fetchQuantData();
   }, [fetchQuantData]);
 
-  const sc = data ? scoreColor(data.score) : "#10b981";
+  const sc = data ? scoreColor(data.score) : "#00d4aa";
 
   return (
     <div
@@ -249,8 +249,8 @@ export default function QuontestTab({ portfolio }: Props) {
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(59,130,246,0.06) 100%)",
-          border: "1px solid rgba(16,185,129,0.18)",
+          background: "linear-gradient(135deg, rgba(0,212,170,0.08) 0%, rgba(59,130,246,0.06) 100%)",
+          border: "1px solid rgba(0,212,170,0.18)",
           borderRadius: "16px",
           padding: "20px 24px",
           display: "flex",
@@ -266,7 +266,7 @@ export default function QuontestTab({ portfolio }: Props) {
                 fontSize: "20px",
                 fontWeight: 900,
                 letterSpacing: "-0.5px",
-                background: "linear-gradient(90deg,#10b981,#3b82f6)",
+                background: "linear-gradient(90deg,#00d4aa,#3b82f6)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
               }}
@@ -322,7 +322,7 @@ export default function QuontestTab({ portfolio }: Props) {
               padding: "12px 16px",
               borderRadius: "12px",
               border: activeCategory === "portfolio" ? "2px solid var(--green)" : "1px solid var(--border)",
-              background: activeCategory === "portfolio" ? "rgba(16,185,129,0.1)" : "var(--bg2)",
+              background: activeCategory === "portfolio" ? "rgba(0,212,170,0.1)" : "var(--bg2)",
               color: activeCategory === "portfolio" ? "var(--green)" : (portfolioAssets.length === 0 ? "var(--text3)" : "var(--text2)"),
               fontSize: "13px",
               fontWeight: 800,
@@ -334,7 +334,7 @@ export default function QuontestTab({ portfolio }: Props) {
               alignItems: "center",
               justifyContent: "center",
               gap: "8px",
-              boxShadow: activeCategory === "portfolio" ? "0 4px 12px rgba(16,185,129,0.15)" : "none",
+              boxShadow: activeCategory === "portfolio" ? "0 4px 12px rgba(0,212,170,0.15)" : "none",
             }}
           >
             <span style={{ fontSize: "18px" }}>📂</span>
@@ -370,9 +370,9 @@ export default function QuontestTab({ portfolio }: Props) {
               style={{
                 padding: "7px 16px",
                 borderRadius: "10px",
-                border: ticker === a.symbol ? "1px solid #10b981" : "1px solid rgba(255,255,255,0.08)",
-                background: ticker === a.symbol ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.04)",
-                color: ticker === a.symbol ? "#10b981" : "#94a3b8",
+                border: ticker === a.symbol ? "1px solid #00d4aa" : "1px solid rgba(255,255,255,0.08)",
+                background: ticker === a.symbol ? "rgba(0,212,170,0.15)" : "rgba(255,255,255,0.04)",
+                color: ticker === a.symbol ? "#00d4aa" : "#94a3b8",
                 fontWeight: 700,
                 fontSize: "12px",
                 cursor: "pointer",
@@ -668,7 +668,7 @@ export default function QuontestTab({ portfolio }: Props) {
                   key === "macro"
                     ? "#3b82f6"
                     : key === "trend"
-                    ? "#10b981"
+                    ? "#00d4aa"
                     : key === "momentum"
                     ? "#f59e0b"
                     : "#a78bfa";
@@ -693,7 +693,7 @@ export default function QuontestTab({ portfolio }: Props) {
                   style={{
                     fontSize: "14px",
                     fontWeight: 900,
-                    color: Math.abs(data.zScoreRaw) > 2 ? "#ef4444" : "#10b981",
+                    color: Math.abs(data.zScoreRaw) > 2 ? "#ef4444" : "#00d4aa",
                     fontFamily: "var(--font-mono, monospace)",
                   }}
                 >

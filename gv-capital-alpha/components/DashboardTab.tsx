@@ -9,7 +9,7 @@ import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale } from 'lucide-react';
 
-interface Props { portfolio: PortfolioState | null; market: MarketData[]; setTab?: (t: Tab) => void; }
+interface Props { portfolio: PortfolioState | null; market: MarketData[]; setTab?: (t: Tab) => void; tbdData?: any; }
 
 function getTagIcon(tag: string) {
   const t = tag.toLowerCase();
@@ -23,7 +23,7 @@ function getTagIcon(tag: string) {
   return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
 }
 
-export default function DashboardTab({ portfolio, market, setTab }: Props) {
+export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
@@ -38,20 +38,13 @@ export default function DashboardTab({ portfolio, market, setTab }: Props) {
   const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
 
   useEffect(() => {
-    async function fetchTbd() {
-      try {
-        const res = await fetch('/api/tbd/log');
-        const json = await res.json();
-        if (json.success) {
-          setTbdData({
-            realizedPnL: json.data.today?.realizedPnL ?? 0,
-            totalCapital: json.data.config?.totalCapital ?? 5000,
-          });
-        }
-      } catch (e) {}
+    if (externalTbdData) {
+      setTbdData({
+        realizedPnL: externalTbdData.today?.realizedPnL ?? 0,
+        totalCapital: externalTbdData.config?.totalCapital ?? 5000,
+      });
     }
-    fetchTbd();
-  }, []);
+  }, [externalTbdData]);
 
   const toggleTheme = () => {
     const newLight = !isLight;
@@ -419,7 +412,8 @@ export default function DashboardTab({ portfolio, market, setTab }: Props) {
       {/* PROFESSIONAL CHART (Dinamico per Portafoglio) */}
       <ProfessionalChart 
         currentValue={displayTotalValue} 
-        label={selectedTag || 'Tutti i portafogli'} 
+        label={selectedTag === 'Tutti' || !selectedTag ? 'TOTALE' : selectedTag.toUpperCase()} 
+        history={selectedTag === 'Tutti' || !selectedTag ? p.performanceHistory : undefined}
       />
 
       {/* STATS ROW */}
@@ -567,46 +561,7 @@ function StatCard({ label, value, color = 'var(--text)' }: { label: string; valu
   );
 }
 
-function EquityChart({ history, capitalBase }: { history: { date: string; totalValue: number; pnlPercent: number }[]; capitalBase: number }) {
-  const vals = history.map(h => h.totalValue);
-  const min = Math.min(...vals, capitalBase);
-  const max = Math.max(...vals);
-  const range = max - min || 1;
-  const W = 600; const H = 80; const pad = 8;
 
-  const points = vals.map((v, i) => {
-    const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
-    const y = H - pad - ((v - min) / range) * (H - pad * 2);
-    return `${x},${y}`;
-  }).join(' ');
-
-  const isUp = vals[vals.length - 1] >= capitalBase;
-  const color = isUp ? '#00d4aa' : '#ef4444';
-
-  // Baseline (capital base)
-  const baselineY = H - pad - ((capitalBase - min) / range) * (H - pad * 2);
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '80px' }}>
-        <line x1={pad} y1={baselineY} x2={W - pad} y2={baselineY} stroke="#1e2d47" strokeWidth="1" strokeDasharray="4,4" />
-        <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
-        {vals.length > 0 && (
-          <circle cx={pad + ((vals.length - 1) / (vals.length - 1)) * (W - pad * 2)} cy={H - pad - ((vals[vals.length - 1] - min) / range) * (H - pad * 2)} r="3" fill={color} />
-        )}
-      </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', marginTop: '4px' }}>
-        <span>{history[0]?.date}</span>
-        <span style={{ color }}>{history[history.length - 1]?.pnlPercent >= 0 ? '+' : ''}{history[history.length - 1]?.pnlPercent.toFixed(2)}%</span>
-        <span>{history[history.length - 1]?.date}</span>
-      </div>
-    </div>
-  );
-}
-
-function Empty() {
-  return <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px', fontFamily: 'var(--font-mono)' }}>Caricamento dati...</div>;
-}
 
 function getMacroCategory(pos: import('@/types').Position): string {
   // If it's a specific symbol that represents commodities (like Gold)

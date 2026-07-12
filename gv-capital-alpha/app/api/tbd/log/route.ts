@@ -10,7 +10,7 @@ import {
   getTbdConfig, getActiveSignals, todayKey, saveTbdConfig
 } from '@/lib/tbd-storage';
 
-export const runtime = 'edge';
+
 
 export async function GET() {
   try {
