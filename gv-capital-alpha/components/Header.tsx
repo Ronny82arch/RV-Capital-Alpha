@@ -8,10 +8,11 @@ interface Props {
   onScan: () => void;
   scanning: boolean;
   onRefresh: () => void;
+  syncing: boolean;
   onToggleChat: () => void;
 }
 
-export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefresh, onToggleChat }: Props) {
+export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefresh, syncing, onToggleChat }: Props) {
   const pnl = portfolio?.totalPnLPercent ?? 0;
   const isUp = pnl >= 0;
   const [showMenu, setShowMenu] = useState(false);
@@ -100,6 +101,13 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
           justify-content: center;
           font-size: 15px;
           cursor: pointer;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spin-animation {
+          animation: spin 1s linear infinite;
         }
         .scan-btn {
           background: linear-gradient(135deg, #bef264 0%, #84cc16 100%);
@@ -209,6 +217,11 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
 
         {/* Right: Actions */}
         <div className="action-right">
+          {/* Tasto Sincronizza eToro */}
+          <button className="action-btn" onClick={onRefresh} title="Sincronizza eToro" disabled={syncing}>
+            <span className={syncing ? 'spin-animation' : ''} style={{ display: 'inline-block' }}>🔄</span>
+          </button>
+
           {/* Tasto Chat AI */}
           <button className="action-btn" onClick={onToggleChat} title="Chat AI">
             🤖
