@@ -21,6 +21,7 @@ export default function Home() {
   const [tbdData, setTbdData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -74,6 +75,20 @@ export default function Home() {
       showToast('Errore scansione', false);
     } finally {
       setScanning(false);
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/portfolio', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.success ? 'Sincronizzazione eToro completata' : 'Errore sincronizzazione: ' + data.error, data.success);
+      await refresh();
+    } catch {
+      showToast('Errore durante la sincronizzazione', false);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -157,7 +172,8 @@ export default function Home() {
         lastUpdate={lastUpdate}
         onScan={handleScan}
         scanning={scanning}
-        onRefresh={refresh}
+        onRefresh={handleSync}
+        syncing={syncing}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
       />
       <TabBar tab={tab} setTab={setTab} portfolio={portfolio} tbdData={tbdData} />
