@@ -843,3 +843,75 @@ function SectorDiversificationWidget({ positions }: { positions: import('@/types
     </div>
   );
 }
+
+function CoreSatelliteWidget({ positions }: { positions: import('@/types').Position[] }) {
+  const openPos = positions.filter(p => p.status === 'OPEN');
+  
+  const coreValue = openPos
+    .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
+    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
+
+  const satValue = openPos
+    .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
+    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
+
+  const total = coreValue + satValue;
+  if (total === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun asset Core/Satellite attivo.</div>;
+
+  const corePct = (coreValue / total) * 100;
+  const satPct = (satValue / total) * 100;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', height: '16px', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ width: `${corePct}%`, background: 'var(--green)', transition: 'width 0.5s' }} title={`Core: ${corePct.toFixed(1)}%`} />
+        <div style={{ width: `${satPct}%`, background: '#f59e0b', transition: 'width 0.5s' }} title={`Satellite: ${satPct.toFixed(1)}%`} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--green)' }} />
+          <span style={{ color: 'var(--text2)' }}>Core</span>
+          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{corePct.toFixed(1)}%</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{satPct.toFixed(1)}%</span>
+          <span style={{ color: 'var(--text2)' }}>Satellite</span>
+          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
+        </div>
+      </div>
+      <div style={{ fontSize: '10px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
+        Totale allocato: €{total.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+      </div>
+    </div>
+  );
+}
+
+function getMacroCategory(pos: import('@/types').Position): string {
+  if (pos.symbol === 'GLD' || pos.symbol === 'IAU') return 'MATERIE PRIME';
+  if (pos.type === 'CRYPTO') return 'CRYPTO';
+  if (pos.type === 'ETF') return 'FONDI / ETF';
+  if (pos.type === 'STOCK') return 'AZIONI';
+  return 'ALTRO';
+}
+
+function getGeography(symbol: string, name: string): string {
+  const t = name.toLowerCase() + symbol.toLowerCase();
+  if (t.includes('world') || t.includes('global') || t.includes('vwce')) return 'Globale';
+  if (t.includes('us') || t.includes('s&p') || t.includes('spy') || t.includes('apple') || t.includes('tesla')) return 'Nord America';
+  if (t.includes('europe') || t.includes('eu')) return 'Europa';
+  if (t.includes('em') || t.includes('emerging')) return 'Mercati Emergenti';
+  if (t.includes('btc') || t.includes('eth') || t.includes('bitcoin') || t.includes('crypto')) return 'Decentralizzata';
+  return 'Altro';
+}
+
+function getSector(symbol: string, name: string, type: string): string {
+  const t = name.toLowerCase() + symbol.toLowerCase();
+  if (type === 'CRYPTO') return 'Criptovalute';
+  if (t.includes('tech') || t.includes('apple') || t.includes('qqq')) return 'Tecnologia';
+  if (t.includes('finan') || t.includes('bank') || t.includes('jpm') || t.includes('bac')) return 'Finanza';
+  if (t.includes('health') || t.includes('med') || t.includes('jnj')) return 'Salute';
+  if (t.includes('energy') || t.includes('oil') || t.includes('xle')) return 'Energia';
+  if (t.includes('bond') || t.includes('treasury') || t.includes('bnd') || t.includes('agg') || t.includes('tlt')) return 'Obbligazionario';
+  if (t.includes('world') || t.includes('global') || t.includes('sp500') || t.includes('spy')) return 'Misto / Indici';
+  return 'Beni & Servizi';
+}
