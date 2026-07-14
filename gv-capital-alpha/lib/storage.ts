@@ -107,12 +107,38 @@ function defaultPortfolio(): PortfolioState {
 // ─── PORTFOLIO CRUD ───────────────────────────────────────────────────────────
 export async function getPortfolio(): Promise<PortfolioState> {
   const raw = await kvGet('portfolio');
-  if (!raw) return defaultPortfolio();
-  try {
-    return JSON.parse(raw) as PortfolioState;
-  } catch {
-    return defaultPortfolio();
+  let portfolio: PortfolioState;
+  if (!raw) {
+    portfolio = defaultPortfolio();
+  } else {
+    try {
+      portfolio = JSON.parse(raw) as PortfolioState;
+    } catch {
+      portfolio = defaultPortfolio();
+    }
   }
+
+  // Ensure customPortfolios exists
+  if (!portfolio.customPortfolios || portfolio.customPortfolios.length === 0) {
+    portfolio.customPortfolios = ['Principale', 'Trading', 'Copy Trading', 'PAC'];
+  }
+
+  // Ensure every position has a portfolio assigned
+  portfolio.positions.forEach(p => {
+    if (!p.portfolio) {
+      if (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ')) {
+        p.portfolio = 'Copy Trading';
+      } else if (p.tags?.includes('Core') || p.tags?.includes('Satellite')) {
+        p.portfolio = 'Principale';
+      } else if (p.tags?.some(t => t.toLowerCase().includes('pac'))) {
+        p.portfolio = 'PAC';
+      } else {
+        p.portfolio = 'Principale';
+      }
+    }
+  });
+
+  return portfolio;
 }
 
 export async function savePortfolio(state: PortfolioState): Promise<void> {
@@ -137,6 +163,22 @@ export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> |
     if (locked) await releaseLock('portfolio');
   }
 }
+
+export async function updatePositionPortfolio(positionId: string, portfolioName: string): Promise<void> {
+  const portfolio = await getPortfolio();
+  const idx = portfolio.positions.findIndex(p => p.id === positionId);
+  if (idx !== -1) {
+    portfolio.positions[idx].portfolio = portfolioName;
+    await savePortfolio(portfolio);
+  }
+}
+
+export async function updateCustomPortfolios(portfolios: string[]): Promise<void> {
+  const portfolio = await getPortfolio();
+  portfolio.customPortfolios = portfolios;
+  await savePortfolio(portfolio);
+}
+
 
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
 export async function addAlert(alertInfo: Omit<import('@/types').Alert, 'id' | 'date' | 'read'>): Promise<void> {

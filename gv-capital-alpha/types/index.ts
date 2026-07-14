@@ -64,6 +64,8 @@ export interface Position {
   unrealizedPnl?: number;
   unrealizedPnlPercent?: number;
   tags?: string[];
+  logoUrl?: string;
+  portfolio?: string;
 }
 
 export interface PerformanceSnapshot {
@@ -95,7 +97,9 @@ export interface PortfolioState {
   alerts: Alert[];
   updatedAt: string;
   aiManagedTags: string[];
+  customPortfolios?: string[];
 }
+
 
 export interface MarketData {
   symbol: string;

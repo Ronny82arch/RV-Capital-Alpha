@@ -163,6 +163,30 @@ export default function Home() {
     return data.success;
   };
 
+  const handleUpdatePortfolios = async (customPortfolios: string[]) => {
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'update_portfolios', customPortfolios }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
+  const handleAssignPortfolio = async (positionId: string, portfolioName: string) => {
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'assign_portfolio', positionId, portfolioName }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -196,8 +220,11 @@ export default function Home() {
             onDelete={handleDeletePosition}
             onUpdateTags={handleUpdateTags}
             onUpdateAIFilters={handleUpdateAIFilters}
+            onUpdatePortfolios={handleUpdatePortfolios}
+            onAssignPortfolio={handleAssignPortfolio}
           />
         )}
+
         {tab === 'market' && <MarketTab market={market} />}
         {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
         {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} />}

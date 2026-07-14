@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { PortfolioState, Position, MarketData } from '@/types';
+import { PortfolioState, Position } from '@/types';
 import AssetIcon from './AssetIcon';
 
 interface Props {
@@ -9,13 +9,34 @@ interface Props {
   onDelete: (positionId: string) => Promise<boolean>;
   onUpdateTags?: (positionId: string, tags: string[]) => Promise<boolean>;
   onUpdateAIFilters?: (aiManagedTags: string[]) => Promise<boolean>;
+  onUpdatePortfolios?: (customPortfolios: string[]) => Promise<boolean>;
+  onAssignPortfolio?: (positionId: string, portfolioName: string) => Promise<boolean>;
 }
 
-export default function PositionsTab({ portfolio, onClose, onDelete, onUpdateTags, onUpdateAIFilters }: Props) {
+export default function PositionsTab({ 
+  portfolio, 
+  onClose, 
+  onDelete, 
+  onUpdateTags, 
+  onUpdateAIFilters,
+  onUpdatePortfolios,
+  onAssignPortfolio
+}: Props) {
+  const [selectedPortfolio, setSelectedPortfolio] = useState<string>('Tutti');
+  const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(false);
+  const [newPortfolioName, setNewPortfolioName] = useState('');
+
   const openPositions = portfolio?.positions.filter(p => p.status === 'OPEN') ?? [];
   const closedPositions = portfolio?.positions.filter(p => p.status === 'CLOSED') ?? [];
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);
   const totalRealized = closedPositions.reduce((s, p) => s + (p.realizedPnl ?? 0), 0);
+
+  const customPortfolios = portfolio?.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
+
+  // Filter positions based on selected sub-portfolio
+  const filteredOpenPositions = selectedPortfolio === 'Tutti'
+    ? openPositions
+    : openPositions.filter(p => p.portfolio === selectedPortfolio);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -37,6 +58,85 @@ export default function PositionsTab({ portfolio, onClose, onDelete, onUpdateTag
         </div>
       )}
 
+      {/* Portfolios Navigation Selector */}
+      <div>
+        <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>SELEZIONA PORTAFOGLIO</div>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', alignItems: 'center' }}>
+          {['Tutti', ...customPortfolios].map(pName => {
+            const isSelected = selectedPortfolio === pName;
+            const count = pName === 'Tutti' 
+              ? openPositions.length 
+              : openPositions.filter(p => p.portfolio === pName).length;
+            return (
+              <button
+                key={pName}
+                onClick={() => setSelectedPortfolio(pName)}
+                style={{
+                  background: isSelected ? 'var(--blue)' : 'var(--bg2)',
+                  border: isSelected ? 'none' : '1px solid var(--border)',
+                  color: isSelected ? '#fff' : 'var(--text2)',
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: isSelected ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              >
+                {pName.toUpperCase()} ({count})
+              </button>
+            );
+          })}
+          {onUpdatePortfolios && (
+            <button
+              onClick={() => setShowNewPortfolioForm(!showNewPortfolioForm)}
+              style={{
+                background: 'var(--bg3)',
+                border: '1px solid var(--border)',
+                color: 'var(--text3)',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-mono)'
+              }}
+            >
+              + NUOVO PORTAFOGLIO
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* New Portfolio Inline Form */}
+      {showNewPortfolioForm && (
+        <div className="animate-fade" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>CREA PORTAFOGLIO PERSONALIZZATO</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              type="text" 
+              placeholder="es. Cripto, Strategia Kelly" 
+              value={newPortfolioName} 
+              onChange={e => setNewPortfolioName(e.target.value)} 
+              style={{ flex: 1, fontSize: '12px', padding: '8px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px' }} 
+            />
+            <button 
+              onClick={async () => {
+                if (!newPortfolioName.trim() || !onUpdatePortfolios) return;
+                const updated = [...customPortfolios, newPortfolioName.trim()];
+                await onUpdatePortfolios(updated);
+                setNewPortfolioName('');
+                setShowNewPortfolioForm(false);
+              }}
+              style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
+            >
+              CREA
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* AI Filters Configuration */}
       <AIFiltersPanel portfolio={portfolio} onUpdate={onUpdateAIFilters} />
 
@@ -49,9 +149,19 @@ export default function PositionsTab({ portfolio, onClose, onDelete, onUpdateTag
 
       {openPositions.length > 0 && (
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>POSIZIONI APERTE ({openPositions.length})</div>
-          {openPositions.map(pos => (
-            <PositionCard key={pos.id} position={pos} onClose={onClose} onDelete={onDelete} onUpdateTags={onUpdateTags} />
+          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>
+            POSIZIONI APERTE - {selectedPortfolio.toUpperCase()} ({filteredOpenPositions.length})
+          </div>
+          {filteredOpenPositions.map(pos => (
+            <PositionCard 
+              key={pos.id} 
+              position={pos} 
+              onClose={onClose} 
+              onDelete={onDelete} 
+              onUpdateTags={onUpdateTags} 
+              customPortfolios={customPortfolios}
+              onAssignPortfolio={onAssignPortfolio}
+            />
           ))}
         </div>
       )}
@@ -66,7 +176,21 @@ export default function PositionsTab({ portfolio, onClose, onDelete, onUpdateTag
   );
 }
 
-function PositionCard({ position: pos, onClose, onDelete, onUpdateTags }: { position: Position; onClose: (id: string, p: number) => Promise<boolean>; onDelete: (id: string) => Promise<boolean>; onUpdateTags?: (id: string, t: string[]) => Promise<boolean> }) {
+function PositionCard({ 
+  position: pos, 
+  onClose, 
+  onDelete, 
+  onUpdateTags,
+  customPortfolios = [],
+  onAssignPortfolio
+}: { 
+  position: Position; 
+  onClose: (id: string, p: number) => Promise<boolean>; 
+  onDelete: (id: string) => Promise<boolean>; 
+  onUpdateTags?: (id: string, t: string[]) => Promise<boolean>;
+  customPortfolios?: string[];
+  onAssignPortfolio?: (id: string, portfolio: string) => Promise<boolean>;
+}) {
   const [showClose, setShowClose] = useState(false);
   const [showTags, setShowTags] = useState(false);
   const [priceInput, setPriceInput] = useState('');
@@ -107,7 +231,7 @@ function PositionCard({ position: pos, onClose, onDelete, onUpdateTags }: { posi
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <AssetIcon symbol={pos.symbol} />
+          <AssetIcon symbol={pos.symbol} logoUrl={pos.logoUrl} />
           <div>
             <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '18px' }}>{pos.symbol}</div>
             <div style={{ fontSize: '12px', color: 'var(--text3)' }}>{pos.name} · {pos.quantity} unità</div>
@@ -151,6 +275,32 @@ function PositionCard({ position: pos, onClose, onDelete, onUpdateTags }: { posi
           Aperta: {new Date(pos.entryDate).toLocaleDateString('it-IT')} · Capitale: €{pos.capitalAllocated.toFixed(0)}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {onAssignPortfolio && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg3)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '8px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>PORTAFOGLIO:</span>
+              <select
+                value={pos.portfolio || 'Principale'}
+                onChange={async (e) => {
+                  await onAssignPortfolio(pos.id, e.target.value);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text2)',
+                  fontSize: '9px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  padding: '2px 0'
+                }}
+              >
+                {customPortfolios.map(p => (
+                  <option key={p} value={p} style={{ background: 'var(--bg2)', color: 'var(--text)' }}>{p.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {(pos.tags || []).map(t => (
             <span key={t} style={{ background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>
               {t}
@@ -255,7 +405,7 @@ function ClosedPositionRow({ position: pos }: { position: Position }) {
       borderRadius: '10px', marginBottom: '6px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <AssetIcon symbol={pos.symbol} />
+        <AssetIcon symbol={pos.symbol} logoUrl={pos.logoUrl} />
         <div>
           <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '700' }}>{pos.symbol}</div>
           <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
