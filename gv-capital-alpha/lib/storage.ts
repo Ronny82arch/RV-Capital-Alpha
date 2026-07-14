@@ -336,27 +336,13 @@ export async function syncEtoroPortfolio(): Promise<void> {
     if (p.tags) existingTags.set(p.symbol, p.tags);
   });
 
-  const newPositions: import('@/types').Position[] = ePositions.map(ep => ({
-    id: `etoro_${ep.InstrumentID}`,
-    signalId: 'etoro_sync',
-    symbol: String(ep.InstrumentID),
-    name: `Instrument ${ep.InstrumentID}`,
-    type: 'STOCK',
-    action: ep.IsBuy ? 'BUY' : 'SELL',
-    entryPrice: ep.OpenRate,
-    quantity: ep.Invested / ep.OpenRate,
-    capitalAllocated: ep.Invested,
-    stopLoss: ep.StopLossRate,
-    takeProfit: ep.TakeProfitRate,
-    entryDate: new Date().toISOString(),
-    status: 'OPEN',
-    currentPrice: ep.CurrentRate,
-    unrealizedPnl: ep.CurrentValue - ep.Invested,
-    unrealizedPnlPercent: ((ep.CurrentValue - ep.Invested) / ep.Invested) * 100,
-    tags: existingTags.get(String(ep.InstrumentID)) || ['Da Assegnare'],
+  // Attach tags and ensure correct type format
+  const finalPositions: import('@/types').Position[] = ePositions.map(p => ({
+    ...p,
+    tags: existingTags.get(p.symbol) || (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ') ? ['Copia'] : ['Da Assegnare']),
   }));
 
-  portfolio.positions = newPositions;
+  portfolio.positions = finalPositions;
   await recalcPortfolio(portfolio);
   await savePortfolio(portfolio);
 }
