@@ -7,9 +7,15 @@ import { Tab } from '@/app/page';
 import ProfessionalChart from './ProfessionalChart';
 import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
-import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale } from 'lucide-react';
+import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus } from 'lucide-react';
 
-interface Props { portfolio: PortfolioState | null; market: MarketData[]; setTab?: (t: Tab) => void; tbdData?: any; }
+interface Props { 
+  portfolio: PortfolioState | null; 
+  market: MarketData[]; 
+  setTab?: (t: Tab) => void; 
+  tbdData?: any; 
+  onUpdatePortfolios?: (customPortfolios: string[]) => Promise<boolean>;
+}
 
 function getTagIcon(tag: string) {
   const t = tag.toLowerCase();
@@ -23,7 +29,7 @@ function getTagIcon(tag: string) {
   return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
 }
 
-export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData }: Props) {
+export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
@@ -59,22 +65,40 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const target = portfolioTargets[selectedTag || 'Tutti'] || 10;
   const targetEur = p.capitalBase * (target / 100);
 
+  // Dynamic portfolio tags loaded directly from customized portfolios configurations list
   const allTags = useMemo(() => {
-    const tags = new Set<string>();
-    p.positions.forEach(pos => {
-      pos.tags?.forEach(t => tags.add(t));
-    });
-    return ['Tutti', ...Array.from(tags).sort()];
-  }, [p.positions]);
+    return ['Tutti', ...(p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'])];
+  }, [p.customPortfolios]);
 
   if (selectedTag === null) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '60vh', padding: '20px', gap: '20px' }}>
         {/* ROW DI CONTROLLO (ALLINEATA A DESTRA E NON SOVRAPPOSTA) */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', maxWidth: '700px', gap: '12px' }}>
+          {onUpdatePortfolios && (
+            <button 
+              onClick={async () => {
+                const name = prompt('Nome del nuovo portafoglio:');
+                if (!name || !name.trim()) return;
+                const trimmed = name.trim();
+                const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
+                if (customPortfolios.includes(trimmed)) {
+                  alert('Questo portafoglio esiste già');
+                  return;
+                }
+                await onUpdatePortfolios([...customPortfolios, trimmed]);
+              }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+              title="Crea Portafoglio"
+            >
+              <FolderPlus size={20} />
+            </button>
+          )}
           <button 
             onClick={() => setIsObscured(!isObscured)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
             onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
             onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
             title="Nascondi importi"
@@ -83,7 +107,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
           </button>
           <button 
             onClick={toggleTheme}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
             onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--yellow)'; }}
             onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
             title="Cambia tema"
@@ -104,7 +128,8 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               pnlPct = p.totalPnLPercent;
               val = p.totalValue;
             } else {
-              const tagPos = p.positions.filter(pos => pos.tags?.includes(tag));
+              // Filter by portfolio property
+              const tagPos = p.positions.filter(pos => pos.portfolio === tag);
               const openTagPos = tagPos.filter(pos => pos.status === 'OPEN');
               const closedTagPos = tagPos.filter(pos => pos.status === 'CLOSED');
               
@@ -192,9 +217,10 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     );
   }
 
+  // Filter positions based on custom portfolio name
   const filteredPositions = selectedTag === 'Tutti'
     ? p.positions
-    : p.positions.filter(pos => pos.tags?.includes(selectedTag));
+    : p.positions.filter(pos => pos.portfolio === selectedTag);
 
   const openPositions = filteredPositions.filter(pos => pos.status === 'OPEN');
   const closedPositions = filteredPositions.filter(pos => pos.status === 'CLOSED');
@@ -461,14 +487,14 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                         onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
                       >
                         <td style={{ padding: '12px 8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '10px', color: 'var(--text3)' }}>{isExpanded ? '▼' : '▶'}</span>
-                            <AssetIcon symbol={pos.symbol} />
-                            <div>
-                              <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>
-                            </div>
-                          </div>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                             <span style={{ fontSize: '10px', color: 'var(--text3)' }}>{isExpanded ? '▼' : '▶'}</span>
+                             <AssetIcon symbol={pos.symbol} logoUrl={pos.logoUrl} />
+                             <div>
+                               <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
+                               <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>
+                             </div>
+                           </div>
                         </td>
                         <td style={{ padding: '12px 8px', color: 'var(--text2)' }}>
                           <span style={{ padding: '4px 8px', background: 'var(--bg3)', borderRadius: '12px', fontSize: '10px' }}>
@@ -571,16 +597,11 @@ function StatCard({ label, value, color = 'var(--text)' }: { label: string; valu
   );
 }
 
-
-
 function getMacroCategory(pos: import('@/types').Position): string {
-  // If it's a specific symbol that represents commodities (like Gold)
   if (pos.symbol === 'GLD' || pos.symbol === 'IAU') return 'MATERIE PRIME';
-
   if (pos.type === 'CRYPTO') return 'CRYPTO';
   if (pos.type === 'ETF') return 'FONDI / ETF';
   if (pos.type === 'STOCK') return 'AZIONI';
-  
   return 'ALTRO';
 }
 
@@ -688,9 +709,9 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
     const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
     if (!acc[geo]) acc[geo] = { total: 0, assets: [] };
     acc[geo].total += val;
-    acc[geo].assets.push({ symbol: pos.symbol, name: pos.name, value: val });
+    acc[geo].assets.push({ symbol: pos.symbol, name: pos.name, value: val, logoUrl: pos.logoUrl });
     return acc;
-  }, {} as Record<string, { total: number, assets: {symbol: string, name: string, value: number}[] }>);
+  }, {} as Record<string, { total: number, assets: {symbol: string, name: string, value: number, logoUrl?: string}[] }>);
 
   const totalValue = Object.values(geoMap).reduce((a, b) => a + b.total, 0);
   if (totalValue === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun dato.</div>;
@@ -728,7 +749,7 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
                 {data.assets.sort((a,b)=>b.value-a.value).map(a => (
                   <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <AssetIcon symbol={a.symbol} />
+                      <AssetIcon symbol={a.symbol} logoUrl={a.logoUrl} />
                       <span title={a.name}>{a.symbol}</span>
                     </div>
                     <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
@@ -761,9 +782,9 @@ function SectorDiversificationWidget({ positions }: { positions: import('@/types
     const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
     if (!acc[sec]) acc[sec] = { total: 0, assets: [] };
     acc[sec].total += val;
-    acc[sec].assets.push({ symbol: pos.symbol, name: pos.name, value: val });
+    acc[sec].assets.push({ symbol: pos.symbol, name: pos.name, value: val, logoUrl: pos.logoUrl });
     return acc;
-  }, {} as Record<string, { total: number, assets: {symbol: string, name: string, value: number}[] }>);
+  }, {} as Record<string, { total: number, assets: {symbol: string, name: string, value: number, logoUrl?: string}[] }>);
 
   const totalValue = Object.values(sectorMap).reduce((a, b) => a + b.total, 0);
   if (totalValue === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun dato.</div>;
@@ -803,7 +824,7 @@ function SectorDiversificationWidget({ positions }: { positions: import('@/types
                 {data.assets.sort((a,b)=>b.value-a.value).map(a => (
                   <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <AssetIcon symbol={a.symbol} />
+                      <AssetIcon symbol={a.symbol} logoUrl={a.logoUrl} />
                       <span title={a.name}>{a.symbol}</span>
                     </div>
                     <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
