@@ -7,7 +7,7 @@ import { Tab } from '@/app/page';
 import ProfessionalChart from './ProfessionalChart';
 import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
-import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus } from 'lucide-react';
+import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings } from 'lucide-react';
 
 interface Props { 
   portfolio: PortfolioState | null; 
@@ -15,6 +15,7 @@ interface Props {
   setTab?: (t: Tab) => void; 
   tbdData?: any; 
   onUpdatePortfolios?: (customPortfolios: string[]) => Promise<boolean>;
+  onAssignPortfolio?: (positionId: string, portfolioName: string) => Promise<boolean>;
 }
 
 function getTagIcon(tag: string) {
@@ -29,11 +30,12 @@ function getTagIcon(tag: string) {
   return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
 }
 
-export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios }: Props) {
+export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onAssignPortfolio }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
   const [isLight, setIsLight] = useState(false);
+  const [showManagePortfolios, setShowManagePortfolios] = useState(false);
   const [portfolioTargets, setPortfolioTargets] = useState<Record<string, number>>({
     'Tutti': 10,
     'Core': 8,
@@ -71,30 +73,42 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   }, [p.customPortfolios]);
 
   if (selectedTag === null) {
+    const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '60vh', padding: '20px', gap: '20px' }}>
         {/* ROW DI CONTROLLO (ALLINEATA A DESTRA E NON SOVRAPPOSTA) */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', maxWidth: '700px', gap: '12px' }}>
           {onUpdatePortfolios && (
-            <button 
-              onClick={async () => {
-                const name = prompt('Nome del nuovo portafoglio:');
-                if (!name || !name.trim()) return;
-                const trimmed = name.trim();
-                const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
-                if (customPortfolios.includes(trimmed)) {
-                  alert('Questo portafoglio esiste già');
-                  return;
-                }
-                await onUpdatePortfolios([...customPortfolios, trimmed]);
-              }}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
-              onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
-              onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-              title="Crea Portafoglio"
-            >
-              <FolderPlus size={20} />
-            </button>
+            <>
+              <button 
+                onClick={async () => {
+                  const name = prompt('Nome del nuovo portafoglio:');
+                  if (!name || !name.trim()) return;
+                  const trimmed = name.trim();
+                  if (customPortfolios.includes(trimmed)) {
+                    alert('Questo portafoglio esiste già');
+                    return;
+                  }
+                  await onUpdatePortfolios([...customPortfolios, trimmed]);
+                }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
+                onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                title="Crea Portafoglio"
+              >
+                <FolderPlus size={20} />
+              </button>
+              <button 
+                onClick={() => setShowManagePortfolios(!showManagePortfolios)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: showManagePortfolios ? 'var(--blue)' : 'var(--bg2)', border: '1px solid var(--border)', color: showManagePortfolios ? '#fff' : 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
+                onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.background = showManagePortfolios ? 'var(--blue)' : 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                title="Gestisci Portafogli"
+              >
+                <Settings size={20} />
+              </button>
+            </>
           )}
           <button 
             onClick={() => setIsObscured(!isObscured)}
@@ -115,6 +129,69 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             {isLight ? <Moon size={20} /> : <Sun size={20} />}
           </button>
         </div>
+
+        {/* Manage Portfolios panel */}
+        {showManagePortfolios && (
+          <div className="animate-fade" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '700px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>MODIFICA / ELIMINA PORTAFOGLI</div>
+              <button onClick={() => setShowManagePortfolios(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>✕ CHIUDI</button>
+            </div>
+            {customPortfolios.map(pName => (
+              <div key={pName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{pName.toUpperCase()}</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={async () => {
+                      const newName = prompt(`Rinomina portafoglio "${pName}" in:`, pName);
+                      if (!newName || !newName.trim() || newName.trim() === pName) return;
+                      const trimmed = newName.trim();
+                      
+                      // 1. Update the list of portfolios
+                      const updatedPortfolios = customPortfolios.map(pNameItem => pNameItem === pName ? trimmed : pNameItem);
+                      if (onUpdatePortfolios) {
+                        await onUpdatePortfolios(updatedPortfolios);
+                      }
+                      
+                      // 2. Update all positions that belong to this portfolio
+                      const openPos = p.positions || [];
+                      for (const pos of openPos) {
+                        if (pos.portfolio === pName && onAssignPortfolio) {
+                          await onAssignPortfolio(pos.id, trimmed);
+                        }
+                      }
+                    }}
+                    style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
+                  >
+                    RINOMINA
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm(`Sei sicuro di voler eliminare il portafoglio "${pName}"? Tutti gli asset al suo interno verranno spostati nel portafoglio "Principale".`)) {
+                        // 1. Remove from portfolio list
+                        const updatedPortfolios = customPortfolios.filter(pNameItem => pNameItem !== pName);
+                        if (onUpdatePortfolios) {
+                          await onUpdatePortfolios(updatedPortfolios);
+                        }
+                        
+                        // 2. Move positions to "Principale"
+                        const openPos = p.positions || [];
+                        for (const pos of openPos) {
+                          if (pos.portfolio === pName && onAssignPortfolio) {
+                            await onAssignPortfolio(pos.id, 'Principale');
+                          }
+                        }
+                      }
+                    }}
+                    style={{ background: '#ef444422', border: '1px solid #ef444444', color: '#ef4444', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
+                  >
+                    ELIMINA
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '12px', textAlign: 'center' }}>
           Seleziona il Portafoglio
@@ -201,7 +278,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
           </button>
         </div>
         <div style={{ marginTop: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-          <div style={{ fontSize: '14px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>
+          <div style={{ fontSize: '14px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em' }}>
             PATRIMONIO COMPLESSIVO
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
@@ -597,14 +674,6 @@ function StatCard({ label, value, color = 'var(--text)' }: { label: string; valu
   );
 }
 
-function getMacroCategory(pos: import('@/types').Position): string {
-  if (pos.symbol === 'GLD' || pos.symbol === 'IAU') return 'MATERIE PRIME';
-  if (pos.type === 'CRYPTO') return 'CRYPTO';
-  if (pos.type === 'ETF') return 'FONDI / ETF';
-  if (pos.type === 'STOCK') return 'AZIONI';
-  return 'ALTRO';
-}
-
 function AssetAllocationChart({ positions }: { positions: import('@/types').Position[] }) {
   const categories = positions.reduce((acc, pos) => {
     const type = getMacroCategory(pos);
@@ -649,58 +718,6 @@ function AssetAllocationChart({ positions }: { positions: import('@/types').Posi
       </div>
     </div>
   );
-}
-
-function CoreSatelliteWidget({ positions }: { positions: import('@/types').Position[] }) {
-  const openPos = positions.filter(p => p.status === 'OPEN');
-  
-  const coreValue = openPos
-    .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
-    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
-
-  const satValue = openPos
-    .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
-    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
-
-  const total = coreValue + satValue;
-  if (total === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun asset Core/Satellite attivo.</div>;
-
-  const corePct = (coreValue / total) * 100;
-  const satPct = (satValue / total) * 100;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', height: '16px', borderRadius: '8px', overflow: 'hidden' }}>
-        <div style={{ width: `${corePct}%`, background: 'var(--green)', transition: 'width 0.5s' }} title={`Core: ${corePct.toFixed(1)}%`} />
-        <div style={{ width: `${satPct}%`, background: '#f59e0b', transition: 'width 0.5s' }} title={`Satellite: ${satPct.toFixed(1)}%`} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--green)' }} />
-          <span style={{ color: 'var(--text2)' }}>Core</span>
-          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{corePct.toFixed(1)}%</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{satPct.toFixed(1)}%</span>
-          <span style={{ color: 'var(--text2)' }}>Satellite</span>
-          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
-        </div>
-      </div>
-      <div style={{ fontSize: '10px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
-        Totale allocato: €{total.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
-      </div>
-    </div>
-  );
-}
-
-function getGeography(symbol: string, name: string): string {
-  const t = name.toLowerCase() + symbol.toLowerCase();
-  if (t.includes('world') || t.includes('global') || t.includes('vwce')) return 'Globale';
-  if (t.includes('us') || t.includes('s&p') || t.includes('spy') || t.includes('apple') || t.includes('tesla')) return 'Nord America';
-  if (t.includes('europe') || t.includes('eu')) return 'Europa';
-  if (t.includes('em') || t.includes('emerging')) return 'Mercati Emergenti';
-  if (t.includes('btc') || t.includes('eth') || t.includes('bitcoin') || t.includes('crypto')) return 'Decentralizzata';
-  return 'Altro';
 }
 
 function GeographicExposureWidget({ positions }: { positions: import('@/types').Position[] }) {
@@ -762,18 +779,6 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
       </div>
     </div>
   );
-}
-
-function getSector(symbol: string, name: string, type: string): string {
-  const t = name.toLowerCase() + symbol.toLowerCase();
-  if (type === 'CRYPTO') return 'Criptovalute';
-  if (t.includes('tech') || t.includes('apple') || t.includes('qqq')) return 'Tecnologia';
-  if (t.includes('finan') || t.includes('bank') || t.includes('jpm') || t.includes('bac')) return 'Finanza';
-  if (t.includes('health') || t.includes('med') || t.includes('jnj')) return 'Salute';
-  if (t.includes('energy') || t.includes('oil') || t.includes('xle')) return 'Energia';
-  if (t.includes('bond') || t.includes('treasury') || t.includes('bnd') || t.includes('agg') || t.includes('tlt')) return 'Obbligazionario';
-  if (t.includes('world') || t.includes('global') || t.includes('sp500') || t.includes('spy')) return 'Misto / Indici';
-  return 'Beni & Servizi';
 }
 
 function SectorDiversificationWidget({ positions }: { positions: import('@/types').Position[] }) {
