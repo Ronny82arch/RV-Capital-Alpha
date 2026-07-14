@@ -71,22 +71,22 @@ function defaultPortfolio(): PortfolioState {
     capitalAvailable: 8000,
     positions: [
       // --- PORTAFOGLIO: Core ---
-      { id: 'd1', signalId: 'd', symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', action: 'BUY', entryPrice: 500, quantity: 20, capitalAllocated: 10000, stopLoss: 450, takeProfit: 600, entryDate: dateStr, status: 'OPEN', currentPrice: 520, unrealizedPnl: 400, unrealizedPnlPercent: 4.0, tags: ['Core'] },
-      { id: 'd2', signalId: 'd', symbol: 'GLD', name: 'Gold ETF', type: 'ETF', action: 'BUY', entryPrice: 180, quantity: 20, capitalAllocated: 3600, stopLoss: 170, takeProfit: 210, entryDate: dateStr, status: 'OPEN', currentPrice: 195, unrealizedPnl: 300, unrealizedPnlPercent: 8.3, tags: ['Core'] },
+      { id: 'd1', signalId: 'd', symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', action: 'BUY', entryPrice: 500, quantity: 20, capitalAllocated: 10000, stopLoss: 450, takeProfit: 600, entryDate: dateStr, status: 'OPEN', currentPrice: 520, unrealizedPnl: 400, unrealizedPnlPercent: 4.0, tags: ['Core'], portfolio: 'Principale' },
+      { id: 'd2', signalId: 'd', symbol: 'GLD', name: 'Gold ETF', type: 'ETF', action: 'BUY', entryPrice: 180, quantity: 20, capitalAllocated: 3600, stopLoss: 170, takeProfit: 210, entryDate: dateStr, status: 'OPEN', currentPrice: 195, unrealizedPnl: 300, unrealizedPnlPercent: 8.3, tags: ['Core'], portfolio: 'Principale' },
       
       // --- PORTAFOGLIO: Satellite ---
-      { id: 'd3', signalId: 'd', symbol: 'AAPL', name: 'Apple Inc', type: 'STOCK', action: 'BUY', entryPrice: 170, quantity: 15, capitalAllocated: 2550, stopLoss: 150, takeProfit: 220, entryDate: dateStr, status: 'OPEN', currentPrice: 185, unrealizedPnl: 225, unrealizedPnlPercent: 8.8, tags: ['Satellite'] },
-      { id: 'd4', signalId: 'd', symbol: 'TSLA', name: 'Tesla Inc', type: 'STOCK', action: 'BUY', entryPrice: 200, quantity: 10, capitalAllocated: 2000, stopLoss: 180, takeProfit: 280, entryDate: dateStr, status: 'OPEN', currentPrice: 170, unrealizedPnl: -300, unrealizedPnlPercent: -15.0, tags: ['Satellite'] },
-      { id: 'd5', signalId: 'd', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY', entryPrice: 60000, quantity: 0.05, capitalAllocated: 3000, stopLoss: 50000, takeProfit: 90000, entryDate: dateStr, status: 'OPEN', currentPrice: 68000, unrealizedPnl: 400, unrealizedPnlPercent: 13.3, tags: ['Satellite'] },
-      { id: 'd6', signalId: 'd', symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', action: 'BUY', entryPrice: 3000, quantity: 1.5, capitalAllocated: 4500, stopLoss: 2500, takeProfit: 5000, entryDate: dateStr, status: 'OPEN', currentPrice: 3400, unrealizedPnl: 600, unrealizedPnlPercent: 13.3, tags: ['Satellite'] },
+      { id: 'd3', signalId: 'd', symbol: 'AAPL', name: 'Apple Inc', type: 'STOCK', action: 'BUY', entryPrice: 170, quantity: 15, capitalAllocated: 2550, stopLoss: 150, takeProfit: 220, entryDate: dateStr, status: 'OPEN', currentPrice: 185, unrealizedPnl: 225, unrealizedPnlPercent: 8.8, tags: ['Satellite'], portfolio: 'Principale' },
+      { id: 'd4', signalId: 'd', symbol: 'TSLA', name: 'Tesla Inc', type: 'STOCK', action: 'BUY', entryPrice: 200, quantity: 10, capitalAllocated: 2000, stopLoss: 180, takeProfit: 280, entryDate: dateStr, status: 'OPEN', currentPrice: 170, unrealizedPnl: -300, unrealizedPnlPercent: -15.0, tags: ['Satellite'], portfolio: 'Principale' },
+      { id: 'd5', signalId: 'd', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY', entryPrice: 60000, quantity: 0.05, capitalAllocated: 3000, stopLoss: 50000, takeProfit: 90000, entryDate: dateStr, status: 'OPEN', currentPrice: 68000, unrealizedPnl: 400, unrealizedPnlPercent: 13.3, tags: ['Satellite'], portfolio: 'Principale' },
+      { id: 'd6', signalId: 'd', symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', action: 'BUY', entryPrice: 3000, quantity: 1.5, capitalAllocated: 4500, stopLoss: 2500, takeProfit: 5000, entryDate: dateStr, status: 'OPEN', currentPrice: 3400, unrealizedPnl: 600, unrealizedPnlPercent: 13.3, tags: ['Satellite'], portfolio: 'Principale' },
 
       // --- PORTAFOGLIO: PAC Ginevra ---
-      { id: 'd7', signalId: 'd', symbol: 'VWCE', name: 'Vanguard All-World', type: 'ETF', action: 'BUY', entryPrice: 100, quantity: 30, capitalAllocated: 3000, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 110, unrealizedPnl: 300, unrealizedPnlPercent: 10.0, tags: ['PAC Ginevra'] },
-      { id: 'd8', signalId: 'd', symbol: 'BND', name: 'Vanguard Total Bond', type: 'ETF', action: 'BUY', entryPrice: 70, quantity: 10, capitalAllocated: 700, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 72, unrealizedPnl: 20, unrealizedPnlPercent: 2.8, tags: ['PAC Ginevra'] },
+      { id: 'd7', signalId: 'd', symbol: 'VWCE', name: 'Vanguard All-World', type: 'ETF', action: 'BUY', entryPrice: 100, quantity: 30, capitalAllocated: 3000, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 110, unrealizedPnl: 300, unrealizedPnlPercent: 10.0, tags: ['PAC Ginevra'], portfolio: 'PAC' },
+      { id: 'd8', signalId: 'd', symbol: 'BND', name: 'Vanguard Total Bond', type: 'ETF', action: 'BUY', entryPrice: 70, quantity: 10, capitalAllocated: 700, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 72, unrealizedPnl: 20, unrealizedPnlPercent: 2.8, tags: ['PAC Ginevra'], portfolio: 'PAC' },
 
       // --- PORTAFOGLIO: PAC Sofia ---
-      { id: 'd9', signalId: 'd', symbol: 'SWDA', name: 'iShares Core MSCI World', type: 'ETF', action: 'BUY', entryPrice: 80, quantity: 40, capitalAllocated: 3200, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 88, unrealizedPnl: 320, unrealizedPnlPercent: 10.0, tags: ['PAC Sofia'] },
-      { id: 'd10', signalId: 'd', symbol: 'AGGH', name: 'iShares Core Global Aggregate', type: 'ETF', action: 'BUY', entryPrice: 50, quantity: 15, capitalAllocated: 750, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 51, unrealizedPnl: 15, unrealizedPnlPercent: 2.0, tags: ['PAC Sofia'] }
+      { id: 'd9', signalId: 'd', symbol: 'SWDA', name: 'iShares Core MSCI World', type: 'ETF', action: 'BUY', entryPrice: 80, quantity: 40, capitalAllocated: 3200, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 88, unrealizedPnl: 320, unrealizedPnlPercent: 10.0, tags: ['PAC Sofia'], portfolio: 'PAC' },
+      { id: 'd10', signalId: 'd', symbol: 'AGGH', name: 'iShares Core Global Aggregate', type: 'ETF', action: 'BUY', entryPrice: 50, quantity: 15, capitalAllocated: 750, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 51, unrealizedPnl: 15, unrealizedPnlPercent: 2.0, tags: ['PAC Sofia'], portfolio: 'PAC' }
     ],
     signals: [],
     totalValue: 33435,
@@ -100,6 +100,7 @@ function defaultPortfolio(): PortfolioState {
     ],
     alerts: [{ id: '1', title: 'Portafoglio Multiplo Generato', message: 'Troverai asset etichettati come Core, Satellite, PAC Ginevra e PAC Sofia.', date: dateStr, type: 'SUCCESS', read: false }],
     aiManagedTags: ['Core', 'Satellite'],
+    customPortfolios: ['Principale', 'Trading', 'Copy Trading', 'PAC'],
     updatedAt: dateStr,
   };
 }
@@ -119,7 +120,7 @@ export async function getPortfolio(): Promise<PortfolioState> {
   }
 
   // Ensure customPortfolios exists
-  if (!portfolio.customPortfolios || portfolio.customPortfolios.length === 0) {
+  if (!portfolio.customPortfolios) {
     portfolio.customPortfolios = ['Principale', 'Trading', 'Copy Trading', 'PAC'];
   }
 
@@ -127,13 +128,9 @@ export async function getPortfolio(): Promise<PortfolioState> {
   portfolio.positions.forEach(p => {
     if (!p.portfolio) {
       if (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ')) {
-        p.portfolio = 'Copy Trading';
-      } else if (p.tags?.includes('Core') || p.tags?.includes('Satellite')) {
-        p.portfolio = 'Principale';
-      } else if (p.tags?.some(t => t.toLowerCase().includes('pac'))) {
-        p.portfolio = 'PAC';
+        p.portfolio = portfolio.customPortfolios?.includes('Copy Trading') ? 'Copy Trading' : 'Da Assegnare';
       } else {
-        p.portfolio = 'Principale';
+        p.portfolio = 'Da Assegnare';
       }
     }
   });
@@ -372,17 +369,33 @@ export async function syncEtoroPortfolio(): Promise<void> {
   const portfolio = await getPortfolio();
   portfolio.capitalAvailable = balance.AvailableBalance;
   
-  // Create a map of existing tags to preserve them
+  // Create a map of existing tags and portfolios to preserve them
   const existingTags = new Map<string, string[]>();
+  const existingPortfolios = new Map<string, string>();
   portfolio.positions.forEach(p => {
     if (p.tags) existingTags.set(p.symbol, p.tags);
+    if (p.portfolio) existingPortfolios.set(p.symbol, p.portfolio);
   });
 
-  // Attach tags and ensure correct type format
-  const finalPositions: import('@/types').Position[] = ePositions.map(p => ({
-    ...p,
-    tags: existingTags.get(p.symbol) || (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ') ? ['Copia'] : ['Da Assegnare']),
-  }));
+  // Attach tags and portfolios
+  const finalPositions: import('@/types').Position[] = ePositions.map(p => {
+    const isCopy = p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ');
+    
+    // Check if the symbol already has an assigned portfolio in the database
+    let assignedPortfolio = existingPortfolios.get(p.symbol);
+    
+    // If it's a new position (not in existingPortfolios):
+    // Put it in 'Da Assegnare' temporary portfolio!
+    if (!assignedPortfolio) {
+      assignedPortfolio = isCopy && portfolio.customPortfolios?.includes('Copy Trading') ? 'Copy Trading' : 'Da Assegnare';
+    }
+
+    return {
+      ...p,
+      tags: existingTags.get(p.symbol) || (isCopy ? ['Copia'] : ['Da Assegnare']),
+      portfolio: assignedPortfolio
+    };
+  });
 
   portfolio.positions = finalPositions;
   await recalcPortfolio(portfolio);

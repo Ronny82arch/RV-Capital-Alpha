@@ -22,22 +22,12 @@ export default function PositionsTab({
   onUpdatePortfolios,
   onAssignPortfolio
 }: Props) {
-  const [selectedPortfolio, setSelectedPortfolio] = useState<string>('Tutti');
-  const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(false);
-  const [showManagePortfolios, setShowManagePortfolios] = useState(false);
-  const [newPortfolioName, setNewPortfolioName] = useState('');
-
   const openPositions = portfolio?.positions.filter(p => p.status === 'OPEN') ?? [];
   const closedPositions = portfolio?.positions.filter(p => p.status === 'CLOSED') ?? [];
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);
   const totalRealized = closedPositions.reduce((s, p) => s + (p.realizedPnl ?? 0), 0);
 
   const customPortfolios = portfolio?.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
-
-  // Filter positions based on selected sub-portfolio
-  const filteredOpenPositions = selectedPortfolio === 'Tutti'
-    ? openPositions
-    : openPositions.filter(p => p.portfolio === selectedPortfolio);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -59,39 +49,6 @@ export default function PositionsTab({
         </div>
       )}
 
-      {/* Portfolios Navigation Selector */}
-      <div>
-        <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>SELEZIONA PORTAFOGLIO</div>
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', alignItems: 'center' }}>
-          {['Tutti', ...customPortfolios].map(pName => {
-            const isSelected = selectedPortfolio === pName;
-            const count = pName === 'Tutti' 
-              ? openPositions.length 
-              : openPositions.filter(p => p.portfolio === pName).length;
-            return (
-              <button
-                key={pName}
-                onClick={() => setSelectedPortfolio(pName)}
-                style={{
-                  background: isSelected ? 'var(--blue)' : 'var(--bg2)',
-                  border: isSelected ? 'none' : '1px solid var(--border)',
-                  color: isSelected ? '#fff' : 'var(--text2)',
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: isSelected ? 'bold' : 'normal',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  fontFamily: 'var(--font-mono)'
-                }}
-              >
-                {pName.toUpperCase()} ({count})
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* AI Filters Configuration */}
       <AIFiltersPanel portfolio={portfolio} onUpdate={onUpdateAIFilters} />
 
@@ -106,9 +63,9 @@ export default function PositionsTab({
       {openPositions.length > 0 && (
         <div>
           <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>
-            POSIZIONI APERTE - {selectedPortfolio.toUpperCase()} ({filteredOpenPositions.length})
+            POSIZIONI APERTE ({openPositions.length})
           </div>
-          {filteredOpenPositions.map(pos => (
+          {openPositions.map(pos => (
             <PositionCard 
               key={pos.id} 
               position={pos} 

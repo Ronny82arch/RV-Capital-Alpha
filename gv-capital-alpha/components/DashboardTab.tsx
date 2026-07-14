@@ -21,6 +21,7 @@ interface Props {
 function getTagIcon(tag: string) {
   const t = tag.toLowerCase();
   if (t === 'tutti') return <Globe size={48} strokeWidth={1.5} color="var(--blue)" />;
+  if (t === 'da assegnare') return <Briefcase size={48} strokeWidth={1.5} color="var(--red)" />;
   if (t.includes('core')) return <ShieldCheck size={48} strokeWidth={1.5} color="var(--green)" />;
   if (t.includes('satellite') || t.includes('satelite')) return <Rocket size={48} strokeWidth={1.5} color="#f59e0b" />;
   if (t.includes('pac') || t.includes('figli') || t.includes('ginevra') || t.includes('sofia')) return <Baby size={48} strokeWidth={1.5} color="#ec4899" />;
@@ -64,16 +65,21 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   if (!portfolio) return <div />;
 
   const p = portfolio;
+  const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
   const target = portfolioTargets[selectedTag || 'Tutti'] || 10;
   const targetEur = p.capitalBase * (target / 100);
 
   // Dynamic portfolio tags loaded directly from customized portfolios configurations list
   const allTags = useMemo(() => {
-    return ['Tutti', ...(p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'])];
-  }, [p.customPortfolios]);
+    const list = [...customPortfolios];
+    const hasUnassigned = p.positions.some(pos => pos.portfolio === 'Da Assegnare');
+    if (hasUnassigned) {
+      return ['Tutti', 'Da Assegnare', ...list];
+    }
+    return ['Tutti', ...list];
+  }, [customPortfolios, p.positions]);
 
   if (selectedTag === null) {
-    const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '60vh', padding: '20px', gap: '20px' }}>
@@ -537,6 +543,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 <tr style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>ASSET</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>CATEGORIA</th>
+                  <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>PORTAFOGLIO</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>APERTURA</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>ATTUALE</th>
                   <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ALLOCATO</th>
@@ -578,6 +585,33 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                             {getMacroCategory(pos)}
                           </span>
                         </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <select
+                            value={pos.portfolio || 'Da Assegnare'}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={async (e) => {
+                              if (onAssignPortfolio) {
+                                await onAssignPortfolio(pos.id, e.target.value);
+                              }
+                            }}
+                            style={{
+                              background: 'var(--bg3)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text)',
+                              fontSize: '11px',
+                              fontFamily: 'var(--font-mono)',
+                              borderRadius: '4px',
+                              padding: '2px 4px',
+                              outline: 'none',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="Da Assegnare">DA ASSEGNARE</option>
+                            {customPortfolios.map(cp => (
+                              <option key={cp} value={cp}>{cp.toUpperCase()}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text2)' }}>
                           €{pos.entryPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
@@ -613,7 +647,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                       </tr>
                       {isExpanded && (
                         <tr style={{ borderBottom: '1px solid var(--bg3)', background: 'rgba(0,0,0,0.1)' }}>
-                          <td colSpan={8} style={{ padding: '16px', borderLeft: '2px solid var(--blue)' }}>
+                          <td colSpan={9} style={{ padding: '16px', borderLeft: '2px solid var(--blue)' }}>
                             <div style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '8px', letterSpacing: '0.1em' }}>STORICO OPERAZIONI</div>
                             <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', background: 'var(--bg2)', borderRadius: '8px', overflow: 'hidden' }}>
                               <thead>
