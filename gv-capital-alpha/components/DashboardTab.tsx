@@ -92,7 +92,6 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
   const p = portfolio;
   const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
-  const targetEur = (p.depositedFunds || p.capitalBase) * (target / 100);
 
   // Dynamic portfolio tags loaded directly from customized portfolios configurations list
   const allTags = useMemo(() => {
@@ -372,8 +371,15 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     const realized = closedPositions.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
     displayPnL = unrealized + realized;
     displayInvested = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
-    displayPnLPct = displayInvested > 0 ? (displayPnL / displayInvested) * 100 : 0;
+    
+    const subPortfolioBase = displayTotalValue > 0 ? displayTotalValue : p.capitalBase;
+    displayPnLPct = (displayPnL / subPortfolioBase) * 100;
   }
+
+  const targetBase = selectedTag === 'Tutti'
+    ? (p.depositedFunds || p.capitalBase)
+    : (displayTotalValue > 0 ? displayTotalValue : p.capitalBase);
+  const targetEur = targetBase * (target / 100);
 
   const currentPnLForProgress = displayPnL;
   const progressPct = Math.max(0, Math.min(100, (currentPnLForProgress / Math.max(1, targetEur)) * 100));
