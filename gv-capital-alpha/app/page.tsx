@@ -18,6 +18,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
   const portfolioRef = useRef<PortfolioState | null>(null);
+  const lastSignalsCount = useRef<number>(-1);
 
   useEffect(() => {
     portfolioRef.current = portfolio;
@@ -163,6 +164,68 @@ export default function Home() {
     const interval = setInterval(tickMarket, 6000); // Ticker mercato ogni 6 secondi (cache a 5s per Yahoo, 15s per Crypto)
     return () => clearInterval(interval);
   }, [tickMarket]);
+
+  const tickTbd = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tbd/log');
+      const json = await res.json();
+      if (json.success && json.data) {
+        setTbdData(json.data);
+      }
+    } catch (e) {
+      console.error('Error ticking TBD:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(tickTbd, 12000); // Polling automatico TBD ogni 12 secondi
+    return () => clearInterval(interval);
+  }, [tickTbd]);
+
+  useEffect(() => {
+    if (tbdData && tbdData.activeSignals) {
+      const activeSignals = tbdData.activeSignals.filter((s: any) =>
+        ['PRE_ALERT', 'ACTIVE', 'TRIGGERED'].includes(s.status)
+      );
+      
+      // Richiede i permessi per le notifiche desktop
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+
+      if (lastSignalsCount.current === -1) {
+        lastSignalsCount.current = activeSignals.length;
+      } else if (activeSignals.length > lastSignalsCount.current) {
+        const newSignals = activeSignals.slice(lastSignalsCount.current);
+        newSignals.forEach((sig: any) => {
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(`🎯 TBD SEGNALE: ${sig.asset} ${sig.direction}`, {
+              body: `Entry: ${sig.entryPrice} | SL: ${sig.stopLoss} | TP: ${sig.takeProfit}\nDimensione: ${sig.allocatedSize}€`,
+              icon: '/apple-touch-icon.png'
+            });
+          }
+          try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.6);
+          } catch (e) {
+            console.error('Audio alert error:', e);
+          }
+        });
+        lastSignalsCount.current = activeSignals.length;
+      } else {
+        lastSignalsCount.current = activeSignals.length;
+      }
+    }
+  }, [tbdData]);
 
   const handleScan = async () => {
     setScanning(true);

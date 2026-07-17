@@ -35,6 +35,13 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
       background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
       display: 'flex', overflowX: 'auto', gap: '8px', padding: '0 16px'
     }}>
+      <style>{`
+        @keyframes pulse-trading-badge {
+          0% { opacity: 0.7; box-shadow: 0 0 4px #ef4444; }
+          50% { opacity: 1; box-shadow: 0 0 14px #ef4444; }
+          100% { opacity: 0.7; box-shadow: 0 0 4px #ef4444; }
+        }
+      `}</style>
       {tabs.map(t => (
         <button key={t.id} onClick={() => setTab(t.id)} style={{
           flex: 1, padding: '16px 16px', background: 'none', border: 'none',
@@ -49,8 +56,12 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
           <span>{t.label}</span>
           {t.badge ? (
             <span style={{
-              background: 'var(--yellow)', color: '#070b14', borderRadius: '10px',
+              background: t.id === 'trading' ? '#ef4444' : 'var(--yellow)',
+              color: t.id === 'trading' ? '#ffffff' : '#070b14',
+              borderRadius: '10px',
               fontSize: '9px', fontWeight: '800', padding: '1px 5px', lineHeight: 1.4,
+              boxShadow: t.id === 'trading' ? '0 0 8px #ef4444' : 'none',
+              animation: t.id === 'trading' ? 'pulse-trading-badge 1.5s infinite ease-in-out' : 'none',
             }}>{t.badge}</span>
           ) : null}
         </button>
