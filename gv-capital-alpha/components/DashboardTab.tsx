@@ -41,14 +41,30 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const [isObscured, setIsObscured] = useState(false);
   const [isLight, setIsLight] = useState(false);
   const [showManagePortfolios, setShowManagePortfolios] = useState(false);
-  const [portfolioTargets, setPortfolioTargets] = useState<Record<string, number>>({
-    'Tutti': 10,
-    'Core': 8,
-    'Satellite': 25,
-    'PAC Ginevra': 5,
-    'PAC Sofia': 5
+  const [portfolioTargets, setPortfolioTargets] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('portfolio_targets');
+      if (saved) {
+        try { return JSON.parse(saved); } catch {}
+      }
+    }
+    return {
+      'Tutti': 10,
+      'Core': 8,
+      'Satellite': 25,
+      'PAC Ginevra': 5,
+      'PAC Sofia': 5
+    };
   });
+  const [targetInputVal, setTargetInputVal] = useState<string>('');
   const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
+
+  // Sync to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('portfolio_targets', JSON.stringify(portfolioTargets));
+    }
+  }, [portfolioTargets]);
 
   useEffect(() => {
     if (externalTbdData) {
@@ -66,11 +82,16 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     else document.documentElement.removeAttribute('data-theme');
   };
 
+  const target = portfolioTargets[selectedTag || 'Tutti'] || 10;
+
+  useEffect(() => {
+    setTargetInputVal(String(target));
+  }, [target, selectedTag]);
+
   if (!portfolio) return <div />;
 
   const p = portfolio;
   const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
-  const target = portfolioTargets[selectedTag || 'Tutti'] || 10;
   const targetEur = (p.depositedFunds || p.capitalBase) * (target / 100);
 
   // Dynamic portfolio tags loaded directly from customized portfolios configurations list
@@ -544,11 +565,18 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>+</span>
               <input 
                 type="number" 
-                value={target}
+                value={targetInputVal}
                 onChange={(e) => {
-                  const val = parseFloat(e.target.value);
+                  const raw = e.target.value;
+                  setTargetInputVal(raw);
+                  const val = parseFloat(raw);
                   if (!isNaN(val)) {
                     setPortfolioTargets(prev => ({ ...prev, [selectedTag || 'Tutti']: val }));
+                  }
+                }}
+                onBlur={() => {
+                  if (targetInputVal === '' || isNaN(parseFloat(targetInputVal))) {
+                    setTargetInputVal(String(target));
                   }
                 }}
                 style={{
