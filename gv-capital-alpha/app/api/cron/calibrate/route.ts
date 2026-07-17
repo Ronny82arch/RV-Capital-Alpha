@@ -14,17 +14,24 @@ import { saveCalibrationTable, getPortfolio } from '@/lib/storage';
 
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest) {
+function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
+  const isDev = process.env.NODE_ENV === 'development';
+  const referer = req.headers.get('referer');
+  const isSameOrigin = referer && referer.startsWith(process.env.NEXT_PUBLIC_APP_URL ?? 'https://gv-capital-alpha.vercel.app');
+  return !!(isCron || isDev || isSameOrigin);
+}
+
+export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return run();
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return run();
