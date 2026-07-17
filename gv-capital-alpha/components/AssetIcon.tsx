@@ -28,6 +28,7 @@ export default function AssetIcon({ symbol, logoUrl }: Props) {
         META: 'meta.com',
         AMZN: 'amazon.com',
         TSLA: 'tesla.com',
+        QQQ: 'invesco.com',
         GOOGL: 'google.com',
         AMD: 'amd.com',
         AVGO: 'broadcom.com',
