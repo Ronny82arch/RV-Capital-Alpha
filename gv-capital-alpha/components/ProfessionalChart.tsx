@@ -37,7 +37,12 @@ function getDeterministicValue(currentValue: number, timeMs: number, nowMs: numb
 
 export default function ProfessionalChart({ currentValue, label, history }: Props) {
   const [filter, setFilter] = useState<FilterType>('1M');
-  
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const filteredData = useMemo(() => {
     const now = new Date();
     const nowMs = now.getTime();
@@ -64,8 +69,8 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
     
     const data = [];
     
-    // Se abbiamo dati reali a sufficienza, usiamoli
-    if (history && history.length > 0) {
+    // Se abbiamo dati reali a sufficienza (almeno 3 punti), usiamoli
+    if (history && history.length >= 3) {
       const historyPoints = history.map(h => ({
         timestamp: new Date(h.date).getTime(),
         value: h.totalValue,
@@ -126,9 +131,11 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
     return data;
   }, [currentValue, filter, history]);
 
-  const minVal = Math.min(...filteredData.map(d => d.value));
-  const maxVal = Math.max(...filteredData.map(d => d.value));
-  const padding = (maxVal - minVal) * 0.1;
+  const minVal = filteredData.length > 0 ? Math.min(...filteredData.map(d => d.value)) : 0;
+  const maxVal = filteredData.length > 0 ? Math.max(...filteredData.map(d => d.value)) : 0;
+  const padding = maxVal === minVal
+    ? (maxVal === 0 ? 10 : Math.abs(maxVal) * 0.1)
+    : (maxVal - minVal) * 0.1;
 
   const startValue = filteredData[0]?.value || 0;
   const endValue = filteredData[filteredData.length - 1]?.value || 0;
@@ -136,6 +143,14 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
   const pnlPct = startValue > 0 ? (pnl / startValue) * 100 : 0;
   const isPositive = pnl >= 0;
   const color = isPositive ? '#00d4aa' : '#ef4444';
+
+  if (!mounted) {
+    return (
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginTop: '24px', height: '380px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>Caricamento grafico...</span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginTop: '24px', position: 'relative' }}>
