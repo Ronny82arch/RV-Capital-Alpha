@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { PortfolioState } from "@/types";
+import { WATCHLIST } from "@/lib/market";
 
 // ─── TIPI ─────────────────────────────────────────────────────────────────────
 
@@ -38,14 +39,19 @@ interface QuantData {
 
 // ─── LISTA ASSET DISPONIBILI ──────────────────────────────────────────────────
 
-const ASSETS = [
-  { symbol: "BTC", label: "BTC", icon: "₿" },
-  { symbol: "ETH", label: "ETH", icon: "Ξ" },
-  { symbol: "SOL", label: "SOL", icon: "◎" },
-  { symbol: "NVDA", label: "NVDA", icon: "⬡" },
-  { symbol: "AAPL", label: "AAPL", icon: "⌘" },
-  { symbol: "SPY", label: "SPY", icon: "◈" },
-];
+const ASSETS = WATCHLIST.map((w) => {
+  let icon = "⬡";
+  if (w.symbol.includes("BTC")) icon = "₿";
+  else if (w.symbol.includes("ETH")) icon = "Ξ";
+  else if (w.symbol.includes("SOL")) icon = "◎";
+  else if (w.symbol === "AAPL") icon = "⌘";
+  else if (w.symbol === "SPY" || w.symbol === "QQQ") icon = "◈";
+  return {
+    symbol: w.symbol,
+    label: w.symbol.replace("-USD", ""),
+    icon,
+  };
+});
 
 const REGIMES: { id: MarketRegime; label: string; color: string }[] = [
   { id: "AUTO", label: "Auto (Rilevamento)", color: "#10b981" },
@@ -184,33 +190,56 @@ export default function QuontestTab({ portfolio }: Props) {
   const [data, setData] = useState<QuantData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<"live" | "mock">("live");
-  
+
   const [summaryData, setSummaryData] = useState<{symbol: string, score: number, isPortfolio: boolean}[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const filteredSummaryData = useMemo(() => {
+    return summaryData.filter(item => {
+      if (activeCategory === "portfolio") {
+        return item.isPortfolio;
+      } else {
+        return ASSETS.some(a => a.symbol === item.symbol);
+      }
+    });
+  }, [summaryData, activeCategory]);
 
   useEffect(() => {
     let active = true;
     const fetchSummary = async () => {
       setSummaryLoading(true);
       const allSymbols = Array.from(new Set([...ASSETS.map(a => a.symbol), ...portfolioAssets.map(a => a.symbol)]));
-      const results = [];
-      for (const sym of allSymbols) {
-        if (!active) break;
-        try {
-          const res = await fetch(`/api/quontest?ticker=${sym}&regime=${regime}`);
-          const json = await res.json();
-          if (json.success) {
-            results.push({
-              symbol: sym,
-              score: json.data.score,
-              isPortfolio: portfolioAssets.some(a => a.symbol === sym)
-            });
+      
+      try {
+        const promises = allSymbols.map(async (sym) => {
+          try {
+            const res = await fetch(`/api/quontest?ticker=${sym}&regime=${regime}`);
+            if (!res.ok) return null;
+            const json = await res.json();
+            if (json.success) {
+              return {
+                symbol: sym,
+                score: json.data.score,
+                isPortfolio: portfolioAssets.some(a => a.symbol === sym)
+              };
+            }
+          } catch (e) {
+            console.error(`Error fetching summary for ${sym}:`, e);
           }
-        } catch (e) { console.error(e); }
-      }
-      if (active) {
-        setSummaryData(results.sort((a, b) => b.score - a.score));
-        setSummaryLoading(false);
+          return null;
+        });
+
+        const results = (await Promise.all(promises)).filter((r): r is NonNullable<typeof r> => r !== null);
+        
+        if (active) {
+          setSummaryData(results.sort((a, b) => b.score - a.score));
+        }
+      } catch (err) {
+        console.error('Error fetching summary data:', err);
+      } finally {
+        if (active) {
+          setSummaryLoading(false);
+        }
       }
     };
     fetchSummary();
@@ -1109,14 +1138,14 @@ export default function QuontestTab({ portfolio }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {summaryData.length === 0 && !summaryLoading ? (
+                  {filteredSummaryData.length === 0 && !summaryLoading ? (
                     <tr>
                       <td colSpan={4} style={{ padding: "20px", textAlign: "center", fontSize: "12px", color: "#64748b" }}>
                         Nessun dato disponibile
                       </td>
                     </tr>
                   ) : (
-                    [...summaryData].sort((a,b) => b.score - a.score).map((item, idx) => (
+                    [...filteredSummaryData].sort((a,b) => b.score - a.score).map((item, idx) => (
                       <tr
                         key={item.symbol}
                         onClick={() => setTicker(item.symbol)}
