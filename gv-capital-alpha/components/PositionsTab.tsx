@@ -112,11 +112,8 @@ function PositionCard({
   customPortfolios?: string[];
   onAssignPortfolio?: (id: string, portfolio: string) => Promise<boolean>;
 }) {
-  const [showClose, setShowClose] = useState(false);
   const [showTags, setShowTags] = useState(false);
-  const [priceInput, setPriceInput] = useState('');
   const [tagInput, setTagInput] = useState('');
-  const [closing, setClosing] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   const pnl = pos.unrealizedPnl ?? 0;
@@ -130,14 +127,6 @@ function PositionCard({
     ? ((currentPrice - pos.takeProfit) / pos.entryPrice * 100)
     : ((pos.takeProfit - currentPrice) / pos.entryPrice * 100);
   const slWarning = distToSL < 3;
-
-  const handleClose = async () => {
-    const price = parseFloat(priceInput.replace(',', '.'));
-    if (!price || price <= 0) return;
-    setClosing(true);
-    await onClose(pos.id, price);
-    setClosing(false);
-  };
 
   return (
     <div style={{
@@ -259,56 +248,6 @@ function PositionCard({
                 setUpdating(false);
               }} style={{ background: 'var(--red)', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '10px', fontWeight: 'bold' }}>SVUOTA</button>
             )}
-          </div>
-        </div>
-      )}
-
-      {!showClose ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
-          <button onClick={() => setShowClose(true)} style={{
-            padding: '11px', borderRadius: '8px',
-            border: '1px solid var(--border)', background: 'transparent',
-            color: 'var(--text2)', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em',
-          }}>CHIUDI SU ETORO</button>
-          <button onClick={async () => {
-            if (confirm(`Sei sicuro di voler rifiutare questa operazione (${pos.symbol})? La posizione verrà eliminata e il capitale di €${pos.capitalAllocated} sarà ripristinato.`)) {
-              await onDelete(pos.id);
-            }
-          }} style={{
-            padding: '11px', borderRadius: '8px',
-            border: '1px solid var(--red)', background: 'transparent',
-            color: 'var(--red)', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: '700', letterSpacing: '0.05em',
-          }}>✕ RIFIUTA OPERAZIONE</button>
-        </div>
-      ) : (
-        <div className="animate-fade">
-          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>
-            Inserisci il prezzo di chiusura ottenuto su eToro:
-          </div>
-          <input 
-            type="number" 
-            step="0.01" 
-            placeholder={`es. ${currentPrice.toFixed(2)}`} 
-            value={priceInput} 
-            onChange={e => setPriceInput(e.target.value)} 
-            style={{ width: '100%', marginBottom: '10px' }} 
-          />
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
-            <button onClick={handleClose} disabled={closing || !priceInput} style={{
-              background: 'var(--green)', border: 'none', borderRadius: '8px', color: '#070b14',
-              fontFamily: 'var(--font-mono)', fontWeight: '800', padding: '12px 10px', fontSize: '11px',
-              opacity: (!priceInput || closing) ? 0.5 : 1,
-              letterSpacing: '0.05em'
-            }}>
-              {closing ? '...' : '✓ CONFERMA CHIUSURA'}
-            </button>
-            <button onClick={() => setShowClose(false)} style={{ 
-              background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', 
-              color: 'var(--text3)', fontFamily: 'var(--font-mono)', padding: '12px 10px', fontSize: '11px',
-              letterSpacing: '0.05em'
-            }}>
-              ✕ ANNULLA
-            </button>
           </div>
         </div>
       )}
