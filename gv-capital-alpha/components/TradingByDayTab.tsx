@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { TbdSignal, TradingDayLog, TbdSignalStatus } from "@/lib/trading-by-day";
+import { PortfolioState } from "@/types";
 
 // ─── TIPI LOCALI ──────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ interface TbdPageData {
 interface Props {
   tbdData?: TbdPageData | null;
   onRefresh?: () => Promise<void>;
+  portfolio?: PortfolioState | null;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -451,7 +453,7 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
 
 // ─── TAB PRINCIPALE ───────────────────────────────────────────────────────────
 
-export default function TradingByDayTab({ tbdData, onRefresh }: Props) {
+export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props) {
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
   const [scanning, setScanning] = useState(false);
   const [editingCapital, setEditingCapital] = useState(false);
@@ -480,6 +482,11 @@ export default function TradingByDayTab({ tbdData, onRefresh }: Props) {
     const val = parseFloat(capitalInput);
     if (isNaN(val) || val <= 0) {
       showToast("Valore capitale non valido", false);
+      return;
+    }
+    if (portfolio && val > portfolio.capitalAvailable) {
+      showToast(`Liquidità insufficiente (Max ${portfolio.capitalAvailable.toLocaleString()}€)`, false);
+      setCapitalInput(String(portfolio.capitalAvailable));
       return;
     }
     try {

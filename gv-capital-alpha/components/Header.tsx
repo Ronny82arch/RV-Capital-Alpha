@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PortfolioState, Alert } from '@/types';
 
 interface Props {
@@ -8,14 +8,21 @@ interface Props {
   onScan: () => void;
   scanning: boolean;
   onRefresh: () => void;
+  onReset?: () => void;
   syncing: boolean;
   onToggleChat: () => void;
 }
 
-export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefresh, syncing, onToggleChat }: Props) {
+export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefresh, onReset, syncing, onToggleChat }: Props) {
   const pnl = portfolio?.totalPnLPercent ?? 0;
   const isUp = pnl >= 0;
   const [showMenu, setShowMenu] = useState(false);
+  const [hideBadge, setHideBadge] = useState(false);
+
+  useEffect(() => {
+    setHideBadge(false);
+  }, [portfolio]);
+
   const unreadAlerts = portfolio?.alerts?.filter(a => !a.read) ?? [];
 
   return (
@@ -222,20 +229,42 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
             <span className={syncing ? 'spin-animation' : ''} style={{ display: 'inline-block' }}>🔄</span>
           </button>
 
+          {/* Tasto Reset & Sync (emergenza) */}
+          {onReset && (
+            <button className="action-btn" onClick={onReset} title="Reset & Sincronizza da zero" disabled={syncing} style={{ background: '#7f1d1d' }}>
+              🗑️
+            </button>
+          )}
+
           {/* Tasto Chat AI */}
           <button className="action-btn" onClick={onToggleChat} title="Chat AI">
             🤖
           </button>
 
           {/* Notifiche / Laptop icon */}
-          <button className="action-btn" onClick={() => setShowMenu(!showMenu)} title="Notifiche" style={{ position: 'relative' }}>
+          <button className="action-btn" onClick={() => {
+            const willShow = !showMenu;
+            setShowMenu(willShow);
+            if (willShow && unreadAlerts.length > 0) {
+              fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'mark_alerts_read' })
+              }).then(() => { if (onRefresh) onRefresh(); });
+              // Local optimistic update
+              if (portfolio && portfolio.alerts) {
+                portfolio.alerts.forEach(a => a.read = true);
+              }
+              setHideBadge(true);
+            }
+          }} title="Notifiche" style={{ position: 'relative' }}>
             {/* Laptop icon SVG */}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
               <line x1="2" y1="20" x2="22" y2="20" />
               <line x1="12" y1="17" x2="12" y2="20" />
             </svg>
-            {unreadAlerts.length > 0 && (
+            {!hideBadge && unreadAlerts.length > 0 && (
               <span style={{ position: 'absolute', top: -3, right: -3, background: 'var(--red)', color: '#fff', fontSize: '8px', padding: '1px 3px', borderRadius: '10px', fontWeight: 'bold' }}>{unreadAlerts.length}</span>
             )}
           </button>

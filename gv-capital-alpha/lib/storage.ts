@@ -8,10 +8,36 @@ const TARGET_RETURN = 0.25;
 // Falls back to in-memory for local dev if KV_REST_API_URL is not set
 
 let memoryStore: Record<string, string> = {};
+import fs from 'fs';
+import path from 'path';
+
+const LOCAL_STORE_FILE = process.env.VERCEL
+  ? path.join('/tmp', '.local_store.json')
+  : path.join(process.cwd(), '.local_store.json');
+
+function getLocalStore() {
+  try {
+    if (fs.existsSync(LOCAL_STORE_FILE)) {
+      return JSON.parse(fs.readFileSync(LOCAL_STORE_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Error reading local store', err);
+  }
+  return memoryStore;
+}
+
+function saveLocalStore(store: any) {
+  try {
+    fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(store, null, 2));
+  } catch (err) {
+    console.error('Error writing local store', err);
+  }
+}
 
 async function kvGet(key: string): Promise<string | null> {
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-    return memoryStore[key] ?? null;
+    const store = getLocalStore();
+    return store[key] ?? null;
   }
   try {
     const res = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
@@ -20,13 +46,21 @@ async function kvGet(key: string): Promise<string | null> {
     const data = await res.json();
     return data.result ?? null;
   } catch {
-    return memoryStore[key] ?? null;
+    const store = getLocalStore();
+    return store[key] ?? null;
   }
 }
 
 async function kvSet(key: string, value: string): Promise<void> {
-  memoryStore[key] = value;
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return;
+  const store = getLocalStore();
+  store[key] = value;
+  memoryStore = store;
+  
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    saveLocalStore(store);
+    return;
+  }
+  
   try {
     await fetch(`${process.env.KV_REST_API_URL}/set/${key}`, {
       method: 'POST',
@@ -34,9 +68,11 @@ async function kvSet(key: string, value: string): Promise<void> {
         Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ value }),
+      body: value,
     });
-  } catch {}
+  } catch {
+    saveLocalStore(store);
+  }
 }
 
 async function acquireLock(key: string, maxWaitMs = 5000): Promise<boolean> {
@@ -44,12 +80,15 @@ async function acquireLock(key: string, maxWaitMs = 5000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     const isLocked = await kvGet(lockKey);
-    if (!isLocked) {
+    // Auto-release stale locks older than 15 seconds (handles crashed serverless functions)
+    const lockAge = isLocked ? Date.now() - parseInt(isLocked) : Infinity;
+    if (!isLocked || lockAge > 15000) {
       await kvSet(lockKey, Date.now().toString());
       return true;
     }
     await new Promise(r => setTimeout(r, 200));
   }
+  // If we can't acquire, proceed anyway (don't block saves)
   return false;
 }
 
@@ -59,7 +98,7 @@ async function releaseLock(key: string): Promise<void> {
 }
 
 // ─── DEFAULT PORTFOLIO ────────────────────────────────────────────────────────
-function defaultPortfolio(): PortfolioState {
+export function defaultPortfolio(): PortfolioState {
   // Se non c'è eToro o database collegato, mostriamo un portafoglio fittizio per far provare l'app
   // Simuliamo tre portafogli diversi usando i tag: Core, Satellite, e PAC Figlia
   const dateStr = new Date().toISOString();
@@ -68,40 +107,22 @@ function defaultPortfolio(): PortfolioState {
 
   return {
     capitalBase: CAPITAL_BASE,
-    capitalAvailable: 8000,
-    positions: [
-      // --- PORTAFOGLIO: Core ---
-      { id: 'd1', signalId: 'd', symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', action: 'BUY', entryPrice: 500, quantity: 20, capitalAllocated: 10000, stopLoss: 450, takeProfit: 600, entryDate: dateStr, status: 'OPEN', currentPrice: 520, unrealizedPnl: 400, unrealizedPnlPercent: 4.0, tags: ['Core'], portfolio: 'Principale' },
-      { id: 'd2', signalId: 'd', symbol: 'GLD', name: 'Gold ETF', type: 'ETF', action: 'BUY', entryPrice: 180, quantity: 20, capitalAllocated: 3600, stopLoss: 170, takeProfit: 210, entryDate: dateStr, status: 'OPEN', currentPrice: 195, unrealizedPnl: 300, unrealizedPnlPercent: 8.3, tags: ['Core'], portfolio: 'Principale' },
-      
-      // --- PORTAFOGLIO: Satellite ---
-      { id: 'd3', signalId: 'd', symbol: 'AAPL', name: 'Apple Inc', type: 'STOCK', action: 'BUY', entryPrice: 170, quantity: 15, capitalAllocated: 2550, stopLoss: 150, takeProfit: 220, entryDate: dateStr, status: 'OPEN', currentPrice: 185, unrealizedPnl: 225, unrealizedPnlPercent: 8.8, tags: ['Satellite'], portfolio: 'Principale' },
-      { id: 'd4', signalId: 'd', symbol: 'TSLA', name: 'Tesla Inc', type: 'STOCK', action: 'BUY', entryPrice: 200, quantity: 10, capitalAllocated: 2000, stopLoss: 180, takeProfit: 280, entryDate: dateStr, status: 'OPEN', currentPrice: 170, unrealizedPnl: -300, unrealizedPnlPercent: -15.0, tags: ['Satellite'], portfolio: 'Principale' },
-      { id: 'd5', signalId: 'd', symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', action: 'BUY', entryPrice: 60000, quantity: 0.05, capitalAllocated: 3000, stopLoss: 50000, takeProfit: 90000, entryDate: dateStr, status: 'OPEN', currentPrice: 68000, unrealizedPnl: 400, unrealizedPnlPercent: 13.3, tags: ['Satellite'], portfolio: 'Principale' },
-      { id: 'd6', signalId: 'd', symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', action: 'BUY', entryPrice: 3000, quantity: 1.5, capitalAllocated: 4500, stopLoss: 2500, takeProfit: 5000, entryDate: dateStr, status: 'OPEN', currentPrice: 3400, unrealizedPnl: 600, unrealizedPnlPercent: 13.3, tags: ['Satellite'], portfolio: 'Principale' },
-
-      // --- PORTAFOGLIO: PAC Ginevra ---
-      { id: 'd7', signalId: 'd', symbol: 'VWCE', name: 'Vanguard All-World', type: 'ETF', action: 'BUY', entryPrice: 100, quantity: 30, capitalAllocated: 3000, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 110, unrealizedPnl: 300, unrealizedPnlPercent: 10.0, tags: ['PAC Ginevra'], portfolio: 'PAC' },
-      { id: 'd8', signalId: 'd', symbol: 'BND', name: 'Vanguard Total Bond', type: 'ETF', action: 'BUY', entryPrice: 70, quantity: 10, capitalAllocated: 700, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 72, unrealizedPnl: 20, unrealizedPnlPercent: 2.8, tags: ['PAC Ginevra'], portfolio: 'PAC' },
-
-      // --- PORTAFOGLIO: PAC Sofia ---
-      { id: 'd9', signalId: 'd', symbol: 'SWDA', name: 'iShares Core MSCI World', type: 'ETF', action: 'BUY', entryPrice: 80, quantity: 40, capitalAllocated: 3200, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 88, unrealizedPnl: 320, unrealizedPnlPercent: 10.0, tags: ['PAC Sofia'], portfolio: 'PAC' },
-      { id: 'd10', signalId: 'd', symbol: 'AGGH', name: 'iShares Core Global Aggregate', type: 'ETF', action: 'BUY', entryPrice: 50, quantity: 15, capitalAllocated: 750, stopLoss: 0, takeProfit: 0, entryDate: dateStr, status: 'OPEN', currentPrice: 51, unrealizedPnl: 15, unrealizedPnlPercent: 2.0, tags: ['PAC Sofia'], portfolio: 'PAC' }
-    ],
+    capitalAvailable: 0,
+    positions: [],
     signals: [],
-    totalValue: 33435,
-    totalPnL: 2435,
-    totalPnLPercent: 7.85,
+    totalValue: CAPITAL_BASE,
+    totalPnL: 0,
+    totalPnLPercent: 0,
     targetAnnualReturn: TARGET_RETURN,
     startDate: today,
     performanceHistory: [
-      { date: yesterday, totalValue: CAPITAL_BASE, pnlPercent: 0 },
-      { date: today, totalValue: 33435, pnlPercent: 7.85 }
+      { date: today, totalValue: CAPITAL_BASE, pnlPercent: 0 },
     ],
-    alerts: [{ id: '1', title: 'Portafoglio Multiplo Generato', message: 'Troverai asset etichettati come Core, Satellite, PAC Ginevra e PAC Sofia.', date: dateStr, type: 'SUCCESS', read: false }],
-    aiManagedTags: ['Core', 'Satellite'],
-    customPortfolios: ['Principale', 'Trading', 'Copy Trading', 'PAC'],
+    alerts: [],
+    aiManagedTags: [],
+    customPortfolios: [],
     updatedAt: dateStr,
+    depositedFunds: 6000,
   };
 }
 
@@ -119,19 +140,38 @@ export async function getPortfolio(): Promise<PortfolioState> {
     }
   }
 
-  // Ensure customPortfolios exists
+  // Ensure arrays exist
   if (!portfolio.customPortfolios) {
-    portfolio.customPortfolios = ['Principale', 'Trading', 'Copy Trading', 'PAC'];
+    portfolio.customPortfolios = [];
+  }
+  if (!portfolio.positions) {
+    portfolio.positions = [];
+  }
+  if (!portfolio.signals) {
+    portfolio.signals = [];
+  }
+  if (!portfolio.performanceHistory) {
+    portfolio.performanceHistory = [];
+  }
+  if (!portfolio.alerts) {
+    portfolio.alerts = [];
+  }
+  if (!portfolio.aiManagedTags) {
+    portfolio.aiManagedTags = [];
+  }
+
+  if (portfolio.depositedFunds === undefined) {
+    portfolio.depositedFunds = 6000;
+  }
+
+  if (portfolio.excludeCopyTrading === undefined) {
+    portfolio.excludeCopyTrading = false;
   }
 
   // Ensure every position has a portfolio assigned
   portfolio.positions.forEach(p => {
     if (!p.portfolio) {
-      if (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ')) {
-        p.portfolio = portfolio.customPortfolios?.includes('Copy Trading') ? 'Copy Trading' : 'Da Assegnare';
-      } else {
-        p.portfolio = 'Da Assegnare';
-      }
+      p.portfolio = 'Da Assegnare';
     }
   });
 
@@ -139,26 +179,16 @@ export async function getPortfolio(): Promise<PortfolioState> {
 }
 
 export async function savePortfolio(state: PortfolioState): Promise<void> {
-  const locked = await acquireLock('portfolio');
-  try {
-    state.updatedAt = new Date().toISOString();
-    await kvSet('portfolio', JSON.stringify(state));
-  } finally {
-    if (locked) await releaseLock('portfolio');
-  }
+  state.updatedAt = new Date().toISOString();
+  await kvSet('portfolio', JSON.stringify(state));
 }
 
 export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> | T): Promise<T> {
-  const locked = await acquireLock('portfolio');
-  try {
-    const portfolio = await getPortfolio();
-    const result = await fn(portfolio);
-    portfolio.updatedAt = new Date().toISOString();
-    await kvSet('portfolio', JSON.stringify(portfolio));
-    return result;
-  } finally {
-    if (locked) await releaseLock('portfolio');
-  }
+  const portfolio = await getPortfolio();
+  const result = await fn(portfolio);
+  portfolio.updatedAt = new Date().toISOString();
+  await kvSet('portfolio', JSON.stringify(portfolio));
+  return result;
 }
 
 export async function updatePositionPortfolio(positionId: string, portfolioName: string): Promise<void> {
@@ -173,6 +203,34 @@ export async function updatePositionPortfolio(positionId: string, portfolioName:
 export async function updateCustomPortfolios(portfolios: string[]): Promise<void> {
   const portfolio = await getPortfolio();
   portfolio.customPortfolios = portfolios;
+  await savePortfolio(portfolio);
+}
+
+export async function deleteCustomPortfolio(portfolioName: string): Promise<void> {
+  const portfolio = await getPortfolio();
+  if (portfolio.customPortfolios) {
+    portfolio.customPortfolios = portfolio.customPortfolios.filter(name => name !== portfolioName);
+  }
+  // Sposta tutti gli asset di questo portafoglio in "Da Assegnare"
+  portfolio.positions.forEach(pos => {
+    if (pos.portfolio === portfolioName) {
+      pos.portfolio = 'Da Assegnare';
+    }
+  });
+  await savePortfolio(portfolio);
+}
+
+export async function renameCustomPortfolio(oldName: string, newName: string): Promise<void> {
+  const portfolio = await getPortfolio();
+  if (portfolio.customPortfolios) {
+    portfolio.customPortfolios = portfolio.customPortfolios.map(name => name === oldName ? newName : name);
+  }
+  // Rinomina la destinazione di tutti gli asset assegnati a questo portafoglio
+  portfolio.positions.forEach(pos => {
+    if (pos.portfolio === oldName) {
+      pos.portfolio = newName;
+    }
+  });
   await savePortfolio(portfolio);
 }
 
@@ -296,15 +354,32 @@ export async function deletePosition(positionId: string): Promise<Position | nul
 
 // ─── RECALCULATE TOTALS ───────────────────────────────────────────────────────
 export async function recalcPortfolio(portfolio: PortfolioState): Promise<void> {
-  const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
+  const openPositions = portfolio.positions.filter(p => {
+    if (p.status !== 'OPEN') return false;
+    if (portfolio.excludeCopyTrading && p.id.startsWith('etoro_mirror_')) return false;
+    return true;
+  });
+
   const openValue = openPositions.reduce((sum, p) => {
-    const currentVal = (p.currentPrice ?? p.entryPrice) * p.quantity;
+    const currentVal = p.capitalAllocated + (p.unrealizedPnl || 0);
     return sum + currentVal;
   }, 0);
 
+  // P&L: sum directly from positions (accurate for leveraged CFD positions)
+  const totalUnrealizedPnL = openPositions.reduce((sum, p) => sum + (p.unrealizedPnl || 0), 0);
+  const totalRealizedPnL = portfolio.positions
+    .filter(p => p.status === 'CLOSED')
+    .reduce((sum, p) => sum + ((p as any).realizedPnl || 0), 0);
+
+  portfolio.capitalBase = openPositions.reduce((sum, p) => sum + (p.capitalAllocated || 0), 0);
   portfolio.totalValue = portfolio.capitalAvailable + openValue;
-  portfolio.totalPnL = portfolio.totalValue - portfolio.capitalBase;
-  portfolio.totalPnLPercent = (portfolio.totalPnL / portfolio.capitalBase) * 100;
+  portfolio.totalPnL = totalUnrealizedPnL + totalRealizedPnL;
+  
+  const baseForPnL = (portfolio.depositedFunds && portfolio.depositedFunds > 0)
+    ? portfolio.depositedFunds
+    : (portfolio.capitalBase > 0 ? portfolio.capitalBase : 1);
+
+  portfolio.totalPnLPercent = (portfolio.totalPnL / baseForPnL) * 100;
 
   // Snapshot for performance chart (max once per day)
   const today = new Date().toISOString().split('T')[0];
@@ -368,7 +443,7 @@ export async function syncEtoroPortfolio(): Promise<void> {
   
   const portfolio = await getPortfolio();
   portfolio.capitalAvailable = balance.AvailableBalance;
-  
+
   // Create a map of existing tags and portfolios to preserve them
   const existingTags = new Map<string, string[]>();
   const existingPortfolios = new Map<string, string>();
@@ -381,23 +456,35 @@ export async function syncEtoroPortfolio(): Promise<void> {
   const finalPositions: import('@/types').Position[] = ePositions.map(p => {
     const isCopy = p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ');
     
-    // Check if the symbol already has an assigned portfolio in the database
     let assignedPortfolio = existingPortfolios.get(p.symbol);
-    
-    // If it's a new position (not in existingPortfolios):
-    // Put it in 'Da Assegnare' temporary portfolio!
     if (!assignedPortfolio) {
-      assignedPortfolio = isCopy && portfolio.customPortfolios?.includes('Copy Trading') ? 'Copy Trading' : 'Da Assegnare';
+      assignedPortfolio = 'Da Assegnare';
     }
 
     return {
       ...p,
-      tags: existingTags.get(p.symbol) || (isCopy ? ['Copia'] : ['Da Assegnare']),
+      tags: existingTags.get(p.symbol) || (isCopy ? ['Copia', 'Da Assegnare'] : ['Da Assegnare']),
       portfolio: assignedPortfolio
     };
   });
 
-  portfolio.positions = finalPositions;
+  // Preserve ONLY truly manual assets: exclude eToro-imported ones (etoro_*)
+  // AND exclude old mock/demo positions (id starting with 'd' followed by a digit)
+  const manualPositions = portfolio.positions.filter(p => 
+    !p.id.startsWith('etoro_') && 
+    !/^d\d+$/.test(p.id)
+  );
+
+  // Merge: manual first, then fresh eToro positions
+  portfolio.positions = [...manualPositions, ...finalPositions];
+
+  // capitalBase = total capital invested in open positions (meaningful for % P&L)
+  // Only set if still at default 30000 or zero (preserve user-set value)
+  const totalInvested = finalPositions.reduce((sum, p) => sum + (p.capitalAllocated || 0), 0);
+  if (portfolio.capitalBase === 30000 || portfolio.capitalBase <= 0) {
+    portfolio.capitalBase = totalInvested;
+  }
+
   await recalcPortfolio(portfolio);
   await savePortfolio(portfolio);
 }

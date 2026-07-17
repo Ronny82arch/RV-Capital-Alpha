@@ -98,6 +98,8 @@ export interface PortfolioState {
   updatedAt: string;
   aiManagedTags: string[];
   customPortfolios?: string[];
+  depositedFunds?: number;
+  excludeCopyTrading?: boolean;
 }
 
 

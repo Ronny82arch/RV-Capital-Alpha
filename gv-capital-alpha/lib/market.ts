@@ -32,7 +32,7 @@ export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData
     const url = `${YAHOO_BASE}/v8/finance/chart/${yahooSymbol}?interval=1d&range=90d`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RV-Capital-Alpha/1.0)' },
-      next: { revalidate: 300 },
+      next: { revalidate: 5 },
     });
 
     if (!res.ok) return null;
@@ -41,6 +41,9 @@ export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData
     if (!result) return null;
 
     const meta = result.meta;
+    const currency = meta.currency || 'USD';
+    const rate = currency.toUpperCase() === 'USD' ? 0.92 : 1.0;
+
     const timestamps: number[] = result.timestamp || [];
     const closes: number[] = result.indicators?.quote?.[0]?.close || [];
     const highs: number[] = result.indicators?.quote?.[0]?.high || [];
@@ -49,14 +52,14 @@ export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData
     const history = timestamps
       .map((ts, i) => ({
         date: new Date(ts * 1000).toISOString().split('T')[0],
-        close: closes[i],
-        high: highs[i],
-        low: lows[i]
+        close: closes[i] * rate,
+        high: highs[i] * rate,
+        low: lows[i] * rate
       }))
       .filter(h => h.close != null && h.close > 0);
 
-    const currentPrice = meta.regularMarketPrice || meta.previousClose;
-    const prevClose = meta.previousClose || currentPrice;
+    const currentPrice = (meta.regularMarketPrice || meta.previousClose) * rate;
+    const prevClose = (meta.previousClose || currentPrice) * rate;
 
     return {
       symbol: item.symbol,
@@ -65,8 +68,8 @@ export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData
       price: currentPrice,
       change: currentPrice - prevClose,
       changePercent: ((currentPrice - prevClose) / prevClose) * 100,
-      high24h: meta.regularMarketDayHigh || currentPrice,
-      low24h: meta.regularMarketDayLow || currentPrice,
+      high24h: (meta.regularMarketDayHigh || currentPrice) * rate,
+      low24h: (meta.regularMarketDayLow || currentPrice) * rate,
       volume: meta.regularMarketVolume || 0,
       history,
     };
@@ -83,7 +86,7 @@ export async function fetchCryptoData(item: WatchlistItem): Promise<MarketData |
     const [priceRes, histRes] = await Promise.all([
       fetch(
         `${COINGECKO_BASE}/simple/price?ids=${item.coinId}&vs_currencies=eur&include_24hr_change=true&include_24hr_vol=true&include_24hr_high=true&include_24hr_low=true`,
-        { next: { revalidate: 300 } }
+        { next: { revalidate: 15 } }
       ),
       fetch(
         `${COINGECKO_BASE}/coins/${item.coinId}/market_chart?vs_currency=eur&days=90&interval=daily`,
@@ -144,6 +147,34 @@ export async function fetchCurrentPrice(symbol: string, type: AssetType): Promis
   if (!item) return null;
   const data = await fetchMarketData(item);
   return data?.price ?? null;
+}
+
+export async function fetchLivePrice(symbol: string): Promise<number | null> {
+  const item = WATCHLIST.find(w => w.symbol === symbol);
+  let yahooSymbol = item?.yahooSymbol || symbol;
+  if (yahooSymbol === 'GOLD') yahooSymbol = 'GC=F';
+  else if (yahooSymbol === 'BTC') yahooSymbol = 'BTC-USD';
+  else if (yahooSymbol === 'ETH') yahooSymbol = 'ETH-USD';
+  else if (yahooSymbol === 'SOL') yahooSymbol = 'SOL-USD';
+
+  try {
+    const url = `${YAHOO_BASE}/v8/finance/chart/${yahooSymbol}?interval=1d&range=1d`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RV-Capital-Alpha/1.0)' },
+      cache: 'no-store'
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const result = data.chart?.result?.[0];
+    if (!result) return null;
+    const meta = result.meta;
+    const currentPrice = meta.regularMarketPrice || meta.previousClose;
+    const currency = meta.currency || 'USD';
+    const rate = currency.toUpperCase() === 'USD' ? 0.92 : 1.0;
+    return currentPrice * rate;
+  } catch {
+    return null;
+  }
 }
 
 // ─── FETCH LUNGO PERIODO (per calibrazione storica) ──────────────────────────
@@ -214,6 +245,9 @@ async function fetchYahooFinanceForCalibration(item: WatchlistItem): Promise<Mar
     if (!result) return null;
 
     const meta = result.meta;
+    const currency = meta.currency || 'USD';
+    const rate = currency.toUpperCase() === 'USD' ? 0.92 : 1.0;
+
     const timestamps: number[] = result.timestamp || [];
     const closes: number[] = result.indicators?.quote?.[0]?.close || [];
     const highs:  number[] = result.indicators?.quote?.[0]?.high  || [];
@@ -222,22 +256,22 @@ async function fetchYahooFinanceForCalibration(item: WatchlistItem): Promise<Mar
     const history = timestamps
       .map((ts, i) => ({
         date:  new Date(ts * 1000).toISOString().split('T')[0],
-        close: closes[i],
-        high:  highs[i],
-        low:   lows[i],
+        close: closes[i] * rate,
+        high:  highs[i] * rate,
+        low:   lows[i] * rate,
       }))
       .filter(h => h.close != null && h.close > 0);
 
-    const currentPrice = meta.regularMarketPrice || meta.previousClose;
-    const prevClose    = meta.previousClose || currentPrice;
+    const currentPrice = (meta.regularMarketPrice || meta.previousClose) * rate;
+    const prevClose    = (meta.previousClose || currentPrice) * rate;
 
     return {
       symbol: item.symbol, name: item.name, type: item.type,
       price: currentPrice,
       change: currentPrice - prevClose,
       changePercent: ((currentPrice - prevClose) / prevClose) * 100,
-      high24h: meta.regularMarketDayHigh || currentPrice,
-      low24h:  meta.regularMarketDayLow  || currentPrice,
+      high24h: (meta.regularMarketDayHigh || currentPrice) * rate,
+      low24h:  (meta.regularMarketDayLow  || currentPrice) * rate,
       volume:  meta.regularMarketVolume  || 0,
       history,
     };

@@ -22,8 +22,16 @@ export default function PositionsTab({
   onUpdatePortfolios,
   onAssignPortfolio
 }: Props) {
-  const openPositions = portfolio?.positions.filter(p => p.status === 'OPEN') ?? [];
-  const closedPositions = portfolio?.positions.filter(p => p.status === 'CLOSED') ?? [];
+  const openPositions = (portfolio?.positions || []).filter(p => {
+    if (p.status !== 'OPEN') return false;
+    if (portfolio?.excludeCopyTrading && p.id.startsWith('etoro_mirror_')) return false;
+    return true;
+  });
+  const closedPositions = (portfolio?.positions || []).filter(p => {
+    if (p.status !== 'CLOSED') return false;
+    if (portfolio?.excludeCopyTrading && p.id.startsWith('etoro_mirror_')) return false;
+    return true;
+  });
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);
   const totalRealized = closedPositions.reduce((s, p) => s + (p.realizedPnl ?? 0), 0);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PortfolioState, Signal, Position, MarketData } from '@/types';
 import Header from '@/components/Header';
 import TabBar from '@/components/TabBar';
@@ -17,6 +17,12 @@ export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
+  const portfolioRef = useRef<PortfolioState | null>(null);
+
+  useEffect(() => {
+    portfolioRef.current = portfolio;
+  }, [portfolio]);
+
   const [market, setMarket] = useState<MarketData[]>([]);
   const [tbdData, setTbdData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -58,11 +64,73 @@ export default function Home() {
     }
   }, []);
 
+  const tickPrices = useCallback(async () => {
+    const currentPortfolio = portfolioRef.current;
+    if (!currentPortfolio || !currentPortfolio.positions || currentPortfolio.positions.length === 0) return;
+    const openPos = currentPortfolio.positions.filter(p => p.status === 'OPEN' && !p.id.startsWith('etoro_mirror_'));
+    if (openPos.length === 0) return;
+    const uniqueSymbols = Array.from(new Set(openPos.map(p => p.symbol)));
+    try {
+      const res = await fetch(`/api/prices?symbols=${uniqueSymbols.join(',')}`);
+      const json = await res.json();
+      if (json.success && json.prices) {
+        setPortfolio(prev => {
+          if (!prev) return null;
+          const updatedPositions = prev.positions.map(pos => {
+            if (pos.status === 'OPEN' && !pos.id.startsWith('etoro_mirror_')) {
+              const livePrice = json.prices[pos.symbol];
+              if (livePrice !== undefined) {
+                const unrealized = pos.action === 'BUY'
+                  ? (livePrice - pos.entryPrice) * pos.quantity
+                  : (pos.entryPrice - livePrice) * pos.quantity;
+                const unrealizedPct = pos.capitalAllocated > 0 ? (unrealized / pos.capitalAllocated) * 100 : 0;
+                return {
+                  ...pos,
+                  currentPrice: livePrice,
+                  unrealizedPnl: unrealized,
+                  unrealizedPnlPercent: unrealizedPct
+                };
+              }
+            }
+            return pos;
+          });
+          return {
+            ...prev,
+            positions: updatedPositions
+          };
+        });
+        setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      }
+    } catch (e) {
+      console.error('Error ticking prices:', e);
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 60000); // auto-refresh ogni minuto
-    return () => clearInterval(interval);
   }, [refresh]);
+
+  useEffect(() => {
+    const interval = setInterval(tickPrices, 3000); // Ticker locale ogni 3 secondi (senza chiamate DB!)
+    return () => clearInterval(interval);
+  }, [tickPrices]);
+
+  const tickMarket = useCallback(async () => {
+    try {
+      const res = await fetch('/api/market');
+      const json = await res.json();
+      if (json.success && json.data) {
+        setMarket(json.data);
+      }
+    } catch (e) {
+      console.error('Error ticking market:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(tickMarket, 6000); // Ticker mercato ogni 6 secondi (cache a 5s per Yahoo, 15s per Crypto)
+    return () => clearInterval(interval);
+  }, [tickMarket]);
 
   const handleScan = async () => {
     setScanning(true);
@@ -87,6 +155,21 @@ export default function Home() {
       await refresh();
     } catch {
       showToast('Errore durante la sincronizzazione', false);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!confirm('⚠️ ATTENZIONE: Questo cancellerà tutti i dati del portafoglio e li risincronizzerà da eToro. Continuare?')) return;
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/portfolio', { method: 'DELETE' });
+      const data = await res.json();
+      showToast(data.success ? '✅ Reset completato. Dati risincronizzati da eToro.' : 'Errore reset: ' + data.error, data.success);
+      await refresh();
+    } catch {
+      showToast('Errore durante il reset', false);
     } finally {
       setSyncing(false);
     }
@@ -187,6 +270,42 @@ export default function Home() {
     return data.success;
   };
 
+  const handleUpdateCapitalBase = async (capitalBase: number) => {
+    const res = await fetch('/api/portfolio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'update_capital_base', capitalBase }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
+  const handleUpdateDepositedFunds = async (depositedFunds: number) => {
+    const res = await fetch('/api/portfolio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'update_deposited_funds', depositedFunds }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
+  const handleUpdateExcludeCopyTrading = async (excludeCopyTrading: boolean) => {
+    const res = await fetch('/api/portfolio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'update_exclude_copy_trading', excludeCopyTrading }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -197,6 +316,7 @@ export default function Home() {
         onScan={handleScan}
         scanning={scanning}
         onRefresh={handleSync}
+        onReset={handleReset}
         syncing={syncing}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
       />
@@ -208,9 +328,12 @@ export default function Home() {
             portfolio={portfolio} 
             market={market} 
             setTab={setTab} 
-            tbdData={tbdData} 
+            tbdData={tbdData}
             onUpdatePortfolios={handleUpdatePortfolios}
             onAssignPortfolio={handleAssignPortfolio}
+            onUpdateCapitalBase={handleUpdateCapitalBase}
+            onUpdateDepositedFunds={handleUpdateDepositedFunds}
+            onToggleCopyTrading={handleUpdateExcludeCopyTrading}
           />
         )}
         {tab === 'signals' && (
@@ -236,7 +359,7 @@ export default function Home() {
 
         {tab === 'market' && <MarketTab market={market} />}
         {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
-        {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} />}
+        {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} portfolio={portfolio} />}
       </main>
 
       <ChatWidget 

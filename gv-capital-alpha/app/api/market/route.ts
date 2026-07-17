@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { fetchAllMarketData } from '@/lib/market';
 import { getPortfolio, updatePositionPrices } from '@/lib/storage';
 
-export const runtime = 'edge';
-export const revalidate = 300; // 5 min cache
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

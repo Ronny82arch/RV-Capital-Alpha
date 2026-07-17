@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { PortfolioState, MarketData } from '@/types';
 import { isAheadOfTarget } from '@/lib/kelly';
 import { Tab } from '@/app/page';
-import ProfessionalChart from './ProfessionalChart';
+import dynamicImport from 'next/dynamic';
+const ProfessionalChart = dynamicImport(() => import('./ProfessionalChart'), { ssr: false });
 import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings } from 'lucide-react';
@@ -16,6 +17,9 @@ interface Props {
   tbdData?: any; 
   onUpdatePortfolios?: (customPortfolios: string[]) => Promise<boolean>;
   onAssignPortfolio?: (positionId: string, portfolioName: string) => Promise<boolean>;
+  onUpdateCapitalBase?: (base: number) => Promise<boolean>;
+  onUpdateDepositedFunds?: (funds: number) => Promise<boolean>;
+  onToggleCopyTrading?: (exclude: boolean) => Promise<boolean>;
 }
 
 function getTagIcon(tag: string) {
@@ -31,8 +35,8 @@ function getTagIcon(tag: string) {
   return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
 }
 
-export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onAssignPortfolio }: Props) {
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onAssignPortfolio, onUpdateCapitalBase, onUpdateDepositedFunds, onToggleCopyTrading }: Props) {
+  const [selectedTag, setSelectedTag] = useState<string | null>('Tutti');
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
   const [isLight, setIsLight] = useState(false);
@@ -67,7 +71,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const p = portfolio;
   const customPortfolios = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
   const target = portfolioTargets[selectedTag || 'Tutti'] || 10;
-  const targetEur = p.capitalBase * (target / 100);
+  const targetEur = (p.depositedFunds || p.capitalBase) * (target / 100);
 
   // Dynamic portfolio tags loaded directly from customized portfolios configurations list
   const allTags = useMemo(() => {
@@ -153,18 +157,14 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                       if (!newName || !newName.trim() || newName.trim() === pName) return;
                       const trimmed = newName.trim();
                       
-                      // 1. Update the list of portfolios
-                      const updatedPortfolios = customPortfolios.map(pNameItem => pNameItem === pName ? trimmed : pNameItem);
-                      if (onUpdatePortfolios) {
-                        await onUpdatePortfolios(updatedPortfolios);
-                      }
-                      
-                      // 2. Update all positions that belong to this portfolio
-                      const openPos = p.positions || [];
-                      for (const pos of openPos) {
-                        if (pos.portfolio === pName && onAssignPortfolio) {
-                          await onAssignPortfolio(pos.id, trimmed);
-                        }
+                      // Call server to rename atomically
+                      const res = await fetch('/api/tags', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'rename_portfolio', oldName: pName, newName: trimmed }),
+                      });
+                      if (res.ok) {
+                        window.location.reload();
                       }
                     }}
                     style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text2)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
@@ -174,18 +174,14 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                   <button
                     onClick={async () => {
                       if (confirm(`Sei sicuro di voler eliminare il portafoglio "${pName}"? Tutti gli asset al suo interno verranno spostati nel portafoglio "Principale".`)) {
-                        // 1. Remove from portfolio list
-                        const updatedPortfolios = customPortfolios.filter(pNameItem => pNameItem !== pName);
-                        if (onUpdatePortfolios) {
-                          await onUpdatePortfolios(updatedPortfolios);
-                        }
-                        
-                        // 2. Move positions to "Principale"
-                        const openPos = p.positions || [];
-                        for (const pos of openPos) {
-                          if (pos.portfolio === pName && onAssignPortfolio) {
-                            await onAssignPortfolio(pos.id, 'Principale');
-                          }
+                        // Call server to delete atomically
+                        const res = await fetch('/api/tags', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ type: 'delete_portfolio', portfolioName: pName }),
+                        });
+                        if (res.ok) {
+                          window.location.reload();
                         }
                       }
                     }}
@@ -208,8 +204,24 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             let val = 0;
 
             if (tag === 'Tutti') {
-              pnlPct = p.totalPnLPercent;
-              val = p.totalValue;
+              const openPositionsGlobal = p.positions.filter(pos => {
+                if (pos.status !== 'OPEN') return false;
+                if (p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')) return false;
+                return true;
+              });
+              const openValue = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
+              val = p.capitalAvailable + openValue;
+
+              const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
+              const totalRealizedPnL = p.positions
+                .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')))
+                .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
+              const totalPnL = totalUnrealizedPnL + totalRealizedPnL;
+
+              const baseForPnL = (p.depositedFunds && p.depositedFunds > 0)
+                ? p.depositedFunds
+                : (openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0) || 1);
+              pnlPct = (totalPnL / baseForPnL) * 100;
             } else {
               // Filter by portfolio property
               const tagPos = p.positions.filter(pos => pos.portfolio === tag);
@@ -219,10 +231,10 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               const unrealized = openTagPos.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
               const realized = closedTagPos.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
               const totalPnL = unrealized + realized;
-              const invested = openTagPos.reduce((acc, pos) => acc + (pos.capitalAllocated || (pos.entryPrice * pos.quantity)), 0);
+              const invested = openTagPos.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
               
               pnlPct = invested > 0 ? (totalPnL / invested) * 100 : 0;
-              val = openTagPos.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
+              val = openTagPos.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
             }
 
             const isPositive = pnlPct >= 0;
@@ -308,23 +320,43 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const openPositions = filteredPositions.filter(pos => pos.status === 'OPEN');
   const closedPositions = filteredPositions.filter(pos => pos.status === 'CLOSED');
 
-  let displayTotalValue = p.totalValue;
-  let displayPnL = p.totalPnL;
-  let displayPnLPct = p.totalPnLPercent;
-  let displayInvested = p.positions.filter(pos => pos.status === 'OPEN').reduce((acc, pos) => acc + (pos.capitalAllocated || (pos.entryPrice * pos.quantity)), 0);
+  let displayTotalValue = 0;
+  let displayPnL = 0;
+  let displayPnLPct = 0;
+  let displayInvested = 0;
 
-  if (selectedTag !== 'Tutti') {
-    displayTotalValue = openPositions.reduce((acc, pos) => acc + ((pos.currentPrice || pos.entryPrice) * pos.quantity), 0);
+  if (selectedTag === 'Tutti') {
+    const openPositionsGlobal = p.positions.filter(pos => {
+      if (pos.status !== 'OPEN') return false;
+      if (p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')) return false;
+      return true;
+    });
+    displayInvested = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
+    const openValue = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
+    displayTotalValue = p.capitalAvailable + openValue;
+
+    const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
+    const totalRealizedPnL = p.positions
+      .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')))
+      .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
+    displayPnL = totalUnrealizedPnL + totalRealizedPnL;
+
+    const baseForPnL = (p.depositedFunds && p.depositedFunds > 0)
+      ? p.depositedFunds
+      : (displayInvested > 0 ? displayInvested : 1);
+    displayPnLPct = (displayPnL / baseForPnL) * 100;
+  } else {
+    displayTotalValue = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
     const unrealized = openPositions.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
     const realized = closedPositions.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
     displayPnL = unrealized + realized;
-    displayInvested = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated || (pos.entryPrice * pos.quantity)), 0);
+    displayInvested = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
     displayPnLPct = displayInvested > 0 ? (displayPnL / displayInvested) * 100 : 0;
   }
 
-  const currentPnLForProgress = selectedTag === 'Tutti' ? p.totalPnL : displayPnL;
+  const currentPnLForProgress = displayPnL;
   const progressPct = Math.max(0, Math.min(100, (currentPnLForProgress / Math.max(1, targetEur)) * 100));
-  const ahead = isAheadOfTarget(selectedTag === 'Tutti' ? p.totalPnLPercent : displayPnLPct, target, p.startDate);
+  const ahead = isAheadOfTarget(displayPnLPct, target, p.startDate);
   const getAggressionStr = (pnlPercent: number, targetPercent: number, startDate: string) => {
     const daysPassed = Math.max(1, (Date.now() - new Date(startDate).getTime()) / 86400000);
     const expected = (targetPercent / 365) * daysPassed;
@@ -380,30 +412,107 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
       </div>
 
       {/* TITOLO DEL PORTAFOGLIO */}
-      <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        {getTagIcon(selectedTag || 'Tutti')}
-        <div>
-          <div style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em' }}>
-            PORTAFOGLIO
+      <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {getTagIcon(selectedTag || 'Tutti')}
+          <div>
+            <div style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em' }}>
+              PORTAFOGLIO
+            </div>
+            <h1 style={{ fontSize: '32px', margin: 0, fontWeight: 'bold', color: 'var(--text)' }}>
+              {selectedTag === 'Tutti' ? 'Globale' : selectedTag}
+            </h1>
           </div>
-          <h1 style={{ fontSize: '32px', margin: 0, fontWeight: 'bold', color: 'var(--text)' }}>
-            {selectedTag === 'Tutti' ? 'Globale' : selectedTag}
-          </h1>
         </div>
+
+        {selectedTag === 'Tutti' && onToggleCopyTrading && (
+          <button
+            onClick={async () => {
+              if (onToggleCopyTrading) {
+                await onToggleCopyTrading(!p.excludeCopyTrading);
+              }
+            }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '24px',
+              border: `1px solid ${p.excludeCopyTrading ? 'var(--red)' : 'var(--green)'}`,
+              background: 'var(--bg2)',
+              color: p.excludeCopyTrading ? 'var(--red)' : 'var(--green)',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = p.excludeCopyTrading ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'var(--bg2)';
+            }}
+          >
+            {p.excludeCopyTrading ? '🤖 COPY TRADING: ESCLUSO' : '🤖 COPY TRADING: INCLUSO'}
+          </button>
+        )}
       </div>
 
       {/* TOP KPI ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+        {selectedTag === 'Tutti' && (
+          <KpiCard
+            label="FONDI DEPOSITATI"
+            value={
+              <div key={p.depositedFunds} style={{ display: 'flex', alignItems: 'center' }}>
+                <span>€</span>
+                <input
+                  type="number"
+                  defaultValue={p.depositedFunds || 6000}
+                  onBlur={async (e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val !== p.depositedFunds && onUpdateDepositedFunds) {
+                      await onUpdateDepositedFunds(val);
+                    }
+                  }}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      const val = parseFloat((e.target as HTMLInputElement).value);
+                      if (!isNaN(val) && val !== p.depositedFunds && onUpdateDepositedFunds) {
+                        await onUpdateDepositedFunds(val);
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px dashed var(--blue)',
+                    color: 'var(--blue)',
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    fontFamily: 'var(--font-mono)',
+                    width: '120px',
+                    padding: '0',
+                    marginLeft: '2px',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            }
+            sub="totale fondi depositati (modificabile)"
+            color="var(--blue)"
+          />
+        )}
         <KpiCard
           label="VALORE ALLOCATO"
           value={`€${displayInvested.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-          sub="somma capitale investito"
+          sub={selectedTag === 'Tutti' ? "capitale investito negli asset attivi" : "somma capitale investito"}
           color="var(--blue)"
         />
         <KpiCard
           label={selectedTag === 'Tutti' ? "VALORE PORTAFOGLIO" : `VALORE: ${selectedTag.toUpperCase()}`}
           value={`€${displayTotalValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-          sub={selectedTag === 'Tutti' ? `base €${p.capitalBase.toLocaleString('it-IT', { maximumFractionDigits: 0 })}` : 'valore posizioni attuali'}
+          sub={selectedTag === 'Tutti' ? "valore attuale totale (equity)" : "valore posizioni attuali"}
           color="var(--text)"
         />
         <KpiCard
@@ -423,58 +532,62 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         <KpiCard
           label="LIQUIDITÀ DISPONIBILE"
           value={`€${p.capitalAvailable.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
-          sub={`${((p.capitalAvailable / p.capitalBase) * 100).toFixed(0)}% del capitale`}
+          sub={`${((p.capitalAvailable / (p.depositedFunds || p.capitalBase || 1)) * 100).toFixed(0)}% dei fondi depositati`}
           color="var(--blue)"
         />
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>
-            TARGET ANNUO {selectedTag !== 'Tutti' && `(${selectedTag})`}
+        {selectedTag !== 'Tutti' && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>
+              TARGET ANNUO ({selectedTag})
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>+</span>
+              <input 
+                type="number" 
+                value={target}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) {
+                    setPortfolioTargets(prev => ({ ...prev, [selectedTag || 'Tutti']: val }));
+                  }
+                }}
+                style={{
+                  background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px',
+                  color: 'var(--yellow)', fontSize: '20px', fontWeight: 'bold', fontFamily: 'var(--font-mono)',
+                  width: '60px', padding: '2px 4px', textAlign: 'center'
+                }}
+              />
+              <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>%</span>
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>
+              ~€{targetEur.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>+</span>
-            <input 
-              type="number" 
-              value={target}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                if (!isNaN(val)) {
-                  setPortfolioTargets(prev => ({ ...prev, [selectedTag || 'Tutti']: val }));
-                }
-              }}
-              style={{
-                background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px',
-                color: 'var(--yellow)', fontSize: '20px', fontWeight: 'bold', fontFamily: 'var(--font-mono)',
-                width: '60px', padding: '2px 4px', textAlign: 'center'
-              }}
-            />
-            <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>%</span>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>
-            ~€{targetEur.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* PROGRESS BAR */}
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>PROGRESSO OBIETTIVO +{target}%</span>
-          <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: ahead ? 'var(--green)' : 'var(--yellow)', fontWeight: '700' }}>
-            {progressPct.toFixed(1)}%
-          </span>
+      {selectedTag !== 'Tutti' && (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>PROGRESSO OBIETTIVO +{target}%</span>
+            <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: ahead ? 'var(--green)' : 'var(--yellow)', fontWeight: '700' }}>
+              {progressPct.toFixed(1)}%
+            </span>
+          </div>
+          <div style={{ height: '8px', background: 'var(--bg3)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${progressPct}%`,
+              background: `linear-gradient(90deg, #00d4aa, #3b82f6)`,
+              borderRadius: '4px', transition: 'width 1s ease',
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10px', color: 'var(--text3)' }}>
+            <span>{ahead ? '🟢 In anticipo sul target' : '🟡 Da recuperare'}</span>
+            <span style={{ color: aggrColor }}>Modalità: <b>{aggression}</b></span>
+          </div>
         </div>
-        <div style={{ height: '8px', background: 'var(--bg3)', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', width: `${progressPct}%`,
-            background: `linear-gradient(90deg, #00d4aa, #3b82f6)`,
-            borderRadius: '4px', transition: 'width 1s ease',
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10px', color: 'var(--text3)' }}>
-          <span>{ahead ? '🟢 In anticipo sul target' : '🟡 Da recuperare'}</span>
-          <span style={{ color: aggrColor }}>Modalità: <b>{aggression}</b></span>
-        </div>
-      </div>
+      )}
 
       {/* ALLOCATION WIDGETS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
@@ -556,9 +669,9 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 {openPositions.map(pos => {
                   const pnl = pos.unrealizedPnl ?? 0;
                   const pnlPct = pos.unrealizedPnlPercent ?? 0;
-                  const allocated = pos.capitalAllocated ?? (pos.entryPrice * pos.quantity);
+                  const allocated = pos.capitalAllocated || 0;
                   const currentPrice = pos.currentPrice ?? pos.entryPrice;
-                  const currentVal = currentPrice * pos.quantity;
+                  const currentVal = pos.capitalAllocated + (pos.unrealizedPnl || 0);
                   const weight = displayTotalValue > 0 ? (currentVal / displayTotalValue) * 100 : 0;
                   const isExpanded = expandedPosId === pos.id;
 
@@ -689,7 +802,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   );
 }
 
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+function KpiCard({ label, value, sub, color }: { label: string; value: React.ReactNode; sub: React.ReactNode; color: string }) {
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
       <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>{label}</div>
@@ -711,7 +824,7 @@ function StatCard({ label, value, color = 'var(--text)' }: { label: string; valu
 function AssetAllocationChart({ positions }: { positions: import('@/types').Position[] }) {
   const categories = positions.reduce((acc, pos) => {
     const type = getMacroCategory(pos);
-    const val = (pos.currentPrice ?? pos.entryPrice) * pos.quantity;
+    const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
     acc[type] = (acc[type] || 0) + val;
     return acc;
   }, {} as Record<string, number>);
@@ -757,7 +870,7 @@ function AssetAllocationChart({ positions }: { positions: import('@/types').Posi
 function GeographicExposureWidget({ positions }: { positions: import('@/types').Position[] }) {
   const geoMap = positions.reduce((acc, pos) => {
     const geo = getGeography(pos.symbol, pos.name);
-    const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
+    const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
     if (!acc[geo]) acc[geo] = { total: 0, assets: [] };
     acc[geo].total += val;
     acc[geo].assets.push({ symbol: pos.symbol, name: pos.name, value: val, logoUrl: pos.logoUrl });
@@ -818,7 +931,7 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
 function SectorDiversificationWidget({ positions }: { positions: import('@/types').Position[] }) {
   const sectorMap = positions.reduce((acc, pos) => {
     const sec = getSector(pos.symbol, pos.name, pos.type);
-    const val = (pos.currentPrice || pos.entryPrice) * pos.quantity;
+    const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
     if (!acc[sec]) acc[sec] = { total: 0, assets: [] };
     acc[sec].total += val;
     acc[sec].assets.push({ symbol: pos.symbol, name: pos.name, value: val, logoUrl: pos.logoUrl });
@@ -883,11 +996,11 @@ function CoreSatelliteWidget({ positions }: { positions: import('@/types').Posit
   
   const coreValue = openPos
     .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
-    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
+    .reduce((sum, p) => sum + (p.capitalAllocated + (p.unrealizedPnl || 0)), 0);
 
   const satValue = openPos
     .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
-    .reduce((sum, p) => sum + ((p.currentPrice ?? p.entryPrice) * p.quantity), 0);
+    .reduce((sum, p) => sum + (p.capitalAllocated + (p.unrealizedPnl || 0)), 0);
 
   const total = coreValue + satValue;
   if (total === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun asset Core/Satellite attivo.</div>;

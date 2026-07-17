@@ -184,6 +184,38 @@ export default function QuontestTab({ portfolio }: Props) {
   const [data, setData] = useState<QuantData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<"live" | "mock">("live");
+  
+  const [summaryData, setSummaryData] = useState<{symbol: string, score: number, isPortfolio: boolean}[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const fetchSummary = async () => {
+      setSummaryLoading(true);
+      const allSymbols = Array.from(new Set([...ASSETS.map(a => a.symbol), ...portfolioAssets.map(a => a.symbol)]));
+      const results = [];
+      for (const sym of allSymbols) {
+        if (!active) break;
+        try {
+          const res = await fetch(`/api/quontest?ticker=${sym}&regime=${regime}`);
+          const json = await res.json();
+          if (json.success) {
+            results.push({
+              symbol: sym,
+              score: json.data.score,
+              isPortfolio: portfolioAssets.some(a => a.symbol === sym)
+            });
+          }
+        } catch (e) { console.error(e); }
+      }
+      if (active) {
+        setSummaryData(results.sort((a, b) => b.score - a.score));
+        setSummaryLoading(false);
+      }
+    };
+    fetchSummary();
+    return () => { active = false; };
+  }, [portfolioAssets, regime]);
 
   const fetchQuantData = useCallback(async () => {
     setLoading(true);
@@ -367,29 +399,36 @@ export default function QuontestTab({ portfolio }: Props) {
 
         {/* Selettore Asset */}
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {currentAssets.map((a) => (
-            <button
-              key={a.symbol}
-              onClick={() => setTicker(a.symbol)}
-              style={{
-                padding: "7px 16px",
-                borderRadius: "10px",
-                border: ticker === a.symbol ? "1px solid #00d4aa" : "1px solid rgba(255,255,255,0.08)",
-                background: ticker === a.symbol ? "rgba(0,212,170,0.15)" : "rgba(255,255,255,0.04)",
-                color: ticker === a.symbol ? "#00d4aa" : "#94a3b8",
-                fontWeight: 700,
-                fontSize: "12px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-              }}
-            >
-              <span>{a.icon}</span>
-              <span>{a.label}</span>
-            </button>
-          ))}
+          {(() => {
+            const sortedCurrentAssets = [...currentAssets].sort((a, b) => {
+              const scoreA = summaryData.find(s => s.symbol === a.symbol)?.score || 0;
+              const scoreB = summaryData.find(s => s.symbol === b.symbol)?.score || 0;
+              return scoreB - scoreA;
+            });
+            return sortedCurrentAssets.map((a) => (
+              <button
+                key={a.symbol}
+                onClick={() => setTicker(a.symbol)}
+                style={{
+                  padding: "7px 16px",
+                  borderRadius: "10px",
+                  border: ticker === a.symbol ? "1px solid #00d4aa" : "1px solid rgba(255,255,255,0.08)",
+                  background: ticker === a.symbol ? "rgba(0,212,170,0.15)" : "rgba(255,255,255,0.04)",
+                  color: ticker === a.symbol ? "#00d4aa" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                }}
+              >
+                <span>{a.icon}</span>
+                <span>{a.label}</span>
+              </button>
+            ));
+          })()}
         </div>
 
         {/* Selettore Regime */}
@@ -1013,6 +1052,120 @@ export default function QuontestTab({ portfolio }: Props) {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── ROW 4: TABELLA RIASSUNTIVA PUNTEGGI ────────────────────────── */}
+          <div
+            style={{
+              background: "var(--bg2)",
+              border: "1px solid var(--border)",
+              borderRadius: "16px",
+              padding: "24px",
+              marginTop: "8px",
+            }}
+          >
+            <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  color: "#475569",
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Ranking Globale Quontest
+              </span>
+              {summaryLoading && (
+                <span className="animate-pulse" style={{ fontSize: "10px", color: "#3b82f6", fontWeight: 700 }}>
+                  Aggiornamento in corso...
+                </span>
+              )}
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    {["Asset", "Score", "Rating", "Categoria"].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: "8px 12px",
+                          fontSize: "9px",
+                          fontWeight: 800,
+                          color: "#334155",
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                          textAlign: h === "Score" || h === "Rating" ? "center" : "left",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryData.length === 0 && !summaryLoading ? (
+                    <tr>
+                      <td colSpan={4} style={{ padding: "20px", textAlign: "center", fontSize: "12px", color: "#64748b" }}>
+                        Nessun dato disponibile
+                      </td>
+                    </tr>
+                  ) : (
+                    [...summaryData].sort((a,b) => b.score - a.score).map((item, idx) => (
+                      <tr
+                        key={item.symbol}
+                        onClick={() => setTicker(item.symbol)}
+                        style={{
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          transition: "background 0.15s",
+                          cursor: "pointer",
+                          background: item.symbol === ticker ? "rgba(255,255,255,0.04)" : "transparent"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (item.symbol !== ticker) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.02)";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (item.symbol !== ticker) (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
+                        }}
+                      >
+                        <td style={{ padding: "12px", fontSize: "13px", fontWeight: 800, color: "#f1f5f9" }}>
+                          {item.symbol}
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "center" }}>
+                          <span style={{
+                            background: `${scoreColor(item.score)}15`,
+                            color: scoreColor(item.score),
+                            padding: "4px 10px",
+                            borderRadius: "6px",
+                            fontWeight: 800,
+                            fontSize: "12px",
+                            fontFamily: "var(--font-mono, monospace)"
+                          }}>
+                            {item.score}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "center", fontSize: "10px", fontWeight: 700, color: scoreColor(item.score) }}>
+                          {scoreLabel(item.score)}
+                        </td>
+                        <td style={{ padding: "12px" }}>
+                          {item.isPortfolio ? (
+                            <span style={{ fontSize: "10px", color: "#00d4aa", background: "rgba(0,212,170,0.1)", padding: "3px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                              Portafoglio
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "10px", color: "#3b82f6", background: "rgba(59,130,246,0.1)", padding: "3px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                              Mercato
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
