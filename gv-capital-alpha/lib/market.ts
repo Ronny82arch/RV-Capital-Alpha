@@ -5,24 +5,73 @@ const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
 // ─── WATCHLIST ────────────────────────────────────────────────────────────────
 export const WATCHLIST: WatchlistItem[] = [
-  // Safe ETF base (30-40% of portfolio)
+  // Safe ETF base (10)
   { symbol: 'VWCE', name: 'Vanguard All-World ETF', type: 'ETF', yahooSymbol: 'VWCE.DE' },
   { symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', yahooSymbol: 'SPY' },
   { symbol: 'QQQ', name: 'Nasdaq 100 ETF', type: 'ETF', yahooSymbol: 'QQQ' },
   { symbol: 'GLD', name: 'Gold ETF', type: 'ETF', yahooSymbol: 'GLD' },
   { symbol: 'XDWD', name: 'iShares MSCI World ETF', type: 'ETF', yahooSymbol: 'XDWD.DE' },
-  // Dynamic stocks (20-30% of portfolio)
+  { symbol: 'EIMI', name: 'iShares MSCI Emerging Markets ETF', type: 'ETF', yahooSymbol: 'EIMI.DE' },
+  { symbol: 'IUSN', name: 'iShares MSCI World Small Cap ETF', type: 'ETF', yahooSymbol: 'IUSN.DE' },
+  { symbol: 'INRG', name: 'iShares Global Clean Energy ETF', type: 'ETF', yahooSymbol: 'INRG.DE' },
+  { symbol: 'USRT', name: 'iShares U.S. REIT ETF', type: 'ETF', yahooSymbol: 'USRT' },
+  { symbol: 'TLT', name: 'iShares 20+ Year Treasury Bond ETF', type: 'ETF', yahooSymbol: 'TLT' },
+
+  // Big Tech & Semiconductors (12)
   { symbol: 'NVDA', name: 'NVIDIA', type: 'STOCK', yahooSymbol: 'NVDA' },
   { symbol: 'MSFT', name: 'Microsoft', type: 'STOCK', yahooSymbol: 'MSFT' },
   { symbol: 'AAPL', name: 'Apple', type: 'STOCK', yahooSymbol: 'AAPL' },
   { symbol: 'META', name: 'Meta', type: 'STOCK', yahooSymbol: 'META' },
   { symbol: 'AMZN', name: 'Amazon', type: 'STOCK', yahooSymbol: 'AMZN' },
   { symbol: 'TSLA', name: 'Tesla', type: 'STOCK', yahooSymbol: 'TSLA' },
-  // Crypto (10-20% of portfolio, only when signal is strong)
+  { symbol: 'GOOGL', name: 'Alphabet (Google)', type: 'STOCK', yahooSymbol: 'GOOGL' },
+  { symbol: 'AMD', name: 'Advanced Micro Devices', type: 'STOCK', yahooSymbol: 'AMD' },
+  { symbol: 'AVGO', name: 'Broadcom', type: 'STOCK', yahooSymbol: 'AVGO' },
+  { symbol: 'ASML', name: 'ASML Holding', type: 'STOCK', yahooSymbol: 'ASML' },
+  { symbol: 'NFLX', name: 'Netflix', type: 'STOCK', yahooSymbol: 'NFLX' },
+  { symbol: 'SMCI', name: 'Super Micro Computer', type: 'STOCK', yahooSymbol: 'SMCI' },
+
+  // Finanza (6)
+  { symbol: 'JPM', name: 'JPMorgan Chase', type: 'STOCK', yahooSymbol: 'JPM' },
+  { symbol: 'BAC', name: 'Bank of America', type: 'STOCK', yahooSymbol: 'BAC' },
+  { symbol: 'V', name: 'Visa', type: 'STOCK', yahooSymbol: 'V' },
+  { symbol: 'MA', name: 'Mastercard', type: 'STOCK', yahooSymbol: 'MA' },
+  { symbol: 'GS', name: 'Goldman Sachs', type: 'STOCK', yahooSymbol: 'GS' },
+  { symbol: 'COIN', name: 'Coinbase', type: 'STOCK', yahooSymbol: 'COIN' },
+
+  // Healthcare (6)
+  { symbol: 'LLY', name: 'Eli Lilly', type: 'STOCK', yahooSymbol: 'LLY' },
+  { symbol: 'NVO', name: 'Novo Nordisk', type: 'STOCK', yahooSymbol: 'NVO' },
+  { symbol: 'JNJ', name: 'Johnson & Johnson', type: 'STOCK', yahooSymbol: 'JNJ' },
+  { symbol: 'UNH', name: 'UnitedHealth Group', type: 'STOCK', yahooSymbol: 'UNH' },
+  { symbol: 'MRK', name: 'Merck & Co.', type: 'STOCK', yahooSymbol: 'MRK' },
+  { symbol: 'PFE', name: 'Pfizer', type: 'STOCK', yahooSymbol: 'PFE' },
+
+  // Consumi (6)
+  { symbol: 'MC.PA', name: 'LVMH', type: 'STOCK', yahooSymbol: 'MC.PA' },
+  { symbol: 'NKE', name: 'Nike', type: 'STOCK', yahooSymbol: 'NKE' },
+  { symbol: 'KO', name: 'Coca-Cola', type: 'STOCK', yahooSymbol: 'KO' },
+  { symbol: 'PEP', name: 'PepsiCo', type: 'STOCK', yahooSymbol: 'PEP' },
+  { symbol: 'COST', name: 'Costco', type: 'STOCK', yahooSymbol: 'COST' },
+  { symbol: 'WMT', name: 'Walmart', type: 'STOCK', yahooSymbol: 'WMT' },
+
+  // Industria / Energia (4)
+  { symbol: 'XOM', name: 'ExxonMobil', type: 'STOCK', yahooSymbol: 'XOM' },
+  { symbol: 'CVX', name: 'Chevron', type: 'STOCK', yahooSymbol: 'CVX' },
+  { symbol: 'CAT', name: 'Caterpillar', type: 'STOCK', yahooSymbol: 'CAT' },
+  { symbol: 'GE', name: 'General Electric', type: 'STOCK', yahooSymbol: 'GE' },
+
+  // Cryptovalute (6)
   { symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', coinId: 'bitcoin' },
   { symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', coinId: 'ethereum' },
   { symbol: 'SOL', name: 'Solana', type: 'CRYPTO', coinId: 'solana' },
+  { symbol: 'BNB', name: 'Binance Coin', type: 'CRYPTO', coinId: 'binancecoin' },
+  { symbol: 'ADA', name: 'Cardano', type: 'CRYPTO', coinId: 'cardano' },
+  { symbol: 'XRP', name: 'Ripple', type: 'CRYPTO', coinId: 'ripple' },
 ];
+// (Fetch API logic...)
+// (Lines between 25 and 131 remain unchanged)
+
 
 // ─── YAHOO FINANCE ────────────────────────────────────────────────────────────
 export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData | null> {
@@ -134,8 +183,12 @@ export async function fetchMarketData(item: WatchlistItem): Promise<MarketData |
   return fetchYahooFinance(item);
 }
 
-export async function fetchAllMarketData(): Promise<MarketData[]> {
-  const results = await Promise.allSettled(WATCHLIST.map(fetchMarketData));
+export async function fetchAllMarketData(extraItems?: WatchlistItem[]): Promise<MarketData[]> {
+  const list = extraItems ? [...WATCHLIST, ...extraItems] : WATCHLIST;
+  const uniqueList = list.filter((item, index, self) =>
+    self.findIndex(t => t.symbol === item.symbol) === index
+  );
+  const results = await Promise.allSettled(uniqueList.map(fetchMarketData));
   return results
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => (r as PromiseFulfilledResult<MarketData>).value);
@@ -278,9 +331,13 @@ async function fetchYahooFinanceForCalibration(item: WatchlistItem): Promise<Mar
   } catch { return null; }
 }
 
-export async function fetchAllMarketDataForCalibration(): Promise<MarketData[]> {
+export async function fetchAllMarketDataForCalibration(extraItems?: WatchlistItem[]): Promise<MarketData[]> {
+  const list = extraItems ? [...WATCHLIST, ...extraItems] : WATCHLIST;
+  const uniqueList = list.filter((item, index, self) =>
+    self.findIndex(t => t.symbol === item.symbol) === index
+  );
   const results = await Promise.allSettled(
-    WATCHLIST.map(item =>
+    uniqueList.map(item =>
       item.type === 'CRYPTO' ? fetchCryptoDataForCalibration(item) : fetchYahooFinanceForCalibration(item)
     )
   );

@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllMarketDataForCalibration, WATCHLIST } from '@/lib/market';
 import { buildCalibrationTable } from '@/lib/backtest';
-import { saveCalibrationTable } from '@/lib/storage';
+import { saveCalibrationTable, getPortfolio } from '@/lib/storage';
 
 export const maxDuration = 60;
 
@@ -32,7 +32,36 @@ export async function POST(req: NextRequest) {
 
 async function run() {
   try {
-    const marketData = await fetchAllMarketDataForCalibration();
+    const portfolio = await getPortfolio();
+    
+    // Extract unique symbols from portfolio positions that are not in the default WATCHLIST
+    const watchlistSymbols = new Set(WATCHLIST.map(w => w.symbol));
+    const extraItems: any[] = [];
+    
+    if (portfolio && portfolio.positions) {
+      const added = new Set<string>();
+      portfolio.positions.forEach(pos => {
+        if (!watchlistSymbols.has(pos.symbol) && !added.has(pos.symbol)) {
+          added.add(pos.symbol);
+          let coinId: string | undefined;
+          let yahooSymbol: string | undefined;
+          if (pos.type === 'CRYPTO') {
+            coinId = pos.symbol.toLowerCase() === 'bnb' ? 'binancecoin' : pos.symbol.toLowerCase();
+          } else {
+            yahooSymbol = pos.symbol;
+          }
+          extraItems.push({
+            symbol: pos.symbol,
+            name: pos.name,
+            type: pos.type,
+            yahooSymbol,
+            coinId
+          });
+        }
+      });
+    }
+
+    const marketData = await fetchAllMarketDataForCalibration(extraItems);
 
     if (marketData.length < Math.floor(WATCHLIST.length / 2)) {
       return NextResponse.json({

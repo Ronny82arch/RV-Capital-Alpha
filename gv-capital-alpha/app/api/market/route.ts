@@ -1,15 +1,41 @@
 import { NextResponse } from 'next/server';
-import { fetchAllMarketData } from '@/lib/market';
+import { fetchAllMarketData, WATCHLIST } from '@/lib/market';
 import { getPortfolio, updatePositionPrices } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const [marketData, portfolio] = await Promise.all([
-      fetchAllMarketData(),
-      getPortfolio(),
-    ]);
+    const portfolio = await getPortfolio();
+    
+    // Extract unique symbols from portfolio positions that are not in the default WATCHLIST
+    const watchlistSymbols = new Set(WATCHLIST.map(w => w.symbol));
+    const extraItems: any[] = [];
+    
+    if (portfolio && portfolio.positions) {
+      const added = new Set<string>();
+      portfolio.positions.forEach(pos => {
+        if (!watchlistSymbols.has(pos.symbol) && !added.has(pos.symbol)) {
+          added.add(pos.symbol);
+          let coinId: string | undefined;
+          let yahooSymbol: string | undefined;
+          if (pos.type === 'CRYPTO') {
+            coinId = pos.symbol.toLowerCase() === 'bnb' ? 'binancecoin' : pos.symbol.toLowerCase();
+          } else {
+            yahooSymbol = pos.symbol;
+          }
+          extraItems.push({
+            symbol: pos.symbol,
+            name: pos.name,
+            type: pos.type,
+            yahooSymbol,
+            coinId
+          });
+        }
+      });
+    }
+
+    const marketData = await fetchAllMarketData(extraItems);
 
     // Update open position prices
     const updates = portfolio.positions
