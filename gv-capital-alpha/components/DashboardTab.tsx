@@ -385,7 +385,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     if (pnlPercent > expected + 2) return 'CONSERVATIVE';
     return 'MODERATE';
   };
-  const aggression = getAggressionStr(p.totalPnLPercent, target, p.startDate);
+  const aggression = getAggressionStr(displayPnLPct, target, p.startDate);
 
   const winRate = closedPositions.length > 0
     ? (closedPositions.filter(pos => (pos.realizedPnl ?? 0) > 0).length / closedPositions.length * 100)
