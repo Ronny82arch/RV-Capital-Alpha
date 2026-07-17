@@ -1,5 +1,6 @@
 'use client';
 import { MarketData } from '@/types';
+import AssetIcon from './AssetIcon';
 
 interface Props { market: MarketData[]; }
 
@@ -34,32 +35,82 @@ function AssetGroup({ title, items }: { title: string; items: MarketData[] }) {
 function MarketRow({ item }: { item: MarketData }) {
   const isUp = item.changePercent >= 0;
   const closes = item.history.map(h => h.close).filter(p => p > 0);
+  const range = item.high24h - item.low24h || 1;
+  const rangePercent = Math.min(100, Math.max(0, ((item.price - item.low24h) / range) * 100));
+
+  const formatVolume = (val: number) => {
+    if (!val || val === 0) return 'N/D';
+    if (val >= 1e9) return `€${(val / 1e9).toFixed(1)}B`;
+    if (val >= 1e6) return `€${(val / 1e6).toFixed(1)}M`;
+    if (val >= 1e3) return `€${(val / 1e3).toFixed(0)}K`;
+    return `€${val.toFixed(0)}`;
+  };
+
+  const typeColor = item.type === 'CRYPTO' ? '#eab308' : item.type === 'ETF' ? '#3b82f6' : '#a855f7';
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px',
       background: 'var(--bg2)', border: '1px solid var(--border)',
-      borderRadius: '10px', padding: '12px 14px', marginBottom: '6px',
+      borderRadius: '12px', padding: '16px', marginBottom: '8px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
     }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '14px' }}>{item.symbol}</span>
-          <span style={{ fontSize: '11px', color: 'var(--text3)' }}>{item.name}</span>
+      {/* Icon & Symbol */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px', flex: '1 1 200px' }}>
+        <AssetIcon symbol={item.symbol} />
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '15px' }}>{item.symbol}</span>
+            <span style={{
+              fontSize: '9px', fontFamily: 'var(--font-mono)', fontWeight: '700',
+              padding: '2px 6px', borderRadius: '4px', background: `${typeColor}22`, color: typeColor,
+              border: `1px solid ${typeColor}44`
+            }}>{item.type}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text3)', marginTop: '2px' }}>{item.name}</div>
         </div>
       </div>
 
+      {/* Sparkline (15d trend) */}
       {closes.length > 5 && (
-        <div style={{ width: '60px', height: '28px' }}>
-          <MicroChart closes={closes.slice(-15)} color={isUp ? '#00d4aa' : '#ef4444'} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', minWidth: '70px' }}>
+          <span style={{ fontSize: '9px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>TREND 15G</span>
+          <div style={{ width: '70px', height: '28px' }}>
+            <MicroChart closes={closes.slice(-15)} color={isUp ? 'var(--green)' : 'var(--red)'} />
+          </div>
         </div>
       )}
 
-      <div style={{ textAlign: 'right', minWidth: '90px' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '14px' }}>
+      {/* 24h Range Bar */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '150px', flex: '1 1 150px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+          <span>MIN 24H: €{item.low24h.toLocaleString('it-IT', { maximumFractionDigits: 2 })}</span>
+          <span>MAX 24H: €{item.high24h.toLocaleString('it-IT', { maximumFractionDigits: 2 })}</span>
+        </div>
+        <div style={{ height: '5px', background: 'var(--border)', borderRadius: '3px', position: 'relative', overflow: 'visible', margin: '4px 0' }}>
+          <div style={{
+            position: 'absolute', top: '-3px', left: `calc(${rangePercent}% - 5px)`,
+            width: '10px', height: '11px', borderRadius: '50%',
+            background: isUp ? 'var(--green)' : 'var(--red)',
+            boxShadow: '0 0 8px rgba(0,0,0,0.5)'
+          }} />
+        </div>
+      </div>
+
+      {/* Volume 24h */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '80px' }}>
+        <span style={{ fontSize: '9px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>VOLUME 24H</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '600' }}>{formatVolume(item.volume)}</span>
+      </div>
+
+      {/* Price & Change */}
+      <div style={{ textAlign: 'right', minWidth: '120px' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '16px' }}>
           €{item.price.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: item.price > 100 ? 2 : 4 })}
         </div>
-        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: isUp ? 'var(--green)' : 'var(--red)', fontWeight: '600' }}>
-          {isUp ? '+' : ''}{item.changePercent.toFixed(2)}%
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: isUp ? 'var(--green)' : 'var(--red)', fontWeight: '600', marginTop: '2px' }}>
+          <span>{isUp ? '+' : ''}{item.change.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€</span>
+          <span>({isUp ? '+' : ''}{item.changePercent.toFixed(2)}%)</span>
         </div>
       </div>
     </div>
