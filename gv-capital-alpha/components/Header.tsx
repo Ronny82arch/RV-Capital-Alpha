@@ -133,6 +133,12 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
           transition: all 0.2s;
         }
         
+        @keyframes pulse-computer-badge {
+          0% { opacity: 0.7; box-shadow: 0 0 4px #ef4444; }
+          50% { opacity: 1; box-shadow: 0 0 12px #ef4444; }
+          100% { opacity: 0.7; box-shadow: 0 0 4px #ef4444; }
+        }
+        
         @keyframes pulse {
           0% { opacity: 0.4; transform: scale(0.9); }
           50% { opacity: 1; transform: scale(1.1); }
@@ -265,7 +271,13 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
               <line x1="12" y1="17" x2="12" y2="20" />
             </svg>
             {!hideBadge && unreadAlerts.length > 0 && (
-              <span style={{ position: 'absolute', top: -3, right: -3, background: 'var(--red)', color: '#fff', fontSize: '8px', padding: '1px 3px', borderRadius: '10px', fontWeight: 'bold' }}>{unreadAlerts.length}</span>
+              <span style={{ 
+                position: 'absolute', top: -3, right: -3, 
+                background: 'var(--red)', color: '#fff', fontSize: '8px', 
+                padding: '1px 4px', borderRadius: '10px', fontWeight: 'bold',
+                boxShadow: '0 0 6px #ef4444',
+                animation: 'pulse-computer-badge 1.5s infinite ease-in-out'
+              }}>{unreadAlerts.length}</span>
             )}
           </button>
 

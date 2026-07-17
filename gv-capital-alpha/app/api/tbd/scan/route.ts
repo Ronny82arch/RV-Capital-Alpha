@@ -8,13 +8,14 @@ import { TradingByDayEngine } from '@/lib/trading-by-day';
 import { fetchAllTbdMarketData } from '@/lib/tbd-market';
 import {
   getTodayLog, saveTodayLog, getTbdConfig,
-  getActiveSignals, addSignal,
+  getActiveSignals, addSignal, updateSignalStatus,
 } from '@/lib/tbd-storage';
-import { sendPreAlertNotification, sendCircuitBreakerNotification } from '@/lib/tbd-notifications';
+import { 
+  sendPreAlertNotification, sendCircuitBreakerNotification,
+  sendSignalTriggeredNotification, sendExitNotification
+} from '@/lib/tbd-notifications';
 
 export const maxDuration = 60;
-
-
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -81,10 +82,53 @@ export async function POST(req: NextRequest) {
       s => !existingAssets.has(`${s.asset}:${s.direction}`)
     );
 
-    // 5. Salva e notifica
+    // 5. Salva e notifica nuovi segnali (Pre-Alert)
     for (const signal of newSignals) {
       await addSignal(signal);
       await sendPreAlertNotification(signal);
+    }
+
+    // 6. Monitora segnali attivi per trigger o uscita SL/TP
+    for (const signal of existing) {
+      const md = marketData.find(m => m.asset === signal.asset);
+      if (!md) continue;
+
+      const currentPrice = md.currentPrice;
+      const isBuy = signal.direction === 'BUY';
+
+      if (signal.status === 'PRE_ALERT') {
+        const reachedEntry = isBuy 
+          ? currentPrice <= signal.entryPrice 
+          : currentPrice >= signal.entryPrice;
+        if (reachedEntry) {
+          await updateSignalStatus(signal.id, 'TRIGGERED');
+          signal.status = 'TRIGGERED';
+          await sendSignalTriggeredNotification(signal, currentPrice);
+        }
+      } else if (signal.status === 'TRIGGERED' || signal.status === 'ACTIVE') {
+        const hitTp = isBuy 
+          ? currentPrice >= signal.takeProfit 
+          : currentPrice <= signal.takeProfit;
+        const hitSl = isBuy 
+          ? currentPrice <= signal.stopLoss 
+          : currentPrice >= signal.stopLoss;
+
+        if (hitTp) {
+          const updatedSignal = await updateSignalStatus(signal.id, 'CLOSED_TP', signal.expectedPnL);
+          if (updatedSignal && log) {
+            const updatedLog = engine.updateDayLog(log, updatedSignal);
+            await saveTodayLog(updatedLog);
+          }
+          await sendExitNotification(signal, 'TP', currentPrice);
+        } else if (hitSl) {
+          const updatedSignal = await updateSignalStatus(signal.id, 'CLOSED_SL', -signal.maxLoss);
+          if (updatedSignal && log) {
+            const updatedLog = engine.updateDayLog(log, updatedSignal);
+            await saveTodayLog(updatedLog);
+          }
+          await sendExitNotification(signal, 'SL', currentPrice);
+        }
+      }
     }
 
     return NextResponse.json({
