@@ -257,7 +257,7 @@ function calcCMO(closes: number[], period = 14): number {
   return denom === 0 ? 0 : ((up - down) / denom) * 100;
 }
 
-function detectVolumeSpike(volumes: number[], threshold = 1.8): boolean {
+function detectVolumeSpike(volumes: number[], threshold = 1.3): boolean {
   if (volumes.length < 20) return false;
   const avg = volumes.slice(-20, -1).reduce((a, b) => a + b, 0) / 19;
   return volumes[volumes.length - 1] > avg * threshold;
@@ -265,13 +265,18 @@ function detectVolumeSpike(volumes: number[], threshold = 1.8): boolean {
 
 function detectBollingerSqueeze(closes: number[], period = 20): boolean {
   if (closes.length < period) return false;
-  const slice = closes.slice(-period);
+  const slice = slicePeriod(closes, period);
   const mean = slice.reduce((a, b) => a + b, 0) / period;
   if (mean === 0) return false;
   const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
   const std = Math.sqrt(variance);
   const bandwidthPct = (std * 4) / mean;
-  return bandwidthPct < 0.015;
+  return bandwidthPct < 0.035;
+}
+
+// Helper function to get slice
+function slicePeriod(arr: number[], period: number) {
+  return arr.slice(-period);
 }
 
 // ─── DATA FETCHERS & FALLBACKS ───────────────────────────────────────────────

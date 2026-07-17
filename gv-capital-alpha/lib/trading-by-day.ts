@@ -122,13 +122,13 @@ export class TradingByDayEngine {
 
     for (const asset of marketData) {
       const isBullishSetup =
-        asset.zScoreH1 <= -2.0 &&
+        asset.zScoreH1 <= -1.5 &&
         asset.bollingerSqueeze &&
         asset.volumeSpike &&
         asset.chandeMomentumH1 > -50;
 
       const isBearishSetup =
-        asset.zScoreH1 >= 2.0 &&
+        asset.zScoreH1 >= 1.5 &&
         asset.bollingerSqueeze &&
         asset.volumeSpike &&
         asset.chandeMomentumH1 < 50;

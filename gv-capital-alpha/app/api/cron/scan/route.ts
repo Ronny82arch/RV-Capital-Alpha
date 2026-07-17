@@ -23,8 +23,26 @@ function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get('authorization');
   const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
   const isDev = process.env.NODE_ENV === 'development';
+  
+  const host = req.headers.get('host');
   const referer = req.headers.get('referer');
-  const isSameOrigin = referer && referer.startsWith(process.env.NEXT_PUBLIC_APP_URL ?? 'https://gv-capital-alpha.vercel.app');
+  const origin = req.headers.get('origin');
+  
+  let isSameOrigin = false;
+  if (host) {
+    if (referer) {
+      try {
+        const refUrl = new URL(referer);
+        isSameOrigin = refUrl.host === host;
+      } catch {}
+    }
+    if (!isSameOrigin && origin) {
+      try {
+        const origUrl = new URL(origin);
+        isSameOrigin = origUrl.host === host;
+      } catch {}
+    }
+  }
   return !!(isCron || isDev || isSameOrigin);
 }
 

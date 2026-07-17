@@ -672,24 +672,55 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
               <span>· 4 Cluster Attivi</span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(245, 158, 11, 0.1)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-            <span style={{ 
-              display: 'inline-block', 
-              width: '8px', 
-              height: '8px', 
-              borderRadius: '50%', 
-              background: '#f59e0b',
-              boxShadow: '0 0 8px #f59e0b',
-              animation: 'pulse-tbd 1.8s infinite ease-in-out'
-            }} />
-            <style>{`
-              @keyframes pulse-tbd {
-                0% { opacity: 0.4; transform: scale(0.9); }
-                50% { opacity: 1; transform: scale(1.1); }
-                100% { opacity: 0.4; transform: scale(0.9); }
-              }
-            `}</style>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>TBD SWARM LIVE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              style={{
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: '20px',
+                padding: '6px 16px',
+                color: '#f59e0b',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: scanning ? 'not-allowed' : 'pointer',
+                fontFamily: 'var(--font-mono)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s',
+              }}
+            >
+              {scanning ? (
+                <>
+                  <span className="animate-spin" style={{ display: 'inline-block', width: '10px', height: '10px', border: '2px solid #f59e0b', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                  SCANSIONE...
+                </>
+              ) : (
+                '🔍 SCANSIONA ORA'
+              )}
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(245, 158, 11, 0.1)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+              <span style={{ 
+                display: 'inline-block', 
+                width: '8px', 
+                height: '8px', 
+                borderRadius: '50%', 
+                background: '#f59e0b',
+                boxShadow: '0 0 8px #f59e0b',
+                animation: 'pulse-tbd 1.8s infinite ease-in-out'
+              }} />
+              <style>{`
+                @keyframes pulse-tbd {
+                  0% { opacity: 0.4; transform: scale(0.9); }
+                  50% { opacity: 1; transform: scale(1.1); }
+                  100% { opacity: 0.4; transform: scale(0.9); }
+                }
+              `}</style>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>TBD SWARM LIVE</span>
+            </div>
           </div>
         </div>
 
