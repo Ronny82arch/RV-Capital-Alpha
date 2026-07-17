@@ -40,6 +40,7 @@ export interface Signal {
   executedAt?: string;
   executedPrice?: number;
   positionId?: string;
+  portfolio?: string;
 }
 
 export interface Position {

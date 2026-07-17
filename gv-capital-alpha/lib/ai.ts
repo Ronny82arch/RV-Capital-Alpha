@@ -163,12 +163,19 @@ export async function evaluateCandidatesWithAIBatch(
     ? portfolio.targets['Tutti'] / 100
     : portfolio.targetAnnualReturn;
 
+  const portfoliosList = portfolio.customPortfolios && portfolio.customPortfolios.length > 0
+    ? portfolio.customPortfolios
+    : ['Core', 'Satellite', 'PAC'];
+
+  const targetsInfo = portfoliosList.map(pName => {
+    const pTarget = portfolio.targets?.[pName] !== undefined
+      ? portfolio.targets[pName]
+      : (pName.toLowerCase().includes('core') ? 8 : pName.toLowerCase().includes('sat') ? 25 : 10);
+    return `- ${pName}: target annuo +${pTarget}%`;
+  }).join('\n');
+
+  // Payload per l'AI con dati tecnici di base (il dimensionamento monetario finale viene calcolato in base al portafoglio scelto dall'AI)
   const candidatesPayload = candidates.map(c => {
-    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, globalTarget);
-    const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
-    const { capitalToAllocate, quantity } = calculatePositionSize(
-      portfolio.capitalAvailable, adjustedFraction, c.market.price, c.stopLoss
-    );
     return {
       symbol: c.market.symbol,
       name: c.market.name,
@@ -178,31 +185,30 @@ export async function evaluateCandidatesWithAIBatch(
       quant: {
         winProbability: c.winProbability,
         sampleSize: c.winProbabilitySampleSize,
-        kellyFraction: adjustedFraction,
-        capitalToAllocate,
-        quantity,
         stopLoss: c.stopLoss,
         takeProfit: c.takeProfit,
         rewardRiskRatio: c.rewardRiskRatio
       }
     };
-  }).filter(c => c.quant.capitalToAllocate >= 100 && c.quant.quantity >= 1);
-
-  if (candidatesPayload.length === 0) return [];
+  });
 
   const systemPrompt = `Sei l'Executive Committee di RV Capital Alpha.
-Obiettivo: +${(globalTarget * 100).toFixed(0)}% annuo.
-Drawdown dal picco: ${drawdownPercent.toFixed(1)}% (Moltiplicatore Kelly: ${drawdownMultiplier}x).
+Portafogli disponibili con rispettivi target annui:
+${targetsInfo}
+
+Drawdown dal picco globale: ${drawdownPercent.toFixed(1)}% (Moltiplicatore Kelly globale: ${drawdownMultiplier}x).
 Capitale Disponibile: €${portfolio.capitalAvailable.toFixed(0)}.
 Posizioni Aperte: ${portfolio.positions.filter(p => p.status === 'OPEN').length}.
 
 Riceverai un JSON array con i candidati pre-filtrati dal Technical Quant Agent. 
-Devi valutare l'intero array e restituire un JSON array con i trade che decidi di approvare. Puoi approvarli tutti, alcuni o nessuno.
+Devi valutare l'intero array e decidere quali trade approvare.
+Per ciascun trade approvato, DEVI specificare a quale portafoglio assegnarlo (scegliendo ESATTAMENTE tra i nomi dei portafogli disponibili elencati sopra) inserendo il nome esatto nel campo "portfolio".
 
 Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'array):
 [
   {
     "symbol": "TICKER",
+    "portfolio": "NomePortafoglio", // Deve corrispondere ESATTAMENTE a uno dei portafogli disponibili elencati sopra
     "reasoning": "Breve spiegazione sul perché approvi (max 50 parole)",
     "strategy": "Nome strategia",
     "urgency": "LOW|MEDIUM|HIGH",
@@ -252,7 +258,7 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
 
   if (!success) return [];
 
-  let parsed: Array<{ symbol: string; reasoning: string; strategy: string; urgency: string; confidence: number }> = [];
+  let parsed: Array<{ symbol: string; portfolio: string; reasoning: string; strategy: string; urgency: string; confidence: number }> = [];
   try {
     parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!Array.isArray(parsed)) parsed = [];
@@ -264,8 +270,26 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
   const signals: Signal[] = [];
   for (const approved of parsed) {
     const c = candidates.find(x => x.market.symbol === approved.symbol);
-    const p = candidatesPayload.find(x => x.symbol === approved.symbol);
-    if (!c || !p) continue;
+    if (!c) continue;
+
+    const assignedPortfolio = portfoliosList.find(p => p.toLowerCase() === approved.portfolio?.toLowerCase()) || 'Da Assegnare';
+    
+    // Leggi il target specifico del portafoglio assegnato dall'AI, altrimenti usa il target globale
+    const pTarget = portfolio.targets?.[assignedPortfolio] !== undefined
+      ? portfolio.targets[assignedPortfolio] / 100
+      : globalTarget;
+
+    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, pTarget);
+    const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
+    
+    const { capitalToAllocate, quantity } = calculatePositionSize(
+      portfolio.capitalAvailable, adjustedFraction, c.market.price, c.stopLoss
+    );
+
+    if (capitalToAllocate < 100 || quantity < 1) {
+      console.log(`[AI] Segnale approvato per ${c.market.symbol} ma scartato per dimensionamento insufficiente (€${capitalToAllocate}, Qty: ${quantity})`);
+      continue;
+    }
 
     const slPct = ((c.market.price - c.stopLoss) / c.market.price) * 100;
     const tpPct = ((c.takeProfit - c.market.price) / c.market.price) * 100;
@@ -277,13 +301,13 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
       type: c.market.type,
       action: 'BUY',
       suggestedPrice: c.market.price,
-      quantity: p.quant.quantity,
-      capitalToAllocate: p.quant.capitalToAllocate,
+      quantity,
+      capitalToAllocate,
       stopLoss: c.stopLoss,
       takeProfit: c.takeProfit,
       stopLossPercent: slPct,
       takeProfitPercent: tpPct,
-      kellyFraction: p.quant.kellyFraction,
+      kellyFraction: adjustedFraction,
       winProbability: c.winProbability,
       winProbabilitySampleSize: c.winProbabilitySampleSize,
       winProbabilityTrusted: c.winProbabilityTrusted,
@@ -294,6 +318,7 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
       technicals: { rsi: c.rsi, momentum: c.momentum, sma20: c.sma20, sma50: c.sma50, trend: c.trend },
       createdAt: new Date().toISOString(),
       status: 'PENDING',
+      portfolio: assignedPortfolio
     });
   }
 
