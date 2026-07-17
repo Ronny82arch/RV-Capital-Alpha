@@ -100,6 +100,7 @@ export interface PortfolioState {
   customPortfolios?: string[];
   depositedFunds?: number;
   excludeCopyTrading?: boolean;
+  targets?: Record<string, number>;
 }
 
 

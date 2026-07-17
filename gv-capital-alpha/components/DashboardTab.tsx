@@ -42,6 +42,9 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const [isLight, setIsLight] = useState(false);
   const [showManagePortfolios, setShowManagePortfolios] = useState(false);
   const [portfolioTargets, setPortfolioTargets] = useState<Record<string, number>>(() => {
+    if (portfolio?.targets && Object.keys(portfolio.targets).length > 0) {
+      return portfolio.targets;
+    }
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('portfolio_targets');
       if (saved) {
@@ -59,11 +62,23 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const [targetInputVal, setTargetInputVal] = useState<string>('');
   const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
 
-  // Sync to localStorage
+  // Sync to localStorage and database (debounced to avoid spamming while typing)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('portfolio_targets', JSON.stringify(portfolioTargets));
     }
+    const timer = setTimeout(async () => {
+      try {
+        await fetch('/api/portfolio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'update_portfolio_targets', targets: portfolioTargets }),
+        });
+      } catch (err) {
+        console.error('Errore sincronizzazione target sul DB:', err);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [portfolioTargets]);
 
   useEffect(() => {

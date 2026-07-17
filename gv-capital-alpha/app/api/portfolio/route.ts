@@ -85,6 +85,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: excludeCopyTrading ? 'Copy trading escluso' : 'Copy trading incluso', data: portfolio });
     }
 
+    if (body.type === 'update_portfolio_targets') {
+      const { targets } = body;
+      const portfolio = await getPortfolio();
+      portfolio.targets = targets;
+      await savePortfolio(portfolio);
+      return NextResponse.json({ success: true, message: 'Target aggiornati', data: portfolio });
+    }
+
     if (!process.env.ETORO_API_KEY || !process.env.ETORO_USER_KEY) {
       return NextResponse.json({ success: false, error: 'Chiavi API eToro non configurate' }, { status: 400 });
     }

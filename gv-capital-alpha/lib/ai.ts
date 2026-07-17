@@ -159,8 +159,12 @@ export async function evaluateCandidatesWithAIBatch(
     portfolio.performanceHistory, portfolio.totalValue
   );
 
+  const globalTarget = portfolio.targets?.['Tutti'] !== undefined
+    ? portfolio.targets['Tutti'] / 100
+    : portfolio.targetAnnualReturn;
+
   const candidatesPayload = candidates.map(c => {
-    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, portfolio.targetAnnualReturn);
+    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, globalTarget);
     const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
     const { capitalToAllocate, quantity } = calculatePositionSize(
       portfolio.capitalAvailable, adjustedFraction, c.market.price, c.stopLoss
@@ -187,7 +191,7 @@ export async function evaluateCandidatesWithAIBatch(
   if (candidatesPayload.length === 0) return [];
 
   const systemPrompt = `Sei l'Executive Committee di RV Capital Alpha.
-Obiettivo: +25% annuo.
+Obiettivo: +${(globalTarget * 100).toFixed(0)}% annuo.
 Drawdown dal picco: ${drawdownPercent.toFixed(1)}% (Moltiplicatore Kelly: ${drawdownMultiplier}x).
 Capitale Disponibile: €${portfolio.capitalAvailable.toFixed(0)}.
 Posizioni Aperte: ${portfolio.positions.filter(p => p.status === 'OPEN').length}.
