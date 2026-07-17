@@ -94,9 +94,41 @@ export default function Home() {
             }
             return pos;
           });
+
+          // Recalculate totals
+          const openPositions = updatedPositions.filter(pos => {
+            if (pos.status !== 'OPEN') return false;
+            if (prev.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')) return false;
+            return true;
+          });
+
+          const openValue = openPositions.reduce((sum, pos) => {
+            const currentVal = pos.capitalAllocated + (pos.unrealizedPnl || 0);
+            return sum + currentVal;
+          }, 0);
+
+          const totalUnrealizedPnL = openPositions.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
+          const totalRealizedPnL = updatedPositions
+            .filter(pos => pos.status === 'CLOSED')
+            .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
+
+          const capitalBase = openPositions.reduce((sum, pos) => sum + (pos.capitalAllocated || 0), 0);
+          const totalValue = prev.capitalAvailable + openValue;
+          const totalPnL = totalUnrealizedPnL + totalRealizedPnL;
+          
+          const baseForPnL = (prev.depositedFunds && prev.depositedFunds > 0)
+            ? prev.depositedFunds
+            : (capitalBase > 0 ? capitalBase : 1);
+
+          const totalPnLPercent = (totalPnL / baseForPnL) * 100;
+
           return {
             ...prev,
-            positions: updatedPositions
+            positions: updatedPositions,
+            capitalBase,
+            totalValue,
+            totalPnL,
+            totalPnLPercent
           };
         });
         setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
