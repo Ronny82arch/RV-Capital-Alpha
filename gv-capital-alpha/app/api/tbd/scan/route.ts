@@ -8,7 +8,7 @@ import { TradingByDayEngine } from '@/lib/trading-by-day';
 import { fetchAllTbdMarketData } from '@/lib/tbd-market';
 import {
   getTodayLog, saveTodayLog, getTbdConfig,
-  getActiveSignals, addSignal, updateSignalStatus,
+  getActiveSignals, addSignal, updateSignalStatus, todayKey
 } from '@/lib/tbd-storage';
 import { 
   sendPreAlertNotification, sendCircuitBreakerNotification,
@@ -49,9 +49,13 @@ export async function POST(req: NextRequest) {
     const config  = await getTbdConfig();
     const engine  = new TradingByDayEngine(config);
 
-    // 1. Controlla circuit breaker
-    const log     = await getTodayLog();
-    const pnl     = log?.realizedPnL ?? 0;
+    // 1. Controlla / Inizializza log giornaliero e circuit breaker
+    let log = await getTodayLog();
+    if (!log) {
+      log = engine.createEmptyDayLog(todayKey());
+      await saveTodayLog(log);
+    }
+    const pnl     = log.realizedPnL;
     const breaker = engine.evaluateDailyCircuitBreaker(pnl);
 
     if (breaker.stopTrading) {
