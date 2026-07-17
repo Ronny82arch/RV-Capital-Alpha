@@ -10,16 +10,29 @@ export default function AssetIcon({ symbol, logoUrl }: Props) {
   let url = logoUrl;
   
   if (!url) {
-    url = `https://api.dicebear.com/7.x/initials/svg?seed=${s}&backgroundColor=1e293b&textColor=ffffff`;
-    if (s === 'AAPL') url = 'https://logo.clearbit.com/apple.com';
-    else if (s === 'TSLA') url = 'https://logo.clearbit.com/tesla.com';
-    else if (s === 'JPM') url = 'https://logo.clearbit.com/jpmorganchase.com';
-    else if (s === 'JNJ') url = 'https://logo.clearbit.com/jnj.com';
-    else if (s === 'BTC') url = 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg?v=029';
+    if (s === 'BTC') url = 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg?v=029';
     else if (s === 'ETH') url = 'https://cryptologos.cc/logos/ethereum-eth-logo.svg?v=029';
+    else if (s === 'SOL') url = 'https://cryptologos.cc/logos/solana-sol-logo.svg?v=029';
     else if (s === 'SPY' || s === 'GLD') url = 'https://logo.clearbit.com/ssga.com';
     else if (s === 'VWCE' || s === 'BND') url = 'https://logo.clearbit.com/vanguard.com';
-    else if (s === 'SWDA' || s === 'AGGH') url = 'https://logo.clearbit.com/ishares.com';
+    else if (s === 'SWDA' || s === 'AGGH' || s === 'XDWD') url = 'https://logo.clearbit.com/ishares.com';
+    else {
+      const domainMap: Record<string, string> = {
+        NVDA: 'nvidia.com',
+        MSFT: 'microsoft.com',
+        AAPL: 'apple.com',
+        META: 'meta.com',
+        AMZN: 'amazon.com',
+        TSLA: 'tesla.com',
+        JPM: 'jpmorganchase.com',
+        JNJ: 'jnj.com'
+      };
+      if (domainMap[s]) {
+        url = `https://logo.clearbit.com/${domainMap[s]}`;
+      } else {
+        url = `https://api.dicebear.com/7.x/initials/svg?seed=${s}&backgroundColor=1e293b&textColor=ffffff`;
+      }
+    }
   }
 
   return (
