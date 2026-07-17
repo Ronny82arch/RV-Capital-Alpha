@@ -61,6 +61,10 @@ export const WATCHLIST: WatchlistItem[] = [
   { symbol: 'CAT', name: 'Caterpillar', type: 'STOCK', yahooSymbol: 'CAT' },
   { symbol: 'GE', name: 'General Electric', type: 'STOCK', yahooSymbol: 'GE' },
 
+  // Difesa / Aerospazio (2)
+  { symbol: 'LMT', name: 'Lockheed Martin', type: 'STOCK', yahooSymbol: 'LMT' },
+  { symbol: 'RTX', name: 'RTX Corporation', type: 'STOCK', yahooSymbol: 'RTX' },
+
   // Cryptovalute (6)
   { symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', coinId: 'bitcoin' },
   { symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', coinId: 'ethereum' },
