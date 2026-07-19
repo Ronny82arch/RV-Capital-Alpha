@@ -111,29 +111,66 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
     
     const data = [];
     const isShortTerm = filter === '1H' || filter === '1D';
-    
-    // Se abbiamo dati reali a sufficienza E non siamo in filtri a brevissimo termine (1H, 1D), usiamoli
-    if (history && history.length >= 3 && !isShortTerm) {
-      const historyPoints = history.map(h => ({
-        timestamp: new Date(h.date).getTime(),
-        value: h.totalValue,
-      }));
-      // Aggiungiamo il valore corrente come ultimo punto
+
+    // Parse and filter history safely to prevent NaN issues
+    const historyPoints = history
+      ? history
+          .map(h => ({
+            timestamp: new Date(h.date).getTime(),
+            value: Number(h.totalValue),
+          }))
+          .filter(p => !isNaN(p.timestamp) && !isNaN(p.value))
+          .sort((a, b) => a.timestamp - b.timestamp)
+      : [];
+
+    if (historyPoints.length > 0 && !isShortTerm) {
+      // Append current live value as the final point
       if (historyPoints[historyPoints.length - 1].timestamp < nowMs) {
         historyPoints.push({ timestamp: nowMs, value: currentValue });
       }
- 
-      // Filtra in base al cutoff
-      const filtered = historyPoints.filter(p => p.timestamp >= cutoff);
-      
-      // Assicuriamoci di avere almeno 2 punti per tirare una linea, altrimenti prendiamo i due più recenti dal db intero
-      let finalPoints = filtered;
-      if (finalPoints.length < 2 && historyPoints.length >= 2) {
-        finalPoints = historyPoints.slice(-2);
-      }
- 
-      for (const p of finalPoints) {
-        const d = new Date(p.timestamp);
+
+      const points = 100;
+      const step = (nowMs - cutoff) / (points - 1);
+
+      for (let i = 0; i < points; i++) {
+        const timeMs = cutoff + (step * i);
+        const isLast = i === points - 1;
+        
+        let val = currentValue;
+
+        if (isLast) {
+          val = currentValue;
+        } else {
+          const firstPoint = historyPoints[0];
+          if (timeMs < firstPoint.timestamp) {
+            val = firstPoint.value;
+          } else {
+            let prevPoint = historyPoints[0];
+            let nextPoint = null;
+            for (let j = 0; j < historyPoints.length; j++) {
+              if (historyPoints[j].timestamp <= timeMs) {
+                prevPoint = historyPoints[j];
+              } else {
+                nextPoint = historyPoints[j];
+                break;
+              }
+            }
+
+            if (nextPoint && prevPoint) {
+              const denom = nextPoint.timestamp - prevPoint.timestamp;
+              if (denom === 0) {
+                val = prevPoint.value;
+              } else {
+                const ratio = (timeMs - prevPoint.timestamp) / denom;
+                val = prevPoint.value + ratio * (nextPoint.value - prevPoint.value);
+              }
+            } else {
+              val = prevPoint.value;
+            }
+          }
+        }
+
+        const d = new Date(timeMs);
         let displayDate = '';
         if (format === 'time') {
           displayDate = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
@@ -142,10 +179,15 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
         } else {
           displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
         }
-        data.push({ timestamp: p.timestamp, value: p.value, displayDate });
+
+        data.push({
+          timestamp: timeMs,
+          value: isNaN(val) ? currentValue : val,
+          displayDate
+        });
       }
     } else {
-      // Simulazione ad alta fedeltà deterministica
+      // High-fidelity simulation for short-term filters or sub-portfolios with no history
       const points = 100;
       const step = (nowMs - cutoff) / (points - 1);
       
@@ -163,10 +205,10 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
         } else {
           displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
         }
- 
+
         data.push({
           timestamp: timeMs,
-          value: val,
+          value: isNaN(val) ? currentValue : val,
           displayDate
         });
       }
