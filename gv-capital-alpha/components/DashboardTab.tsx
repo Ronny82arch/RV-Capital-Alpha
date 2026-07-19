@@ -714,150 +714,116 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         <StatCard label="WIN RATE" value={winRate !== null ? `${winRate.toFixed(0)}%` : '—'} color={winRate !== null && winRate >= 50 ? 'var(--green)' : 'var(--red)'} />
       </div>
 
-      {/* OPEN POSITIONS TABLE */}
+      {/* OPEN POSITIONS CARD GRID */}
       {openPositions.length > 0 && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>POSIZIONI APERTE</div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
-              <thead>
-                <tr style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>ASSET</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>CATEGORIA</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal' }}>PORTAFOGLIO</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>APERTURA</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>ATTUALE</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ALLOCATO</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>VALORE ATTUALE</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>PESO %</th>
-                  <th style={{ padding: '12px 8px', fontWeight: 'normal', textAlign: 'right' }}>P&L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {openPositions.map(pos => {
-                  const pnl = pos.unrealizedPnl ?? 0;
-                  const pnlPct = pos.unrealizedPnlPercent ?? 0;
-                  const allocated = pos.capitalAllocated || 0;
-                  const currentPrice = pos.currentPrice ?? pos.entryPrice;
-                  const currentVal = pos.capitalAllocated + (pos.unrealizedPnl || 0);
-                  const weight = displayTotalValue > 0 ? (currentVal / displayTotalValue) * 100 : 0;
-                  const isExpanded = expandedPosId === pos.id;
+          <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '16px' }}>POSIZIONI APERTE</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '14px' }}>
+            {openPositions.map(pos => {
+              const pnl = pos.unrealizedPnl ?? 0;
+              const pnlPct = pos.unrealizedPnlPercent ?? 0;
+              const allocated = pos.capitalAllocated || 0;
+              const currentPrice = pos.currentPrice ?? pos.entryPrice;
+              const currentVal = allocated + (pos.unrealizedPnl || 0);
+              const weight = displayTotalValue > 0 ? (currentVal / displayTotalValue) * 100 : 0;
+              const isExpanded = expandedPosId === pos.id;
+              const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
 
-                  return (
-                    <React.Fragment key={pos.id}>
-                      <tr 
-                        onClick={() => setExpandedPosId(isExpanded ? null : pos.id)}
-                        style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--bg3)', cursor: 'pointer', transition: 'background 0.2s' }}
-                        onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        <td style={{ padding: '12px 8px' }}>
-                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                             <span style={{ fontSize: '10px', color: 'var(--text3)' }}>{isExpanded ? '▼' : '▶'}</span>
-                             <AssetIcon symbol={pos.symbol} logoUrl={pos.logoUrl} />
-                             <div>
-                               <div style={{ fontWeight: '700', color: 'var(--text)', fontSize: '13px' }}>{pos.symbol}</div>
-                               <div style={{ fontSize: '10px', color: 'var(--text3)' }}>{pos.name}</div>
-                             </div>
-                           </div>
-                        </td>
-                        <td style={{ padding: '12px 8px', color: 'var(--text2)' }}>
-                          <span style={{ padding: '4px 8px', background: 'var(--bg3)', borderRadius: '12px', fontSize: '10px' }}>
-                            {getMacroCategory(pos)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
+              return (
+                <div key={pos.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                  {/* CARD */}
+                  <button
+                    onClick={() => setExpandedPosId(isExpanded ? null : pos.id)}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      padding: '20px 12px 14px', background: 'var(--bg)', border: `1px solid ${isExpanded ? 'var(--blue)' : 'var(--border)'}`,
+                      borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'center',
+                      boxShadow: isExpanded ? '0 0 0 1px var(--blue)' : '0 4px 12px rgba(0,0,0,0.15)',
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
+                    onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = isExpanded ? 'var(--blue)' : 'var(--border)'; }}
+                  >
+                    {/* BIG ICON */}
+                    <div style={{ marginBottom: '10px', borderRadius: '12px', overflow: 'hidden', width: '64px', height: '64px', flexShrink: 0 }}>
+                      <AssetIcon symbol={pos.symbol} logoUrl={pos.logoUrl} size={64} />
+                    </div>
+
+                    {/* SYMBOL + NAME */}
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '14px', color: 'var(--text)', marginBottom: '2px' }}>{pos.symbol}</div>
+                    <div style={{ fontSize: '9px', color: 'var(--text3)', marginBottom: '10px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pos.name}</div>
+
+                    {/* P&L BOX */}
+                    <div style={{ background: 'var(--bg2)', borderRadius: '10px', padding: '8px 12px', width: '100%', border: '1px solid var(--bg3)' }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '700', color: pnlColor }}>
+                        {pnl >= 0 ? '+' : ''}€{pnl.toFixed(0)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: pnlColor, marginTop: '1px' }}>
+                        {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                      </div>
+                    </div>
+
+                    {/* PORTFOLIO TAG + WEIGHT */}
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '8px', fontFamily: 'var(--font-mono)', color: 'var(--text3)', background: 'var(--bg2)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--bg3)' }}>
+                        {pos.portfolio || 'N/A'}
+                      </span>
+                      <span style={{ fontSize: '8px', fontFamily: 'var(--font-mono)', color: 'var(--blue)' }}>{weight.toFixed(1)}%</span>
+                    </div>
+                  </button>
+
+                  {/* EXPANDED DETAIL */}
+                  {isExpanded && (
+                    <div style={{ background: 'var(--bg)', border: '1px solid var(--blue)', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '14px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>ENTRATA</div>
+                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{pos.entryPrice.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>ATTUALE</div>
+                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{currentPrice.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>STOP LOSS</div>
+                          <div style={{ color: 'var(--red)', fontWeight: 'bold' }}>€{pos.stopLoss.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>TAKE PROFIT</div>
+                          <div style={{ color: 'var(--green)', fontWeight: 'bold' }}>€{pos.takeProfit.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>ALLOCATO</div>
+                          <div style={{ color: 'var(--text2)' }}>€{allocated.toFixed(0)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>VALORE ATT.</div>
+                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{currentVal.toFixed(0)}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '9px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
+                        Aperta: {new Date(pos.entryDate).toLocaleDateString('it-IT')} · {pos.action} · {pos.quantity.toFixed(4)} unità
+                      </div>
+                      {/* Portfolio assign */}
+                      {onAssignPortfolio && (
+                        <div style={{ marginTop: '8px' }}>
                           <select
                             value={pos.portfolio || 'Da Assegnare'}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={async (e) => {
-                              if (onAssignPortfolio) {
-                                await onAssignPortfolio(pos.id, e.target.value);
-                              }
-                            }}
-                            style={{
-                              background: 'var(--bg3)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text)',
-                              fontSize: '11px',
-                              fontFamily: 'var(--font-mono)',
-                              borderRadius: '4px',
-                              padding: '2px 4px',
-                              outline: 'none',
-                              cursor: 'pointer'
-                            }}
+                            onClick={e => e.stopPropagation()}
+                            onChange={async e => { if (onAssignPortfolio) await onAssignPortfolio(pos.id, e.target.value); }}
+                            style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '10px', fontFamily: 'var(--font-mono)', borderRadius: '6px', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}
                           >
                             <option value="Da Assegnare">DA ASSEGNARE</option>
                             {customPortfolios.map(cp => (
                               <option key={cp} value={cp}>{cp.toUpperCase()}</option>
                             ))}
                           </select>
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text2)' }}>
-                          €{pos.entryPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text)' }}>
-                          €{currentPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                          <div style={{ color: 'var(--text2)' }}>
-                            €{allocated.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                          <div style={{ fontWeight: 'bold', color: 'var(--text)' }}>
-                            €{currentVal.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-                            <span style={{ color: 'var(--text2)', width: '35px' }}>{weight.toFixed(1)}%</span>
-                            <div style={{ width: '40px', height: '6px', background: 'var(--bg3)', borderRadius: '3px', overflow: 'hidden' }}>
-                              <div style={{ width: `${Math.min(100, weight)}%`, height: '100%', background: 'var(--blue)', borderRadius: '3px' }} />
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                          <div style={{ fontWeight: '700', fontSize: '13px', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                            {pnl >= 0 ? '+' : ''}€{pnl.toFixed(0)}
-                          </div>
-                          <div style={{ fontSize: '10px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                            {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr style={{ borderBottom: '1px solid var(--bg3)', background: 'rgba(0,0,0,0.1)' }}>
-                          <td colSpan={9} style={{ padding: '16px', borderLeft: '2px solid var(--blue)' }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '8px', letterSpacing: '0.1em' }}>STORICO OPERAZIONI</div>
-                            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', background: 'var(--bg2)', borderRadius: '8px', overflow: 'hidden' }}>
-                              <thead>
-                                <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text2)', background: 'var(--bg)' }}>
-                                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 'normal' }}>DATA</th>
-                                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 'normal' }}>AZIONE</th>
-                                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'normal' }}>QUANTITÀ</th>
-                                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'normal' }}>PREZZO</th>
-                                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'normal' }}>TOTALE</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr>
-                                  <td style={{ padding: '8px 12px' }}>{new Date(pos.entryDate).toLocaleDateString('it-IT')}</td>
-                                  <td style={{ padding: '8px 12px', color: pos.action === 'BUY' ? 'var(--green)' : 'var(--red)', fontWeight: 'bold' }}>{pos.action}</td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'right' }}>{pos.quantity.toLocaleString('it-IT', { maximumFractionDigits: 4 })}</td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'right' }}>€{pos.entryPrice.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 'bold' }}>€{allocated.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
+                        </div>
                       )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
