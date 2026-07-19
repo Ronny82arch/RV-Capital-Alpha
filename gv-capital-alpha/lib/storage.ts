@@ -160,6 +160,23 @@ export async function getPortfolio(): Promise<PortfolioState> {
     portfolio.aiManagedTags = [];
   }
 
+  // Clean up any historic mock 30k point on load
+  if (portfolio.performanceHistory && portfolio.performanceHistory.length > 0 && portfolio.totalValue !== 30000) {
+    const originalLength = portfolio.performanceHistory.length;
+    portfolio.performanceHistory = portfolio.performanceHistory.filter(h => h.totalValue !== 30000);
+    if (portfolio.performanceHistory.length === 0) {
+      const today = new Date().toISOString().split('T')[0];
+      portfolio.performanceHistory.push({
+        date: today,
+        totalValue: portfolio.totalValue || portfolio.capitalBase || 6000,
+        pnlPercent: portfolio.totalPnLPercent || 0,
+      });
+    }
+    if (portfolio.performanceHistory.length !== originalLength) {
+      kvSet('portfolio', JSON.stringify(portfolio));
+    }
+  }
+
   if (portfolio.depositedFunds === undefined) {
     portfolio.depositedFunds = 6000;
   }
@@ -381,10 +398,9 @@ export async function recalcPortfolio(portfolio: PortfolioState): Promise<void> 
 
   portfolio.totalPnLPercent = (portfolio.totalPnL / baseForPnL) * 100;
 
-  // Clean up initial mock refuso (30k) if we have synced real values
-  if (portfolio.performanceHistory && portfolio.performanceHistory.length === 1 && portfolio.performanceHistory[0].totalValue === 30000 && portfolio.totalValue !== 30000) {
-    portfolio.performanceHistory[0].totalValue = portfolio.totalValue;
-    portfolio.performanceHistory[0].pnlPercent = portfolio.totalPnLPercent;
+  // Clean up initial mock refuso (30k) if we have synced real values (regardless of history length)
+  if (portfolio.performanceHistory && portfolio.performanceHistory.length > 0 && portfolio.totalValue !== 30000) {
+    portfolio.performanceHistory = portfolio.performanceHistory.filter(h => h.totalValue !== 30000);
   }
 
   // Snapshot for performance chart (max once per day, updating today's value dynamically)
