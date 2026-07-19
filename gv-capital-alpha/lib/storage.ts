@@ -381,10 +381,22 @@ export async function recalcPortfolio(portfolio: PortfolioState): Promise<void> 
 
   portfolio.totalPnLPercent = (portfolio.totalPnL / baseForPnL) * 100;
 
-  // Snapshot for performance chart (max once per day)
+  // Clean up initial mock refuso (30k) if we have synced real values
+  if (portfolio.performanceHistory && portfolio.performanceHistory.length === 1 && portfolio.performanceHistory[0].totalValue === 30000 && portfolio.totalValue !== 30000) {
+    portfolio.performanceHistory[0].totalValue = portfolio.totalValue;
+    portfolio.performanceHistory[0].pnlPercent = portfolio.totalPnLPercent;
+  }
+
+  // Snapshot for performance chart (max once per day, updating today's value dynamically)
   const today = new Date().toISOString().split('T')[0];
-  const lastSnapshot = portfolio.performanceHistory[portfolio.performanceHistory.length - 1];
-  if (!lastSnapshot || lastSnapshot.date !== today) {
+  const lastSnapshot = portfolio.performanceHistory ? portfolio.performanceHistory[portfolio.performanceHistory.length - 1] : null;
+  if (lastSnapshot && lastSnapshot.date === today) {
+    lastSnapshot.totalValue = portfolio.totalValue;
+    lastSnapshot.pnlPercent = portfolio.totalPnLPercent;
+  } else {
+    if (!portfolio.performanceHistory) {
+      portfolio.performanceHistory = [];
+    }
     portfolio.performanceHistory.push({
       date: today,
       totalValue: portfolio.totalValue,

@@ -36,7 +36,7 @@ function getTagIcon(tag: string) {
 }
 
 export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onAssignPortfolio, onUpdateCapitalBase, onUpdateDepositedFunds, onToggleCopyTrading }: Props) {
-  const [selectedTag, setSelectedTag] = useState<string | null>('Tutti');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
   const [isLight, setIsLight] = useState(false);
@@ -102,6 +102,12 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   useEffect(() => {
     setTargetInputVal(String(target));
   }, [target, selectedTag]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [selectedTag]);
 
   if (!portfolio) return <div />;
 

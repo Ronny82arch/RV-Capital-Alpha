@@ -24,6 +24,12 @@ export default function Home() {
     portfolioRef.current = portfolio;
   }, [portfolio]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [tab]);
+
   const [market, setMarket] = useState<MarketData[]>([]);
   const [tbdData, setTbdData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
