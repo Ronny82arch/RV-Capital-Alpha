@@ -115,15 +115,39 @@ export function defaultPortfolio(): PortfolioState {
     totalPnLPercent: 0,
     targetAnnualReturn: TARGET_RETURN,
     startDate: today,
-    performanceHistory: [
-      { date: today, totalValue: CAPITAL_BASE, pnlPercent: 0 },
-    ],
+    performanceHistory: [],  // Will be populated on first real sync
     alerts: [],
     aiManagedTags: [],
     customPortfolios: [],
     updatedAt: dateStr,
     depositedFunds: 6000,
   };
+}
+
+// ─── PERFORMANCE HISTORY CLEANUP ─────────────────────────────────────────────
+// Rimuove tutti i punti mock da 30k dal db e aggiunge un punto reale
+export async function cleanPerformanceHistory(): Promise<void> {
+  const portfolio = await getPortfolio();
+  
+  // Remove all mock 30k entries
+  const originalLength = (portfolio.performanceHistory || []).length;
+  portfolio.performanceHistory = (portfolio.performanceHistory || []).filter(
+    h => h.totalValue !== 30000
+  );
+  
+  // Add a real point for today if history is empty
+  const today = new Date().toISOString().split('T')[0];
+  const hasToday = portfolio.performanceHistory.some(h => h.date === today);
+  if (!hasToday && portfolio.totalValue > 0 && portfolio.totalValue !== 30000) {
+    portfolio.performanceHistory.push({
+      date: today,
+      totalValue: portfolio.totalValue,
+      pnlPercent: portfolio.totalPnLPercent || 0,
+    });
+  }
+  
+  console.log(`[cleanPerformanceHistory] Removed ${originalLength - portfolio.performanceHistory.length + (hasToday ? 0 : 1)} bad entries`);
+  await savePortfolio(portfolio);
 }
 
 // ─── PORTFOLIO CRUD ───────────────────────────────────────────────────────────

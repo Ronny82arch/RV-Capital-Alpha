@@ -332,6 +332,29 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
                 </div>
               ))
             )}
+            {/* Fix grafico - rimuove punti 30k errati dal database */}
+            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/portfolio/fix-history', { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.success ? `✅ ${data.message}` : `❌ Errore: ${data.error}`);
+                    if (data.success) window.location.reload();
+                  } catch (e) {
+                    alert('Errore durante la pulizia');
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '8px',
+                  background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: 'var(--blue)', fontSize: '11px', fontFamily: 'var(--font-mono)',
+                  fontWeight: 'bold', cursor: 'pointer', textAlign: 'center',
+                }}
+              >
+                🔧 Ripara Grafico Globale
+              </button>
+            </div>
           </div>
         )}
       </div>
