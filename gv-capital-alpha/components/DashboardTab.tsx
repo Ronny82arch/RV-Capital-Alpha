@@ -124,6 +124,17 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     return ['Tutti', ...list];
   }, [customPortfolios, p.positions]);
 
+  const oldestPosDate = useMemo(() => {
+    const activePositions = selectedTag === 'Tutti'
+      ? p.positions
+      : p.positions.filter(pos => pos.portfolio === selectedTag);
+    const openPos = activePositions.filter(pos => pos.status === 'OPEN');
+    if (openPos.length === 0) return p.startDate;
+    const timestamps = openPos.map(pos => new Date(pos.entryDate).getTime()).filter(t => !isNaN(t));
+    if (timestamps.length === 0) return p.startDate;
+    return new Date(Math.min(...timestamps)).toISOString();
+  }, [p.positions, selectedTag, p.startDate]);
+
   if (selectedTag === null) {
 
     return (
@@ -404,16 +415,6 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
   const currentPnLForProgress = displayPnL;
   const progressPct = Math.max(0, Math.min(100, (currentPnLForProgress / Math.max(1, targetEur)) * 100));
-  const oldestPosDate = useMemo(() => {
-    const activePositions = selectedTag === 'Tutti'
-      ? p.positions
-      : p.positions.filter(pos => pos.portfolio === selectedTag);
-    const openPos = activePositions.filter(pos => pos.status === 'OPEN');
-    if (openPos.length === 0) return p.startDate;
-    const timestamps = openPos.map(pos => new Date(pos.entryDate).getTime()).filter(t => !isNaN(t));
-    if (timestamps.length === 0) return p.startDate;
-    return new Date(Math.min(...timestamps)).toISOString();
-  }, [p.positions, selectedTag, p.startDate]);
 
   const ahead = isAheadOfTarget(displayPnLPct, target, oldestPosDate);
   const getAggressionStr = (pnlPercent: number, targetPercent: number, startDate: string) => {
