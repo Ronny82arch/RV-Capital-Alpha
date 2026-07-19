@@ -19,20 +19,62 @@ interface Props {
 
 type FilterType = '1H' | '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
 
-// Deterministic mock function so the curve is identical at any zoom level
-function getDeterministicValue(currentValue: number, timeMs: number, nowMs: number) {
+// Deterministic mock function that scales volatility and trend to the chosen time filter
+function getDeterministicValue(currentValue: number, timeMs: number, nowMs: number, filter: FilterType) {
   const diffDays = (nowMs - timeMs) / (1000 * 60 * 60 * 24);
-  // Base trend over 2 years
-  const trend = currentValue * 0.6 + (currentValue * 0.4 * (730 - diffDays) / 730);
   
-  // Multiple sine waves for fractal-like noise at different time scales
-  const sineYear = Math.sin(diffDays * 0.05) * (currentValue * 0.08); // Yearly macro cycle
-  const sineMonth = Math.cos(diffDays * 0.5) * (currentValue * 0.03); // Monthly cycle
-  const sineWeek = Math.sin(diffDays * 2) * (currentValue * 0.01); // Weekly volatility
-  const sineDay = Math.cos(diffDays * 15) * (currentValue * 0.003); // Daily volatility
-  const sineHour = Math.sin(diffDays * 100) * (currentValue * 0.001); // Hourly volatility
+  let vol = 0.03;          // Volatilità massima
+  let expectedGain = 0.02; // Pendenza del trend atteso
+  
+  switch (filter) {
+    case '1H':
+      vol = 0.0015;        // Fluttuazione massima 0.15%
+      expectedGain = 0.0003;
+      break;
+    case '1D':
+      vol = 0.006;         // Fluttuazione massima 0.6%
+      expectedGain = 0.002;
+      break;
+    case '1W':
+      vol = 0.018;         // Fluttuazione massima 1.8%
+      expectedGain = 0.008;
+      break;
+    case '1M':
+      vol = 0.04;          // Fluttuazione massima 4%
+      expectedGain = 0.03;
+      break;
+    case '3M':
+      vol = 0.08;
+      expectedGain = 0.06;
+      break;
+    case '6M':
+      vol = 0.15;
+      expectedGain = 0.12;
+      break;
+    case 'YTD':
+    case '1Y':
+      vol = 0.22;
+      expectedGain = 0.18;
+      break;
+    case 'ALL':
+      vol = 0.35;
+      expectedGain = 0.30;
+      break;
+  }
 
-  return trend + sineYear + sineMonth + sineWeek + sineDay + sineHour;
+  // Calcolo del trend lineare
+  const maxPeriodDays = filter === '1H' ? 1/24 : filter === '1D' ? 1 : filter === '1W' ? 7 : filter === '1M' ? 30 : filter === '3M' ? 90 : filter === '6M' ? 180 : 365;
+  const progress = Math.min(1, Math.max(0, 1 - (diffDays / maxPeriodDays)));
+  const trend = currentValue * (1 - expectedGain * (1 - progress));
+
+  // Rumore multi-frequenza normalizzato
+  const t = diffDays * (365 / maxPeriodDays); 
+  const noise = Math.sin(t * 1.5) * 0.5 + Math.cos(t * 4.7) * 0.3 + Math.sin(t * 12.3) * 0.2;
+
+  // Smorzamento del rumore vicino al tempo presente (now) per far coincidere la fine con currentValue
+  const dampening = Math.min(1, diffDays * (20 / maxPeriodDays));
+  
+  return trend + (noise * currentValue * vol * dampening);
 }
 
 export default function ProfessionalChart({ currentValue, label, history }: Props) {
@@ -68,9 +110,10 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
     }
     
     const data = [];
+    const isShortTerm = filter === '1H' || filter === '1D';
     
-    // Se abbiamo dati reali a sufficienza (almeno 3 punti), usiamoli
-    if (history && history.length >= 3) {
+    // Se abbiamo dati reali a sufficienza E non siamo in filtri a brevissimo termine (1H, 1D), usiamoli
+    if (history && history.length >= 3 && !isShortTerm) {
       const historyPoints = history.map(h => ({
         timestamp: new Date(h.date).getTime(),
         value: h.totalValue,
@@ -79,7 +122,7 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
       if (historyPoints[historyPoints.length - 1].timestamp < nowMs) {
         historyPoints.push({ timestamp: nowMs, value: currentValue });
       }
-
+ 
       // Filtra in base al cutoff
       const filtered = historyPoints.filter(p => p.timestamp >= cutoff);
       
@@ -88,7 +131,7 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
       if (finalPoints.length < 2 && historyPoints.length >= 2) {
         finalPoints = historyPoints.slice(-2);
       }
-
+ 
       for (const p of finalPoints) {
         const d = new Date(p.timestamp);
         let displayDate = '';
@@ -102,14 +145,14 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
         data.push({ timestamp: p.timestamp, value: p.value, displayDate });
       }
     } else {
-      // Mock deterministico fallback
+      // Simulazione ad alta fedeltà deterministica
       const points = 100;
       const step = (nowMs - cutoff) / (points - 1);
       
       for (let i = 0; i < points; i++) {
         const timeMs = cutoff + (step * i);
         const isLast = i === points - 1;
-        const val = isLast ? currentValue : getDeterministicValue(currentValue, timeMs, nowMs);
+        const val = isLast ? currentValue : getDeterministicValue(currentValue, timeMs, nowMs, filter);
         
         const d = new Date(timeMs);
         let displayDate = '';
@@ -120,7 +163,7 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
         } else {
           displayDate = d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' });
         }
-
+ 
         data.push({
           timestamp: timeMs,
           value: val,
