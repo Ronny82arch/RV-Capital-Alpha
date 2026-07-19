@@ -2,7 +2,7 @@
 import { Tab } from '@/app/page';
 import { PortfolioState } from '@/types';
 import { useState, useEffect } from 'react';
-import { Compass, Target, Zap, Briefcase, LineChart, FlaskConical } from 'lucide-react';
+import { Compass, Target, Zap, Briefcase, LineChart, FlaskConical, TrendingUp } from 'lucide-react';
 
 interface Props { tab: Tab; setTab: (t: Tab) => void; portfolio: PortfolioState | null; tbdData?: any; }
 
@@ -28,6 +28,7 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
     { id: 'positions', label: 'Posizioni', icon: <Briefcase size={16} strokeWidth={1.8} />, badge: openCount },
     { id: 'market', label: 'Mercato', icon: <LineChart size={16} strokeWidth={1.8} /> },
     { id: 'quontest', label: 'Quontest', icon: <FlaskConical size={16} strokeWidth={1.8} /> },
+    { id: 'pac', label: 'PAC', icon: <TrendingUp size={16} strokeWidth={1.8} /> },
   ];
 
   return (

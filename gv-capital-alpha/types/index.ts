@@ -126,3 +126,12 @@ export interface WatchlistItem {
   coinId?: string;
   yahooSymbol?: string;
 }
+
+export interface PacConfig {
+  /** Budget mensile in € per ogni portafoglio (chiave = nome portafoglio) */
+  portfolioMonthlyBudgets: Record<string, number>;
+  /** Pesi target personalizzati per asset dentro ogni portafoglio.
+   *  Se assente per un asset usa peso uguale (1/N). */
+  assetTargetWeights?: Record<string, Record<string, number>>;
+}
+

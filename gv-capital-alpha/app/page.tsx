@@ -10,9 +10,10 @@ import PositionsTab from '@/components/PositionsTab';
 import MarketTab from '@/components/MarketTab';
 import QuontestTab from '@/components/QuontestTab';
 import TradingByDayTab from '@/components/TradingByDayTab';
+import PacSimulatorTab from '@/components/PacSimulatorTab';
 import ChatWidget from '@/components/ChatWidget';
 
-export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading';
+export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading' | 'pac';
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -461,6 +462,7 @@ export default function Home() {
         {tab === 'market' && <MarketTab market={market} />}
         {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
         {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} portfolio={portfolio} />}
+        {tab === 'pac' && <PacSimulatorTab portfolio={portfolio} />}
       </main>
 
       <ChatWidget 

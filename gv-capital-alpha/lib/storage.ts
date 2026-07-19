@@ -224,6 +224,24 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
   await kvSet('portfolio', JSON.stringify(state));
 }
 
+// ─── PAC CONFIG CRUD ──────────────────────────────────────────────────────────
+import type { PacConfig } from '@/types';
+
+export async function getPacConfig(): Promise<PacConfig> {
+  const raw = await kvGet('pac_config');
+  if (!raw) return { portfolioMonthlyBudgets: {}, assetTargetWeights: {} };
+  try {
+    return JSON.parse(raw) as PacConfig;
+  } catch {
+    return { portfolioMonthlyBudgets: {}, assetTargetWeights: {} };
+  }
+}
+
+export async function savePacConfig(config: PacConfig): Promise<void> {
+  await kvSet('pac_config', JSON.stringify(config));
+}
+
+
 export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> | T): Promise<T> {
   const portfolio = await getPortfolio();
   const result = await fn(portfolio);
