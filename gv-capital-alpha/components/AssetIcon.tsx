@@ -3,9 +3,10 @@ import React from 'react';
 interface Props {
   symbol: string;
   logoUrl?: string;
+  size?: number;
 }
 
-export default function AssetIcon({ symbol, logoUrl }: Props) {
+export default function AssetIcon({ symbol, logoUrl, size = 48 }: Props) {
   const s = symbol.toUpperCase();
   let url = logoUrl;
   
@@ -71,7 +72,7 @@ export default function AssetIcon({ symbol, logoUrl }: Props) {
       src={url} 
       alt={symbol} 
       referrerPolicy="no-referrer"
-      style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+      style={{ width: `${size}px`, height: `${size}px`, borderRadius: size >= 36 ? '8px' : '6px', objectFit: 'cover' }}
       onError={(e) => { 
         e.currentTarget.onerror = null;
         e.currentTarget.src = `https://api.dicebear.com/7.x/initials/svg?seed=${s}&backgroundColor=1e293b&textColor=ffffff`;

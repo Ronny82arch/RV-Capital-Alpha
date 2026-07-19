@@ -981,7 +981,7 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
                 {data.assets.sort((a,b)=>b.value-a.value).map(a => (
                   <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <AssetIcon symbol={a.symbol} logoUrl={a.logoUrl} />
+                      <AssetIcon symbol={a.symbol} logoUrl={a.logoUrl} size={20} />
                       <span title={a.name}>{a.symbol}</span>
                     </div>
                     <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
@@ -1044,7 +1044,7 @@ function SectorDiversificationWidget({ positions }: { positions: import('@/types
                 {data.assets.sort((a,b)=>b.value-a.value).map(a => (
                   <div key={a.symbol} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <AssetIcon symbol={a.symbol} logoUrl={a.logoUrl} />
+                      <AssetIcon symbol={a.symbol} logoUrl={a.logoUrl} size={20} />
                       <span title={a.name}>{a.symbol}</span>
                     </div>
                     <span>{((a.value / data.total) * pct).toFixed(1)}%</span>
