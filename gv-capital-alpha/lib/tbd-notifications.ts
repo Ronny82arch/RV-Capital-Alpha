@@ -69,12 +69,8 @@ async function getFirebaseAccessToken(): Promise<string | null> {
 async function sendFcmMessage(payload: FcmPayload): Promise<boolean> {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   if (!projectId) {
-    console.log('[TBD FCM] FIREBASE_PROJECT_ID non configurato — notifica saltata');
     return false;
   }
-
-  const accessToken = await getFirebaseAccessToken();
-  if (!accessToken) return false;
 
   const url = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
   const body = { message: payload };
