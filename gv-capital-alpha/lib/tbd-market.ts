@@ -36,9 +36,6 @@ const globalAny = global as any;
 if (!globalAny.tbdPriceCache) globalAny.tbdPriceCache = new Map<string, number>();
 if (!globalAny.tbdBookCache)  globalAny.tbdBookCache  = new Map<string, number>();
 
-const priceCache: Map<string, number> = globalAny.tbdPriceCache;
-const bookCache: Map<string, number>  = globalAny.tbdBookCache;
-
 // ─── WEBSOCKET CLIENTS ────────────────────────────────────────────────────────
 
 function connectBinance() {
