@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PortfolioState, MarketData } from '@/types';
+import { PortfolioState, MarketData, Position } from '@/types';
 import { isAheadOfTarget } from '@/lib/kelly';
 import { Tab } from '@/app/page';
 import dynamicImport from 'next/dynamic';
@@ -855,7 +855,7 @@ function StatCard({ label, value, color = 'var(--text)' }: { label: string; valu
   );
 }
 
-function AssetAllocationChart({ positions }: { positions: import('@/types').Position[] }) {
+function AssetAllocationChart({ positions }: { positions: Position[] }) {
   const categories = positions.reduce((acc, pos) => {
     const type = getMacroCategory(pos);
     const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
@@ -901,7 +901,7 @@ function AssetAllocationChart({ positions }: { positions: import('@/types').Posi
   );
 }
 
-function GeographicExposureWidget({ positions }: { positions: import('@/types').Position[] }) {
+function GeographicExposureWidget({ positions }: { positions: Position[] }) {
   const geoMap = positions.reduce((acc, pos) => {
     const geo = getGeography(pos.symbol, pos.name);
     const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
@@ -962,7 +962,7 @@ function GeographicExposureWidget({ positions }: { positions: import('@/types').
   );
 }
 
-function SectorDiversificationWidget({ positions }: { positions: import('@/types').Position[] }) {
+function SectorDiversificationWidget({ positions }: { positions: Position[] }) {
   const sectorMap = positions.reduce((acc, pos) => {
     const sec = getSector(pos.symbol, pos.name, pos.type);
     const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
@@ -1025,7 +1025,7 @@ function SectorDiversificationWidget({ positions }: { positions: import('@/types
   );
 }
 
-function CoreSatelliteWidget({ positions }: { positions: import('@/types').Position[] }) {
+function CoreSatelliteWidget({ positions }: { positions: Position[] }) {
   const openPos = positions.filter(p => p.status === 'OPEN');
   
   const coreValue = openPos
@@ -1067,7 +1067,7 @@ function CoreSatelliteWidget({ positions }: { positions: import('@/types').Posit
   );
 }
 
-function getMacroCategory(pos: import('@/types').Position): string {
+function getMacroCategory(pos: Position): string {
   if (pos.symbol === 'GLD' || pos.symbol === 'IAU') return 'MATERIE PRIME';
   if (pos.type === 'CRYPTO') return 'CRYPTO';
   if (pos.type === 'ETF') return 'FONDI / ETF';

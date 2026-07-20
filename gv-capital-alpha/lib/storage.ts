@@ -567,7 +567,7 @@ export async function syncEtoroPortfolio(): Promise<void> {
   });
 
   // Attach tags and portfolios
-  const finalPositions: import('@/types').Position[] = ePositions.map(p => {
+  const finalPositions: Position[] = ePositions.map(p => {
     const isCopy = p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ');
     
     let assignedPortfolio = existingPortfolios.get(p.symbol);
