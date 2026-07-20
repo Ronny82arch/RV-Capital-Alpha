@@ -330,11 +330,6 @@ export async function addAlert(alertInfo: Omit<import('@/types').Alert, 'id' | '
   try {
     const subs = await getPushSubscriptions();
     if (subs.length > 0) {
-      const webpush = await import('web-push');
-      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40yYyO7yJk316rU2B1mN14Hq4v2T4R1E2T3y4U5v6W7x8Y9z0';
-      const privateKey = process.env.VAPID_PRIVATE_KEY || 'd16rU2B1mN14Hq4v2T4R1E2T3y4U5v6W7x8Y9z0abc1';
-      webpush.setVapidDetails('mailto:admin@rvcapitalalpha.com', publicKey, privateKey);
-      
       const payload = JSON.stringify({
         title: newAlert.title,
         body: newAlert.message,
@@ -342,9 +337,13 @@ export async function addAlert(alertInfo: Omit<import('@/types').Alert, 'id' | '
       });
 
       subs.forEach(s => {
-        webpush.sendNotification(s, payload).catch(err => {
-          console.warn('[WebPush] Error sending to endpoint:', err?.statusCode || err);
-        });
+        if (s.endpoint) {
+          fetch(s.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload
+          }).catch(() => {});
+        }
       });
     }
   } catch (e) {
