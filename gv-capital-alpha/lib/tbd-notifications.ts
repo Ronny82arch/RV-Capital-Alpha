@@ -130,9 +130,20 @@ export async function sendPreAlertNotification(signal: TbdSignal): Promise<void>
     },
   };
 
+  // Invia sia al sistema di Alert nativo (che triggera WebPush al browser)
+  try {
+    const { addAlert } = await import('./storage');
+    await addAlert({
+      title: title,
+      message: body,
+      type: 'INFO'
+    });
+  } catch (e) {
+    console.warn('Failed to add native alert for TBD signal:', e);
+  }
+
   const sent = await sendFcmMessage(payload);
   if (!sent) {
-    // Log console come fallback
     console.log(`[TBD PRE-ALERT] ${title}\n${body}`);
   }
 }
