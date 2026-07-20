@@ -111,6 +111,7 @@ function decodeYahooProtobuf(base64Str: string): { id: string; price: number } |
 // ─── WEBSOCKET CLIENTS ────────────────────────────────────────────────────────
 
 function connectBinance() {
+  if (process.env.VERCEL || (typeof window === 'undefined' && process.env.VERCEL_ENV)) return;
   if (isConnectingBinance || (globalAny.tbdBinanceWS && globalAny.tbdBinanceWS.readyState === 1)) return;
   isConnectingBinance = true;
 
@@ -144,33 +145,31 @@ function connectBinance() {
           const bidVol = bids.reduce((acc: number, b: any) => acc + b.qty, 0);
           const askVol = asks.reduce((acc: number, a: any) => acc + a.qty, 0);
           const totalVol = bidVol + askVol;
-          const imbalance = totalVol > 0 ? (bidVol - askVol) / totalVol : 0;
-
-          bookCache.set(symbol, imbalance);
+          const ratio = totalVol > 0 ? (bidVol - askVol) / totalVol : 0;
+          bookCache.set(symbol, ratio);
         }
       } catch (e) {
         // ignore
       }
     });
 
-    ws.on('error', (err) => {
+    ws.on('error', (err: any) => {
       console.error('Binance Spot WS Error:', err);
       isConnectingBinance = false;
     });
 
     ws.on('close', () => {
-      console.log('Binance Spot WS Closed. Retrying in 10s...');
+      console.log('Binance Spot WS Closed.');
       isConnectingBinance = false;
       globalAny.tbdBinanceWS = null;
-      setTimeout(connectBinance, 10000);
     });
   } catch (e) {
     isConnectingBinance = false;
-    setTimeout(connectBinance, 10000);
   }
 }
 
 function connectYahoo() {
+  if (process.env.VERCEL || (typeof window === 'undefined' && process.env.VERCEL_ENV)) return;
   if (isConnectingYahoo || (globalAny.tbdYahooWS && globalAny.tbdYahooWS.readyState === 1)) return;
   isConnectingYahoo = true;
 
@@ -201,28 +200,25 @@ function connectYahoo() {
       }
     });
 
-    ws.on('error', (err) => {
+    ws.on('error', (err: any) => {
       console.error('Yahoo Finance WS Error:', err);
       isConnectingYahoo = false;
     });
 
     ws.on('close', () => {
-      console.log('Yahoo Finance WS Closed. Retrying in 10s...');
+      console.log('Yahoo Finance WS Closed.');
       isConnectingYahoo = false;
       globalAny.tbdYahooWS = null;
-      setTimeout(connectYahoo, 10000);
     });
   } catch (e) {
     isConnectingYahoo = false;
-    setTimeout(connectYahoo, 10000);
   }
 }
 
 // Inizializza le connessioni in background (solo se ambiente supporta persistent WS)
 export function initTbdWebSockets() {
   try {
-    if (typeof window === 'undefined' && process.env.VERCEL) {
-      // Su Vercel Serverless le chiamate WS persistenti verso Yahoo streamer possono fallire o non essere consentite
+    if (process.env.VERCEL || process.env.VERCEL_ENV || typeof window === 'undefined') {
       return;
     }
     connectBinance();
