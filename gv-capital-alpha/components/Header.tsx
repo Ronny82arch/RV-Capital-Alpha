@@ -393,6 +393,26 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
               >
                 🔔 Attiva Notifiche Push
               </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/push/test', { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.success ? `🚀 ${data.message}` : `❌ Errore: ${data.error}`);
+                  } catch (e: any) {
+                    alert('Errore durante l\'invio del test: ' + e.message);
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '8px',
+                  background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: '#f59e0b', fontSize: '11px', fontFamily: 'var(--font-mono)',
+                  fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', marginBottom: '6px'
+                }}
+              >
+                🧪 Invia Notifica Test Ora
+              </button>
             </div>
 
             {/* Fix grafico - rimuove punti 30k errati dal database */}
