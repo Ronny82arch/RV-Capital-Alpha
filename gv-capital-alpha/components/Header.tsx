@@ -399,6 +399,18 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
                   try {
                     const res = await fetch('/api/push/test', { method: 'POST' });
                     const data = await res.json();
+                    
+                    // Mostra anche la notifica di sistema direttamente tramite Service Worker per test locale immediato
+                    if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+                      const reg = await navigator.serviceWorker.ready;
+                      reg.showNotification('🧪 Test Notifica Push', {
+                        body: 'Se vedi questa notifica, il tuo dispositivo riceve correttamente gli alert da RV Capital Alpha! 🚀',
+                        icon: '/icon-192.png',
+                        badge: '/icon-192.png',
+                        vibrate: [100, 50, 100],
+                      });
+                    }
+
                     alert(data.success ? `🚀 ${data.message}` : `❌ Errore: ${data.error}`);
                   } catch (e: any) {
                     alert('Errore durante l\'invio del test: ' + e.message);

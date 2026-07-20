@@ -77,14 +77,37 @@ export async function POST(req: NextRequest) {
     // 3. Genera segnali
     const rawSignals = engine.scanMarketForSpeculation(marketData);
 
-    // 4. Filtra asset già in posizione attiva
+    // 4. Filtra asset già in posizione attiva e controlla limite di capitale residuo
     const existing = await getActiveSignals();
+    const activeCount = existing.length;
+    const maxAllowedNew = Math.max(0, config.activeSlots - activeCount);
+
     const existingAssets = new Set(
       existing.map(s => `${s.asset}:${s.direction}`)
     );
-    const newSignals = rawSignals.filter(
-      s => !existingAssets.has(`${s.asset}:${s.direction}`)
-    );
+
+    // Calcola il capitale già impegnato nelle posizioni attive
+    const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
+    let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
+
+    const newSignals: import('@/lib/trading-by-day').TbdSignal[] = [];
+
+    for (const s of rawSignals) {
+      if (newSignals.length >= maxAllowedNew) break;
+      if (existingAssets.has(`${s.asset}:${s.direction}`)) continue;
+
+      // Se la size del segnale supera la liquidità residua, riduci la size
+      if (s.allocatedSize > remainingCapital) {
+        if (remainingCapital < 100) break; // Non aprire slot sotto i 100€
+        const ratio = remainingCapital / s.allocatedSize;
+        s.allocatedSize = Number(remainingCapital.toFixed(2));
+        s.expectedPnL = Number((s.expectedPnL * ratio).toFixed(2));
+        s.maxLoss = Number((s.maxLoss * ratio).toFixed(2));
+      }
+
+      newSignals.push(s);
+      remainingCapital -= s.allocatedSize;
+    }
 
     // 5. Salva e notifica nuovi segnali (Pre-Alert)
     for (const signal of newSignals) {
