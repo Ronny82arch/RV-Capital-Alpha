@@ -149,19 +149,15 @@ export async function sendPreAlertNotification(signal: TbdSignal): Promise<void>
 }
 
 export async function sendCircuitBreakerNotification(message: string, reason: 'TARGET' | 'MAX_LOSS'): Promise<void> {
-  const emoji = reason === 'TARGET' ? '🎯' : '🛑';
-  const payload: FcmPayload = {
-    topic: process.env.FCM_TOPIC ?? 'tbd-alerts',
-    notification: {
+  try {
+    const { addAlert } = await import('./storage');
+    const emoji = reason === 'TARGET' ? '🎯' : '🛑';
+    await addAlert({
       title: `${emoji} Capital Alpha — Trading by Day`,
-      body: message,
-    },
-    data: { type: 'TBD_CIRCUIT_BREAKER', reason },
-    android: { priority: 'high', notification: { channelId: 'tbd-alerts', priority: 'high' } },
-    apns: { payload: { aps: { contentAvailable: true, sound: 'default' } }, headers: { 'apns-priority': '10' } },
-  };
-  const sent = await sendFcmMessage(payload);
-  if (!sent) console.log(`[TBD CIRCUIT BREAKER] ${message}`);
+      message: message,
+      type: reason === 'TARGET' ? 'SUCCESS' : 'WARNING'
+    });
+  } catch {}
 }
 
 export async function sendSignalTriggeredNotification(signal: TbdSignal, currentPrice: number): Promise<void> {
@@ -169,21 +165,14 @@ export async function sendSignalTriggeredNotification(signal: TbdSignal, current
   const title    = `${dirEmoji} TRIGGER TBD ${signal.asset} — ${signal.direction}`;
   const body     = `Prezzo d'ingresso raggiunto: ${currentPrice}. Imposta l'ordine su eToro!\nSL: ${signal.stopLoss} | TP: ${signal.takeProfit}`;
 
-  const payload: FcmPayload = {
-    topic: process.env.FCM_TOPIC ?? 'tbd-alerts',
-    notification: { title, body },
-    data: {
-      signalId: signal.id,
-      asset: signal.asset,
-      direction: signal.direction,
-      type: 'TBD_TRIGGERED',
-    },
-    android: { priority: 'high', notification: { channelId: 'tbd-alerts', priority: 'high' } },
-    apns: { payload: { aps: { contentAvailable: true, sound: 'default' } }, headers: { 'apns-priority': '10' } },
-  };
-
-  const sent = await sendFcmMessage(payload);
-  if (!sent) console.log(`[TBD TRIGGERED] ${title}\n${body}`);
+  try {
+    const { addAlert } = await import('./storage');
+    await addAlert({
+      title,
+      message: body,
+      type: 'INFO'
+    });
+  } catch {}
 }
 
 export async function sendExitNotification(signal: TbdSignal, type: 'TP' | 'SL', currentPrice: number): Promise<void> {
@@ -192,19 +181,12 @@ export async function sendExitNotification(signal: TbdSignal, type: 'TP' | 'SL',
   const pnl = type === 'TP' ? signal.expectedPnL : -signal.maxLoss;
   const body = `Prezzo attuale: ${currentPrice} (SL/TP incrociato).\nChiudi la posizione su eToro!\nRisultato stimato: ${pnl >= 0 ? '+' : ''}${pnl}€`;
 
-  const payload: FcmPayload = {
-    topic: process.env.FCM_TOPIC ?? 'tbd-alerts',
-    notification: { title, body },
-    data: {
-      signalId: signal.id,
-      asset: signal.asset,
-      type: 'TBD_EXIT',
-      exitType: type,
-    },
-    android: { priority: 'high', notification: { channelId: 'tbd-alerts', priority: 'high' } },
-    apns: { payload: { aps: { contentAvailable: true, sound: 'default' } }, headers: { 'apns-priority': '10' } },
-  };
-
-  const sent = await sendFcmMessage(payload);
-  if (!sent) console.log(`[TBD EXIT] ${title}\n${body}`);
+  try {
+    const { addAlert } = await import('./storage');
+    await addAlert({
+      title,
+      message: body,
+      type: type === 'TP' ? 'SUCCESS' : 'WARNING'
+    });
+  } catch {}
 }
