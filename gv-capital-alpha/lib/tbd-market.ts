@@ -217,10 +217,18 @@ function connectYahoo() {
   }
 }
 
-// Inizializza le connessioni in background
+// Inizializza le connessioni in background (solo se ambiente supporta persistent WS)
 export function initTbdWebSockets() {
-  connectBinance();
-  connectYahoo();
+  try {
+    if (typeof window === 'undefined' && process.env.VERCEL) {
+      // Su Vercel Serverless le chiamate WS persistenti verso Yahoo streamer possono fallire o non essere consentite
+      return;
+    }
+    connectBinance();
+    connectYahoo();
+  } catch (e) {
+    console.warn('WebSocket init skipped in current environment');
+  }
 }
 
 // ─── CALCOLI STATISTICI ───────────────────────────────────────────────────────
