@@ -149,8 +149,11 @@ export class TradingByDayEngine {
       const safeSizeForRisk = maxRiskPerSlot / lossPercentage;
       const allocatedSize   = Math.min(sizePerSlot, safeSizeForRisk);
 
-      // Take Profit: basato sulla volatilità del mercato e R/R prestabilito
-      const effectiveProfitPct = lossPercentage * this.config.minRiskRewardRatio;
+      // Moltiplicatore R/R dinamico basato sull'ampiezza dello Z-Score (più estremo = TP più ampio)
+      const zMagnitude = Math.abs(asset.zScoreH1);
+      const dynamicRrMultiplier = Math.min(3.5, Math.max(1.5, 1.5 + (zMagnitude - 1.2) * 0.8));
+      
+      const effectiveProfitPct = lossPercentage * dynamicRrMultiplier;
 
       const takeProfit = direction === 'BUY'
         ? entryPrice * (1 + effectiveProfitPct)
@@ -164,7 +167,7 @@ export class TradingByDayEngine {
 
       const expectedPnL = allocatedSize * effectiveProfitPct;
       const maxLoss     = allocatedSize * lossPercentage;
-      const riskReward  = Number((effectiveProfitPct / lossPercentage).toFixed(2));
+      const riskReward  = Number(dynamicRrMultiplier.toFixed(2));
 
       signals.push({
         id:            `${asset.asset}-${direction}-${Date.now()}`,
