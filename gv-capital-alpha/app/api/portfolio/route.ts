@@ -16,6 +16,23 @@ export async function GET() {
 
     const portfolio = await getPortfolio();
 
+    // Aggiornamento saldo eToro in tempo reale ad ogni GET se le chiavi sono presenti!
+    if (process.env.ETORO_API_KEY && process.env.ETORO_USER_KEY) {
+      try {
+        const { getEtoroBalance } = await import('@/lib/etoro');
+        const balance = await getEtoroBalance();
+        if (balance && typeof balance.AvailableBalance === 'number') {
+          if (portfolio.capitalAvailable !== balance.AvailableBalance) {
+            portfolio.capitalAvailable = balance.AvailableBalance;
+            await recalcPortfolio(portfolio);
+            await savePortfolio(portfolio);
+          }
+        }
+      } catch (e) {
+        console.warn('[API portfolio] Impossibile aggiornare saldo eToro live:', e);
+      }
+    }
+
     // Aggiornamento dei prezzi in tempo reale su ogni chiamata GET!
     if (portfolio.positions && portfolio.positions.length > 0) {
       const openPositions = portfolio.positions.filter(p => p.status === 'OPEN' && !p.id.startsWith('etoro_mirror_'));
