@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { TradingByDayEngine } from '@/lib/trading-by-day';
+import { TradingByDayEngine, TbdSignal } from '@/lib/trading-by-day';
 import { fetchAllTbdMarketData } from '@/lib/tbd-market';
 import {
   getTodayLog, saveTodayLog, getTbdConfig,
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
     let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
 
-    const newSignals: import('@/lib/trading-by-day').TbdSignal[] = [];
+    const newSignals: TbdSignal[] = [];
 
     for (const s of rawSignals) {
       if (newSignals.length >= maxAllowedNew) break;
