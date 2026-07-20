@@ -241,6 +241,26 @@ export async function savePacConfig(config: PacConfig): Promise<void> {
   await kvSet('pac_config', JSON.stringify(config));
 }
 
+// ─── PUSH SUBSCRIPTIONS CRUD ──────────────────────────────────────────────────
+export async function getPushSubscriptions(): Promise<any[]> {
+  const raw = await kvGet('push_subscriptions');
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export async function savePushSubscription(sub: any): Promise<void> {
+  const subs = await getPushSubscriptions();
+  // Filter duplicate endpoints
+  const filtered = subs.filter(s => s.endpoint !== sub.endpoint);
+  filtered.push(sub);
+  await kvSet('push_subscriptions', JSON.stringify(filtered));
+}
+
+
 
 export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> | T): Promise<T> {
   const portfolio = await getPortfolio();
@@ -305,6 +325,31 @@ export async function addAlert(alertInfo: Omit<import('@/types').Alert, 'id' | '
   };
   portfolio.alerts = [newAlert, ...(portfolio.alerts || [])].slice(0, 100);
   await savePortfolio(portfolio);
+
+  // Dispatch Web Push Notification asynchronously
+  try {
+    const subs = await getPushSubscriptions();
+    if (subs.length > 0) {
+      const webpush = await import('web-push');
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40yYyO7yJk316rU2B1mN14Hq4v2T4R1E2T3y4U5v6W7x8Y9z0';
+      const privateKey = process.env.VAPID_PRIVATE_KEY || 'd16rU2B1mN14Hq4v2T4R1E2T3y4U5v6W7x8Y9z0abc1';
+      webpush.setVapidDetails('mailto:admin@rvcapitalalpha.com', publicKey, privateKey);
+      
+      const payload = JSON.stringify({
+        title: newAlert.title,
+        body: newAlert.message,
+        url: '/'
+      });
+
+      subs.forEach(s => {
+        webpush.sendNotification(s, payload).catch(err => {
+          console.warn('[WebPush] Error sending to endpoint:', err?.statusCode || err);
+        });
+      });
+    }
+  } catch (e) {
+    console.warn('[WebPush] Push dispatch failed:', e);
+  }
 }
 
 export async function markAlertAsRead(alertId: string): Promise<void> {

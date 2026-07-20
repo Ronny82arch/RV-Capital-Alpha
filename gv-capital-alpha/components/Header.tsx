@@ -332,8 +332,53 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
                 </div>
               ))
             )}
+            {/* Attivazione Web Push Notifiche */}
+            <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
+              <button
+                onClick={async () => {
+                  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                    alert('Le notifiche push non sono supportate da questo browser.');
+                    return;
+                  }
+                  try {
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') {
+                      alert('Permesso per le notifiche negato.');
+                      return;
+                    }
+                    const reg = await navigator.serviceWorker.register('/sw.js');
+                    let sub = await reg.pushManager.getSubscription();
+                    if (!sub) {
+                      const res = await fetch('/api/push/subscribe');
+                      const data = await res.json();
+                      sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: data.publicKey
+                      });
+                    }
+                    await fetch('/api/push/subscribe', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ subscription: sub })
+                    });
+                    alert('🔔 Notifiche Push attivate con successo sul dispositivo!');
+                  } catch (err: any) {
+                    alert('Errore durante l\'attivazione: ' + err.message);
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '8px',
+                  background: 'rgba(132, 204, 22, 0.12)', border: '1px solid rgba(132, 204, 22, 0.3)',
+                  color: '#84cc16', fontSize: '11px', fontFamily: 'var(--font-mono)',
+                  fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', marginBottom: '6px'
+                }}
+              >
+                🔔 Attiva Notifiche Push
+              </button>
+            </div>
+
             {/* Fix grafico - rimuove punti 30k errati dal database */}
-            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+            <div style={{ padding: '0 14px 10px 14px' }}>
               <button
                 onClick={async () => {
                   try {
