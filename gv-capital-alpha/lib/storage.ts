@@ -1,4 +1,4 @@
-import { PortfolioState, Signal, Position, PerformanceSnapshot } from '@/types';
+import { PortfolioState, Signal, Position, PerformanceSnapshot, Alert } from '@/types';
 
 const CAPITAL_BASE = 30000;
 const TARGET_RETURN = 0.25;
@@ -315,9 +315,9 @@ export async function renameCustomPortfolio(oldName: string, newName: string): P
 
 
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
-export async function addAlert(alertInfo: Omit<import('@/types').Alert, 'id' | 'date' | 'read'>): Promise<void> {
+export async function addAlert(alertInfo: Omit<Alert, 'id' | 'date' | 'read'>): Promise<void> {
   const portfolio = await getPortfolio();
-  const newAlert: import('@/types').Alert = {
+  const newAlert: Alert = {
     id: generateId(),
     date: new Date().toISOString(),
     read: false,
