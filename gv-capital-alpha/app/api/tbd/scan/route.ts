@@ -15,7 +15,6 @@ import {
   sendSignalTriggeredNotification, sendExitNotification
 } from '@/lib/tbd-notifications';
 
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {

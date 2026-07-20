@@ -15,7 +15,7 @@ import {
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
 
-export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://gv-capital-alpha.vercel.app';
 

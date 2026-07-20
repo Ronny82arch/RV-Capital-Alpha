@@ -12,7 +12,7 @@ import { fetchAllMarketDataForCalibration, WATCHLIST } from '@/lib/market';
 import { buildCalibrationTable } from '@/lib/backtest';
 import { saveCalibrationTable, getPortfolio } from '@/lib/storage';
 
-export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get('authorization');
