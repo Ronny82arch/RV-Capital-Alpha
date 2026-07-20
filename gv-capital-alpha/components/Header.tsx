@@ -425,6 +425,27 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
               >
                 🧪 Invia Notifica Test Ora
               </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/tbd/clean', { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.success ? `🧹 ${data.message}` : `❌ Errore: ${data.error}`);
+                    if (data.success) window.location.reload();
+                  } catch (e: any) {
+                    alert('Errore durante la pulizia: ' + e.message);
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ef4444', fontSize: '11px', fontFamily: 'var(--font-mono)',
+                  fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', marginBottom: '6px'
+                }}
+              >
+                🧹 Azzera Vecchi Segnali TBD
+              </button>
             </div>
 
             {/* Fix grafico - rimuove punti 30k errati dal database */}
