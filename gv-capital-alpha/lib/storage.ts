@@ -1,4 +1,5 @@
 import { PortfolioState, Signal, Position, PerformanceSnapshot, Alert } from '@/types';
+import type { CalibrationTable } from './backtest';
 
 const CAPITAL_BASE = 30000;
 const TARGET_RETURN = 0.25;
@@ -610,13 +611,13 @@ export function generateId(): string {
 // ─── CALIBRATION TABLE ────────────────────────────────────────────────────────
 // Persistita su Vercel KV. Ricostruita ogni giorno da /api/cron/calibrate
 // (ore 6:00 UTC), letta ad ogni scan (ore 8:00 UTC).
-export async function getCalibrationTable(): Promise<import('./backtest').CalibrationTable | null> {
+export async function getCalibrationTable(): Promise<CalibrationTable | null> {
   const raw = await kvGet('calibration_table');
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-export async function saveCalibrationTable(table: import('./backtest').CalibrationTable): Promise<void> {
+export async function saveCalibrationTable(table: CalibrationTable): Promise<void> {
   try {
     await kvSet('calibration_table', JSON.stringify(table));
     await kvSet('calibration_updated_at', new Date().toISOString());

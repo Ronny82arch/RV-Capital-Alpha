@@ -10,6 +10,7 @@
  */
 
 import { TbdSignal } from './trading-by-day';
+import { addAlert } from './storage';
 
 // ─── PAYLOAD FCM ──────────────────────────────────────────────────────────────
 
@@ -132,7 +133,6 @@ export async function sendPreAlertNotification(signal: TbdSignal): Promise<void>
 
   // Invia sia al sistema di Alert nativo (che triggera WebPush al browser)
   try {
-    const { addAlert } = await import('./storage');
     await addAlert({
       title: title,
       message: body,
@@ -150,7 +150,6 @@ export async function sendPreAlertNotification(signal: TbdSignal): Promise<void>
 
 export async function sendCircuitBreakerNotification(message: string, reason: 'TARGET' | 'MAX_LOSS'): Promise<void> {
   try {
-    const { addAlert } = await import('./storage');
     const emoji = reason === 'TARGET' ? '🎯' : '🛑';
     await addAlert({
       title: `${emoji} Capital Alpha — Trading by Day`,
@@ -166,7 +165,6 @@ export async function sendSignalTriggeredNotification(signal: TbdSignal, current
   const body     = `Prezzo d'ingresso raggiunto: ${currentPrice}. Imposta l'ordine su eToro!\nSL: ${signal.stopLoss} | TP: ${signal.takeProfit}`;
 
   try {
-    const { addAlert } = await import('./storage');
     await addAlert({
       title,
       message: body,
@@ -182,7 +180,6 @@ export async function sendExitNotification(signal: TbdSignal, type: 'TP' | 'SL',
   const body = `Prezzo attuale: ${currentPrice} (SL/TP incrociato).\nChiudi la posizione su eToro!\nRisultato stimato: ${pnl >= 0 ? '+' : ''}${pnl}€`;
 
   try {
-    const { addAlert } = await import('./storage');
     await addAlert({
       title,
       message: body,
