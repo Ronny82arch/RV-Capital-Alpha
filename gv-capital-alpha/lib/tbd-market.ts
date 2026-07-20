@@ -111,102 +111,11 @@ function decodeYahooProtobuf(base64Str: string): { id: string; price: number } |
 // ─── WEBSOCKET CLIENTS ────────────────────────────────────────────────────────
 
 function connectBinance() {
-  if (process.env.VERCEL || (typeof window === 'undefined' && process.env.VERCEL_ENV)) return;
-  if (isConnectingBinance || (globalAny.tbdBinanceWS && globalAny.tbdBinanceWS.readyState === 1)) return;
-  isConnectingBinance = true;
-
-  try {
-    const streams = 'btcusdt@ticker/ethusdt@ticker/solusdt@ticker/bnbusdt@ticker/btcusdt@depth5/ethusdt@depth5/solusdt@depth5/bnbusdt@depth5';
-    const ws = new (globalThis as any).WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
-
-    ws.on('open', () => {
-      console.log('Binance Spot WS Connected');
-      isConnectingBinance = false;
-      globalAny.tbdBinanceWS = ws;
-      binanceWS = ws;
-    });
-
-    ws.on('message', (data: any) => {
-      try {
-        const json = JSON.parse(data.toString());
-        const stream = json.stream;
-        const msg = json.data;
-
-        if (stream.endsWith('@ticker')) {
-          const symbol = msg.s.toUpperCase(); // e.g. BTCUSDT
-          const price = parseFloat(msg.c);
-          priceCache.set(symbol, price);
-        } else if (stream.endsWith('@depth5')) {
-          const symbol = stream.split('@')[0].toUpperCase(); // e.g. BTCUSDT
-          const bids = msg.bids.map((b: any) => ({ qty: parseFloat(b[1]) }));
-          const asks = msg.asks.map((a: any) => ({ qty: parseFloat(a[1]) }));
-
-          const bidVol = bids.reduce((acc: number, b: any) => acc + b.qty, 0);
-          const askVol = asks.reduce((acc: number, a: any) => acc + a.qty, 0);
-          const totalVol = bidVol + askVol;
-          const ratio = totalVol > 0 ? (bidVol - askVol) / totalVol : 0;
-          bookCache.set(symbol, ratio);
-        }
-      } catch (e) {
-        // ignore
-      }
-    });
-
-    ws.on('error', (err: any) => {
-      console.error('Binance Spot WS Error:', err);
-      isConnectingBinance = false;
-    });
-
-    ws.on('close', () => {
-      console.log('Binance Spot WS Closed.');
-      isConnectingBinance = false;
-      globalAny.tbdBinanceWS = null;
-    });
-  } catch (e) {
-    isConnectingBinance = false;
-  }
+  // Disabilitato in ambiente Serverless / Next.js API Routes per prevenire errori di runtime
 }
 
 function connectYahoo() {
-  if (process.env.VERCEL || (typeof window === 'undefined' && process.env.VERCEL_ENV)) return;
-  if (isConnectingYahoo || (globalAny.tbdYahooWS && globalAny.tbdYahooWS.readyState === 1)) return;
-  isConnectingYahoo = true;
-
-  try {
-    const ws = new (globalThis as any).WebSocket('wss://streamer.finance.yahoo.com');
-
-    ws.on('open', () => {
-      console.log('Yahoo Finance WS Connected');
-      isConnectingYahoo = false;
-      globalAny.tbdYahooWS = ws;
-      yahooWS = ws;
-      ws.send(JSON.stringify({ subscribe: ['AAPL', 'NVDA'] }));
-    });
-
-    ws.on('message', (data: any) => {
-      try {
-        const payload = decodeYahooProtobuf(data.toString());
-        if (payload && payload.id && payload.price) {
-          priceCache.set(payload.id.toUpperCase(), payload.price);
-        }
-      } catch (e) {
-        // ignore
-      }
-    });
-
-    ws.on('error', (err: any) => {
-      console.error('Yahoo Finance WS Error:', err);
-      isConnectingYahoo = false;
-    });
-
-    ws.on('close', () => {
-      console.log('Yahoo Finance WS Closed.');
-      isConnectingYahoo = false;
-      globalAny.tbdYahooWS = null;
-    });
-  } catch (e) {
-    isConnectingYahoo = false;
-  }
+  // Disabilitato in ambiente Serverless / Next.js API Routes per prevenire errori di runtime
 }
 
 // Inizializza le connessioni in background (solo se ambiente supporta persistent WS)
