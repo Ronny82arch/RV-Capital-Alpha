@@ -364,10 +364,15 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
                         return outputArray;
                       };
 
-                      sub = await reg.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array(data.publicKey)
-                      });
+                      try {
+                        sub = await reg.pushManager.subscribe({
+                          userVisibleOnly: true,
+                          applicationServerKey: urlBase64ToUint8Array(data.publicKey)
+                        });
+                      } catch (subErr) {
+                        console.warn('Subscription with VAPID key failed, trying simple subscription:', subErr);
+                        sub = await reg.pushManager.subscribe({ userVisibleOnly: true });
+                      }
                     }
                     await fetch('/api/push/subscribe', {
                       method: 'POST',
