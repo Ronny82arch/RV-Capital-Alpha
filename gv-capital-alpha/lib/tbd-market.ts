@@ -23,6 +23,12 @@ const CRYPTO_ASSETS = [
 const STOCK_ASSETS = [
   { symbol: 'NVDA', display: 'NVDA' },
   { symbol: 'AAPL', display: 'AAPL' },
+  { symbol: 'TSLA', display: 'TSLA' },
+  { symbol: 'AMD',  display: 'AMD'  },
+  { symbol: 'QQQ',  display: 'QQQ'  },
+  { symbol: 'AMZN', display: 'AMZN' },
+  { symbol: 'MSFT', display: 'MSFT' },
+  { symbol: 'META', display: 'META' },
 ];
 
 // ─── CACHE GLOBAL (Next.js hot-reloading safe) ────────────────────────────────

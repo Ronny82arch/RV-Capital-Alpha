@@ -121,17 +121,15 @@ export class TradingByDayEngine {
     const signals: TbdSignal[] = [];
 
     for (const asset of marketData) {
+      // Setup Bullish: Z-Score sotto -1.2 O (Squeeze + Volume Spike)
       const isBullishSetup =
-        asset.zScoreH1 <= -1.5 &&
-        asset.bollingerSqueeze &&
-        asset.volumeSpike &&
-        asset.chandeMomentumH1 > -50;
+        (asset.zScoreH1 <= -1.2 && (asset.volumeSpike || asset.bollingerSqueeze)) ||
+        (asset.zScoreH1 <= -1.8 && asset.chandeMomentumH1 > -65);
 
+      // Setup Bearish: Z-Score sopra +1.2 O (Squeeze + Volume Spike)
       const isBearishSetup =
-        asset.zScoreH1 >= 1.5 &&
-        asset.bollingerSqueeze &&
-        asset.volumeSpike &&
-        asset.chandeMomentumH1 < 50;
+        (asset.zScoreH1 >= 1.2 && (asset.volumeSpike || asset.bollingerSqueeze)) ||
+        (asset.zScoreH1 >= 1.8 && asset.chandeMomentumH1 < 65);
 
       if (!isBullishSetup && !isBearishSetup) continue;
 
