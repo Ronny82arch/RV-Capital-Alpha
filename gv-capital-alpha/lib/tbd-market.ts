@@ -5,7 +5,6 @@
  * Output: MarketDataSnapshot[] normalizzato per il TradingByDayEngine
  */
 
-import WebSocket from 'ws';
 import { MarketDataSnapshot } from './trading-by-day';
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
@@ -40,8 +39,8 @@ if (!globalAny.tbdBookCache)  globalAny.tbdBookCache  = new Map<string, number>(
 const priceCache: Map<string, number> = globalAny.tbdPriceCache;
 const bookCache: Map<string, number>  = globalAny.tbdBookCache;
 
-let binanceWS: WebSocket | null = globalAny.tbdBinanceWS ?? null;
-let yahooWS: WebSocket | null   = globalAny.tbdYahooWS   ?? null;
+let binanceWS: any = globalAny.tbdBinanceWS ?? null;
+let yahooWS: any   = globalAny.tbdYahooWS   ?? null;
 let isConnectingBinance = false;
 let isConnectingYahoo   = false;
 
@@ -116,8 +115,9 @@ function connectBinance() {
   isConnectingBinance = true;
 
   try {
+    const WSModule = require('ws');
     const streams = 'btcusdt@ticker/ethusdt@ticker/solusdt@ticker/bnbusdt@ticker/btcusdt@depth5/ethusdt@depth5/solusdt@depth5/bnbusdt@depth5';
-    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+    const ws = new WSModule(`wss://stream.binance.com:9443/stream?streams=${streams}`);
 
     ws.on('open', () => {
       console.log('Binance Spot WS Connected');
@@ -175,7 +175,8 @@ function connectYahoo() {
   isConnectingYahoo = true;
 
   try {
-    const ws = new WebSocket('wss://streamer.finance.yahoo.com', {
+    const WSModule = require('ws');
+    const ws = new WSModule('wss://streamer.finance.yahoo.com', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       }
