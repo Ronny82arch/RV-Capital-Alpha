@@ -21,9 +21,11 @@ export async function GET(req: Request) {
 
     // 1. Recupera la lista degli asset da analizzare (es. tutti i portafogli attivi)
     // Usiamo Supabase Admin per bypassare RLS dato che è un cron job di sistema
-    const { data: portfolios, error } = await supabaseAdmin
-      .from('portfolios') // Usa i tipi definiti nel Database
+    const { data, error } = await supabaseAdmin
+      .from('portfolios')
       .select('id, user_id, active_assets');
+      
+    const portfolios: any[] = data || [];
 
     if (error) {
       console.error('Errore lettura portafogli:', error);
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
     const messages = [];
 
     // 2. Itera sui portafogli e prepara i payload
-    for (const portfolio of (portfolios || [])) {
+    for (const portfolio of portfolios) {
       const assets = portfolio.active_assets || [];
       
       for (const ticker of assets) {
