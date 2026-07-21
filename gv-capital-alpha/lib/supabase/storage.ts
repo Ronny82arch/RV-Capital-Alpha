@@ -484,3 +484,18 @@ export async function getPushSubscriptions(): Promise<any[]> {
 export async function savePushSubscription(sub: any): Promise<void> {
   // Ignored in V2 for now
 }
+
+import type { CalibrationTable } from '../backtest';
+
+export async function getCalibrationTable(): Promise<CalibrationTable | null> {
+  return null;
+}
+
+export async function saveCalibrationTable(table: CalibrationTable): Promise<void> {
+  console.log('Mock saveCalibrationTable:', Object.keys(table).length);
+}
+
+export async function getCalibrationUpdatedAt(): Promise<string | null> {
+  return null;
+}
+
