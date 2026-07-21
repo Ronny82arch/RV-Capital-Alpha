@@ -11,7 +11,7 @@ import { analyzeAsset, findPromisingCandidatesBatch, evaluateCandidatesWithAIBat
 import {
   getPortfolio, addSignal, updatePositionPrices,
   getCalibrationTable, getCalibrationUpdatedAt,
-} from '@/lib/storage';
+} from '@/lib/supabase/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
 

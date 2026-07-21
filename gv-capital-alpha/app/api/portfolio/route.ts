@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPortfolio, syncEtoroPortfolio, savePortfolio, recalcPortfolio } from '@/lib/storage';
+import { getPortfolio, syncEtoroPortfolio, savePortfolio, recalcPortfolio } from '@/lib/supabase/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
 // DELETE: wipe all positions and portfolios - then re-sync from eToro clean
 export async function DELETE() {
   try {
-    const { defaultPortfolio } = await import('@/lib/storage');
+    const { defaultPortfolio } = await import('@/lib/supabase/storage');
     const portfolio = defaultPortfolio();
     await savePortfolio(portfolio);
 

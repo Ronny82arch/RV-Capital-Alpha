@@ -6,7 +6,7 @@ import {
   closePosition,
   deletePosition,
   generateId,
-} from '@/lib/storage';
+} from '@/lib/supabase/storage';
 import { Position } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
         currentPrice: executedPrice,
         unrealizedPnl: 0,
         unrealizedPnlPercent: 0,
+        portfolio: signal.portfolio,
       };
 
       await openPosition(position);

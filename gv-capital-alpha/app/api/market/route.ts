@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchAllMarketData, WATCHLIST } from '@/lib/market';
-import { getPortfolio, updatePositionPrices } from '@/lib/storage';
+import { getPortfolio, updatePositionPrices } from '@/lib/supabase/storage';
 
 export const dynamic = 'force-dynamic';
 

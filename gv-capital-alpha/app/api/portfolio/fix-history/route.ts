@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cleanPerformanceHistory, getPortfolio } from '@/lib/storage';
+import { cleanPerformanceHistory, getPortfolio } from '@/lib/supabase/storage';
 
 export const dynamic = 'force-dynamic';
 
