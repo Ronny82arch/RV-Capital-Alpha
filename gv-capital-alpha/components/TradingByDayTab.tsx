@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { TbdSignal, TradingDayLog, TbdSignalStatus, calculateLiquidityMetrics, getLiquidityColor, getLiquidityWarningText, DEFAULT_TBD_CONFIG } from "@/lib/trading-by-day";
+import { TbdSignal, TradingDayLog, TbdSignalStatus, calculateLiquidityMetrics, getLiquidityColor, getLiquidityWarningText, DEFAULT_CONFIG } from "@/lib/trading-by-day";
 import { PortfolioState } from "@/types";
 
 // ─── TIPI LOCALI ──────────────────────────────────────────────────────────────
@@ -768,7 +768,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
           
           {/* Liquidità Bar */}
           {(() => {
-            const liquidity = calculateLiquidityMetrics(tbdData.config || DEFAULT_TBD_CONFIG, tbdData.activeSignals);
+            const liquidity = calculateLiquidityMetrics(tbdData.config || DEFAULT_CONFIG, tbdData.activeSignals);
             return (
               <div style={{background:'var(--bg2)',border:'1px solid var(--border)',
               borderRadius:'12px',padding:'16px',marginBottom:'16px',}}>
