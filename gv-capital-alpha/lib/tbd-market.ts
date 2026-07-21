@@ -35,6 +35,8 @@ const STOCK_ASSETS = [
 const globalAny = global as any;
 if (!globalAny.tbdPriceCache) globalAny.tbdPriceCache = new Map<string, number>();
 if (!globalAny.tbdBookCache)  globalAny.tbdBookCache  = new Map<string, number>();
+const priceCache = globalAny.tbdPriceCache;
+const bookCache = globalAny.tbdBookCache;
 
 // ─── WEBSOCKET CLIENTS ────────────────────────────────────────────────────────
 
