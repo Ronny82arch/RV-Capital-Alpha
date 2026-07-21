@@ -22,13 +22,13 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
   const openCount = portfolio?.positions.filter(p => p.status === 'OPEN').length ?? 0;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <span style={{ fontWeight: 800 }}>[D]</span> },
-    { id: 'signals', label: 'Segnali', icon: <span style={{ fontWeight: 800 }}>[S]</span>, badge: pendingCount },
-    { id: 'trading', label: 'Trading', icon: <span style={{ fontWeight: 800 }}>[T]</span>, badge: tbdCount },
-    { id: 'positions', label: 'Posizioni', icon: <span style={{ fontWeight: 800 }}>[P]</span>, badge: openCount },
-    { id: 'market', label: 'Mercato', icon: <span style={{ fontWeight: 800 }}>[M]</span> },
-    { id: 'quontest', label: 'Quontest', icon: <span style={{ fontWeight: 800 }}>[Q]</span> },
-    { id: 'pac', label: 'PAC', icon: <span style={{ fontWeight: 800 }}>[C]</span> },
+    { id: 'dashboard', label: 'Dashboard', icon: <Compass size={16} /> },
+    { id: 'signals', label: 'Segnali', icon: <Target size={16} />, badge: pendingCount },
+    { id: 'trading', label: 'Trading', icon: <Zap size={16} />, badge: tbdCount },
+    { id: 'positions', label: 'Posizioni', icon: <Briefcase size={16} />, badge: openCount },
+    { id: 'market', label: 'Mercato', icon: <LineChart size={16} /> },
+    { id: 'quontest', label: 'Quontest', icon: <FlaskConical size={16} /> },
+    { id: 'pac', label: 'PAC', icon: <TrendingUp size={16} /> },
   ];
 
   return (

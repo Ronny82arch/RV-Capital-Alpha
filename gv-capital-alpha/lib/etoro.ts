@@ -121,7 +121,8 @@ export async function getEtoroPositions(): Promise<any[]> {
   }
 
   // 1. Map manual positions and group them by symbol+direction
-  const manualPositions = (portfolio.positions || []).filter((p: any) => !p.mirrorID);
+  // Assicuriamoci di escludere TUTTI i trade copiati (MirrorID, mirrorID, IsMirror, ecc)
+  const manualPositions = (portfolio.positions || []).filter((p: any) => !p.mirrorID && !p.MirrorID && !p.IsMirror);
 
   // Concurrently fetch live prices for all unique symbols in manual positions
   let marketPriceMap = new Map<string, number>();
