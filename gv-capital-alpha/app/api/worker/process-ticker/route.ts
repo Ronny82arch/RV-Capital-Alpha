@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Receiver } from '@upstash/qstash';
-import { SignalStateMachine, TradingSignalFSM } from '../../../../lib/fsm';
-import { supabaseAdmin } from '../../../../lib/supabase/client';
+import { SignalStateMachine, TradingSignalFSM } from '@/lib/fsm';
+import { supabaseAdmin } from '@/lib/supabase/client';
 
 const receiver = new Receiver({
   currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || '',

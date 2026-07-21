@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Client } from '@upstash/qstash';
-import { supabaseAdmin } from '../../../lib/supabase/client';
+import { supabaseAdmin } from '@/lib/supabase/client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
