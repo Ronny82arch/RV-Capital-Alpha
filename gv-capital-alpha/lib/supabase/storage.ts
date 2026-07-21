@@ -395,10 +395,59 @@ export async function recalcPortfolio(portfolio?: PortfolioState): Promise<void>
 }
 
 export async function syncEtoroPortfolio(): Promise<void> {
-  // Omitted complex logic for now, standard fallback:
-  await mutatePortfolio(p => {
-    // just dummy values so it builds and works without errors
+  if (!process.env.ETORO_API_KEY || !process.env.ETORO_USER_KEY) {
+    throw new Error('Chiavi API eToro non configurate');
+  }
+  const { getEtoroBalance, getEtoroPositions } = await import('../etoro');
+  const balance = await getEtoroBalance();
+  const ePositions = await getEtoroPositions();
+  
+  const portfolio = await getPortfolio();
+  portfolio.capitalAvailable = balance.AvailableBalance;
+
+  // Create a map of existing tags and portfolios to preserve them
+  const existingTags = new Map<string, string[]>();
+  const existingPortfolios = new Map<string, string>();
+  portfolio.positions.forEach(p => {
+    if (p.tags) existingTags.set(p.symbol, p.tags);
+    if (p.portfolio) existingPortfolios.set(p.symbol, p.portfolio);
   });
+
+  // Attach tags and portfolios
+  const finalPositions: Position[] = ePositions.map(p => {
+    const isCopy = p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ');
+    
+    let assignedPortfolio = existingPortfolios.get(p.symbol);
+    if (!assignedPortfolio) {
+      assignedPortfolio = 'Da Assegnare';
+    }
+
+    return {
+      ...p,
+      tags: existingTags.get(p.symbol) || (isCopy ? ['Copia', 'Da Assegnare'] : ['Da Assegnare']),
+      portfolio: assignedPortfolio
+    };
+  });
+
+  // Preserve ONLY truly manual assets: exclude eToro-imported ones (etoro_*)
+  // AND exclude old mock/demo positions (id starting with 'd' followed by a digit)
+  const manualPositions = portfolio.positions.filter(p => 
+    !p.id.startsWith('etoro_') && 
+    !/^d\d+$/.test(p.id)
+  );
+
+  // Merge: manual first, then fresh eToro positions
+  portfolio.positions = [...manualPositions, ...finalPositions];
+
+  // capitalBase = total capital invested in open positions (meaningful for % P&L)
+  // Only set if still at default 30000 or zero (preserve user-set value)
+  const totalInvested = finalPositions.reduce((sum, p) => sum + (p.capitalAllocated || 0), 0);
+  if (portfolio.capitalBase === 30000 || portfolio.capitalBase <= 0) {
+    portfolio.capitalBase = totalInvested;
+  }
+
+  await recalcPortfolio(portfolio);
+  await savePortfolio(portfolio);
 }
 
 // ─── MARKET DATA ──────────────────────────────────────────────────────────────
