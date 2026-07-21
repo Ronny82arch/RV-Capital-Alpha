@@ -15,7 +15,8 @@ self.addEventListener('push', function(event) {
         url: data.url || '/'
       },
       actions: [
-        { action: 'open', title: 'Apri App' }
+        { action: 'rebalance', title: 'Ribilancia Ora' },
+        { action: 'ignore', title: 'Ignora' }
       ]
     };
 
@@ -29,13 +30,26 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+  const action = event.action;
+
+  if (action === 'ignore') {
+    return;
+  }
+
+  let targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+  
+  if (action === 'rebalance') {
+    targetUrl = '/?action=rebalance';
+  }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
         if (client.url && 'focus' in client) {
+          if (action === 'rebalance') {
+             client.postMessage({ type: 'FORCE_REBALANCE' });
+          }
           return client.focus();
         }
       }
