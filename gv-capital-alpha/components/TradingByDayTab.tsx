@@ -768,7 +768,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
           
           {/* Liquidità Bar */}
           {(() => {
-            const liquidity = calculateLiquidityMetrics(tbdData.config || DEFAULT_CONFIG, tbdData.activeSignals);
+            const liquidity = calculateLiquidityMetrics(tbdData?.config || DEFAULT_CONFIG, tbdData?.activeSignals || []);
             return (
               <div style={{background:'var(--bg2)',border:'1px solid var(--border)',
               borderRadius:'12px',padding:'16px',marginBottom:'16px',}}>
