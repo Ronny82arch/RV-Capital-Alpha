@@ -406,8 +406,7 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
                       reg.showNotification('🧪 Test Notifica Push', {
                         body: 'Se vedi questa notifica, il tuo dispositivo riceve correttamente gli alert da RV Capital Alpha! 🚀',
                         icon: '/icon-192.png',
-                        badge: '/icon-192.png',
-                        vibrate: [100, 50, 100],
+                        badge: '/icon-192.png'
                       });
                     }
 
