@@ -120,9 +120,23 @@ export async function getEtoroPositions(): Promise<any[]> {
     console.error('Failed to load instrument catalog:', err.message);
   }
 
-  // 1. Map manual positions and group them by symbol+direction
-  // Assicuriamoci di escludere TUTTI i trade copiati (MirrorID, mirrorID, IsMirror, ecc)
-  const manualPositions = (portfolio.positions || []).filter((p: any) => !p.mirrorID && !p.MirrorID && !p.IsMirror);
+    // Raccogli tutti gli ID delle posizioni che appartengono a un Mirror
+    const mirrorPositionIds = new Set<number>();
+    if (portfolio.mirrors) {
+      for (const m of portfolio.mirrors) {
+        if (m.positions) {
+          for (const p of m.positions) {
+            if (p.PositionID) mirrorPositionIds.add(p.PositionID);
+          }
+        }
+      }
+    }
+
+    // 1. Map manual positions and group them by symbol+direction
+    // Assicuriamoci di escludere TUTTI i trade copiati
+    const manualPositions = (portfolio.positions || []).filter((p: any) => 
+      !p.mirrorID && !p.MirrorID && !p.IsMirror && !mirrorPositionIds.has(p.PositionID)
+    );
 
   // Concurrently fetch live prices for all unique symbols in manual positions
   let marketPriceMap = new Map<string, number>();

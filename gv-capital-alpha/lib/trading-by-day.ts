@@ -139,9 +139,9 @@ export class TradingByDayEngine {
 
     if (validSetups.length === 0) return [];
 
-    // 2. Calcola le allocazioni dinamiche (Tranche Allocation: max 33% della liquidità per singola scansione oraria)
+    // 2. Calcola le allocazioni dinamiche (Sfrutta il 100% della liquidità in una o più operazioni)
     const rawCash = availableCash !== undefined ? availableCash : this.config.totalCapital;
-    const cashToUse = rawCash * 0.33; 
+    const cashToUse = rawCash; 
     const activeSetupsCount = validSetups.length;
     const sizePerSlot = cashToUse / activeSetupsCount;
     
