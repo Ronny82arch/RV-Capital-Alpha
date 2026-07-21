@@ -821,7 +821,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
             </div>
           ) : (
             signals.map((s) => {
-              const liquidity = calculateLiquidityMetrics(config, signals);
+              const liquidity = calculateLiquidityMetrics(tbdData?.config || DEFAULT_CONFIG, signals);
               const isBlocked = liquidity.utilizationPct >= 100;
               return (
                 <div key={s.id} style={{position:'relative',opacity:isBlocked?0.5:1,
