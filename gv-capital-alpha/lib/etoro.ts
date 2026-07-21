@@ -1,4 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
+
+const ETORO_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
 export interface EtoroBalance {
   AvailableBalance: number;
@@ -181,8 +183,7 @@ export async function getEtoroPositions(): Promise<any[]> {
 
     if (!symbolMap.has(compositeKey)) {
       symbolMap.set(compositeKey, {
-        id: `etoro_${compositeKey}`,
-        signalId: 'etoro_sync',
+        id: uuidv5(`etoro_${compositeKey}`, ETORO_NAMESPACE),
         symbol,
         name: info.name,
         type: 'STOCK',
@@ -257,8 +258,7 @@ export async function getEtoroPositions(): Promise<any[]> {
     const unrealizedPnlPercent = (unrealizedPnl / initialInvestment) * 100;
     
     return {
-      id: `etoro_mirror_${m.mirrorID}`,
-      signalId: 'etoro_sync',
+      id: uuidv5(`etoro_mirror_${m.mirrorID}`, ETORO_NAMESPACE),
       symbol: m.parentUsername || `COPY:${m.mirrorID}`,
       name: `Copia ${m.parentUsername || m.mirrorID}`,
       type: 'STOCK',

@@ -429,12 +429,17 @@ export async function syncEtoroPortfolio(): Promise<void> {
     };
   });
 
-  // Preserve ONLY truly manual assets: exclude eToro-imported ones (etoro_*)
+  // Preserve ONLY truly manual assets: exclude eToro-imported ones
   // AND exclude old mock/demo positions (id starting with 'd' followed by a digit)
-  const manualPositions = portfolio.positions.filter(p => 
-    !p.id.startsWith('etoro_') && 
-    !/^d\d+$/.test(p.id)
-  );
+  const { v5: uuidv5 } = await import('uuid');
+  const ETORO_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
+  const manualPositions = portfolio.positions.filter(p => {
+    if (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ')) return false;
+    if (p.id === uuidv5(`etoro_${p.symbol}_${p.action}`, ETORO_NAMESPACE)) return false;
+    if (/^d\d+$/.test(p.id)) return false;
+    return true;
+  });
 
   // Merge: manual first, then fresh eToro positions
   portfolio.positions = [...manualPositions, ...finalPositions];
