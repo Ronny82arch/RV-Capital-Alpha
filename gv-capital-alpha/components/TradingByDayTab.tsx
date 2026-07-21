@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { TbdSignal, TradingDayLog, TbdSignalStatus } from "@/lib/trading-by-day";
+import { TbdSignal, TradingDayLog, TbdSignalStatus, calculateLiquidityMetrics, getLiquidityColor, getLiquidityWarningText } from "@/lib/trading-by-day";
 import { PortfolioState } from "@/types";
 
 // ─── TIPI LOCALI ──────────────────────────────────────────────────────────────
@@ -765,6 +765,32 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
 
         {/* Colonna sinistra: Segnali */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          
+          {/* Liquidità Bar */}
+          {(() => {
+            const liquidity = calculateLiquidityMetrics(config, signals);
+            return (
+              <div style={{background:'var(--bg2)',border:'1px solid var(--border)',
+              borderRadius:'12px',padding:'16px',marginBottom:'16px',}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px',fontSize:'12px'}}>
+                  <span>Capitale esposto: <b>{liquidity.allocatedTotal.toFixed(2)}€</b></span>
+                  <span style={{color:getLiquidityColor(liquidity.warningLevel)}}>
+                    {liquidity.utilizationPct.toFixed(1)}% / 100%
+                  </span>
+                </div>
+                <div style={{background:'rgba(255,255,255,0.05)',borderRadius:'8px',height:'6px',overflow:'hidden'}}>
+                  <div style={{width:`${Math.min(100,liquidity.utilizationPct)}%`,height:'100%',
+                  background:getLiquidityColor(liquidity.warningLevel),transition:'width 0.3s ease',}} />
+                </div>
+                {liquidity.warningLevel !== 'NORMAL' && (
+                  <div style={{color:getLiquidityColor(liquidity.warningLevel),fontSize:'11px',marginTop:'8px',fontWeight:'bold'}}>
+                    {getLiquidityWarningText(liquidity)}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "10px", fontWeight: 800, color: "#475569", letterSpacing: "0.15em", textTransform: "uppercase" }}>
               Segnali Attivi
@@ -794,9 +820,24 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
               </div>
             </div>
           ) : (
-            signals.map(s => (
-              <SignalCard key={s.id} signal={s} onClose={handleCloseSignal} />
-            ))
+            signals.map((s) => {
+              const liquidity = calculateLiquidityMetrics(config, signals);
+              const isBlocked = liquidity.utilizationPct >= 100;
+              return (
+                <div key={s.id} style={{position:'relative',opacity:isBlocked?0.5:1,
+                pointerEvents:isBlocked?'none':'auto'}}>
+                  {isBlocked && (
+                    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',
+                    borderRadius:'14px',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <span style={{fontSize:'10px',fontWeight:'bold',color:'#f59e0b'}}>
+                        PENDING • Liquidità insufficiente
+                      </span>
+                    </div>
+                  )}
+                  <SignalCard signal={s} onClose={handleCloseSignal} />
+                </div>
+              );
+            })
           )}
         </div>
 

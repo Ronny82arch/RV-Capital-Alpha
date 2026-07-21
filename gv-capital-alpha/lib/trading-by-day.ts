@@ -162,8 +162,8 @@ export class TradingByDayEngine {
       // Pre-Trigger: avvisa prima che tocchi l'entry
       const bufferPct   = this.config.preTriggerBufferPercent / 100;
       const preTriggerPx = direction === 'BUY'
-        ? entryPrice * (1 + bufferPct)   // avvisa sopra il prezzo attuale (rimbalzo)
-        : entryPrice * (1 - bufferPct);  // avvisa sotto il prezzo attuale (short)
+        ? entryPrice * (1 - bufferPct)   // avvisa sotto il prezzo attuale (rimbalzo verso entry)
+        : entryPrice * (1 + bufferPct);  // avvisa sopra il prezzo attuale (short)
 
       const expectedPnL = allocatedSize * effectiveProfitPct;
       const maxLoss     = allocatedSize * lossPercentage;
@@ -267,5 +267,188 @@ export class TradingByDayEngine {
       createdAt:     new Date().toISOString(),
       updatedAt:     new Date().toISOString(),
     };
+  }
+
+  /**
+   * VALIDA SE UN NUOVO SEGNALE PUÒ STARE ENTRO LA LIQUIDITÀ
+   */
+  public validateLiquidityForNewSignal(
+    activeSignals: Array<{ allocatedSize: number; status: string }>,
+    newSignalSize: number
+  ): {
+    canAdd: boolean;
+    reason: string;
+    totalExposed: number;
+    availableLiquidity: number;
+    utilizationPct: number;
+  } {
+    const activeCount = activeSignals.filter(s =>
+      ['PRE_ALERT', 'ACTIVE', 'TRIGGERED'].includes(s.status)
+    ).length;
+
+    const totalAllocated = activeSignals.reduce((sum, s) => sum + s.allocatedSize, 0);
+    const availableLiquidity = this.config.totalCapital - totalAllocated;
+    const utilizationPct = (totalAllocated / this.config.totalCapital) * 100;
+
+    const hasSlotAvailable = activeCount < this.config.activeSlots;
+    const hasLiquidityForNew = newSignalSize <= availableLiquidity;
+    const utilizationOk = (totalAllocated + newSignalSize) <= this.config.totalCapital;
+
+    const canAdd = hasSlotAvailable && hasLiquidityForNew && utilizationOk;
+
+    let reason = '';
+    if (!hasSlotAvailable) {
+      reason = `❌ Slot pieno: ${activeCount}/${this.config.activeSlots} attivi`;
+    } else if (!hasLiquidityForNew) {
+      reason = `❌ Liquidità insufficiente: serve ${newSignalSize}€, disponibili ${availableLiquidity.toFixed(2)}€`;
+    } else if (!utilizationOk) {
+      reason = `❌ Superamento limite capitale totale`;
+    } else {
+      reason = `✅ Slot e liquidità disponibili`;
+    }
+
+    return {
+      canAdd,
+      reason,
+      totalExposed: totalAllocated,
+      availableLiquidity,
+      utilizationPct,
+    };
+  }
+
+  /**
+   * FILTRA SEGNALI: Mantiene solo quelli che rientrano nel limite di liquidità
+   */
+  public filterSignalsByLiquidity(signals: TbdSignal[]): {
+    valid: TbdSignal[];
+    pending: TbdSignal[];
+    totalLiquidityUsed: number;
+  } {
+    const valid: TbdSignal[] = [];
+    const pending: TbdSignal[] = [];
+    let totalUsed = 0;
+
+    for (const signal of signals) {
+      const newTotal = totalUsed + signal.allocatedSize;
+      
+      if (valid.length < this.config.activeSlots && newTotal <= this.config.totalCapital) {
+        valid.push(signal);
+        totalUsed += signal.allocatedSize;
+      } else {
+        pending.push(signal);
+      }
+    }
+
+    return { valid, pending, totalLiquidityUsed: totalUsed };
+  }
+
+  /**
+   * CALCULA STRESS TEST: Cosa succede se un segnale viene triggato?
+   */
+  public stressTestSignalTrigger(
+    currentSignals: TbdSignal[],
+    triggeringSignal: TbdSignal
+  ): {
+    maxDrawdownPercent: number;
+    remainingCash: number;
+    canHandle: boolean;
+    message: string;
+  } {
+    const activeAllocated = currentSignals.reduce((sum, s) => sum + s.allocatedSize, 0);
+    const maxLossFromActive = currentSignals.reduce((sum, s) => sum + s.maxLoss, 0);
+    const maxLossFromTrigger = triggeringSignal.maxLoss;
+    
+    const totalMaxLoss = maxLossFromActive + maxLossFromTrigger;
+    const totalExposed = activeAllocated + triggeringSignal.allocatedSize;
+    
+    const maxDrawdownPercent = (totalMaxLoss / this.config.totalCapital) * 100;
+    const remainingCash = this.config.totalCapital - totalMaxLoss;
+    const riskLimit = (this.config.totalCapital * this.config.maxTotalRiskPercent) / 100;
+    
+    const canHandle = totalMaxLoss <= riskLimit;
+
+    let message = '';
+    if (canHandle) {
+      message = `✅ Drawdown massimo: -${maxLossFromTrigger.toFixed(2)}€ (${maxDrawdownPercent.toFixed(2)}% del capital)`;
+    } else {
+      message = `❌ RISCHIO ECCESSIVO: Perdita totale potenziale ${totalMaxLoss.toFixed(2)}€ supera limite ${riskLimit.toFixed(2)}€`;
+    }
+
+    return {
+      maxDrawdownPercent,
+      remainingCash,
+      canHandle,
+      message,
+    };
+  }
+}
+
+// ─── HELPER FUNCTIONS PER UI ──────────────────────────────────────
+
+export interface LiquidityMetrics {
+  totalCapital: number;
+  allocatedTotal: number;
+  availableLiquidity: number;
+  utilizationPct: number;
+  activeSignalCount: number;
+  canAddMore: boolean;
+  maxCapacityReached: boolean;
+  warningLevel: 'NORMAL' | 'CAUTION' | 'CRITICAL';
+}
+
+export function calculateLiquidityMetrics(
+  config: { totalCapital: number; activeSlots: number },
+  signals: TbdSignal[]
+): LiquidityMetrics {
+  const activeSignals = signals.filter(s =>
+    ['PRE_ALERT', 'ACTIVE', 'TRIGGERED'].includes(s.status)
+  );
+
+  const allocatedTotal = activeSignals.reduce((sum, s) => sum + s.allocatedSize, 0);
+  const availableLiquidity = config.totalCapital - allocatedTotal;
+  const utilizationPct = (allocatedTotal / config.totalCapital) * 100;
+  const activeCount = activeSignals.length;
+  
+  const sizePerSlot = config.totalCapital / config.activeSlots;
+  const canAddMore = activeCount < config.activeSlots && availableLiquidity >= sizePerSlot * 0.5;
+  const maxCapacityReached = activeCount >= config.activeSlots || utilizationPct >= 95;
+
+  let warningLevel: 'NORMAL' | 'CAUTION' | 'CRITICAL';
+  if (utilizationPct >= 90) {
+    warningLevel = 'CRITICAL';
+  } else if (utilizationPct >= 75) {
+    warningLevel = 'CAUTION';
+  } else {
+    warningLevel = 'NORMAL';
+  }
+
+  return {
+    totalCapital: config.totalCapital,
+    allocatedTotal,
+    availableLiquidity: Math.max(0, availableLiquidity),
+    utilizationPct,
+    activeSignalCount: activeCount,
+    canAddMore,
+    maxCapacityReached,
+    warningLevel,
+  };
+}
+
+export function getLiquidityColor(warningLevel: 'NORMAL' | 'CAUTION' | 'CRITICAL'): string {
+  const map = {
+    NORMAL: '#10b981',
+    CAUTION: '#f59e0b',
+    CRITICAL: '#ef4444',
+  };
+  return map[warningLevel];
+}
+
+export function getLiquidityWarningText(metrics: LiquidityMetrics): string {
+  if (metrics.warningLevel === 'NORMAL') {
+    return `Liquidità ottimale: ${metrics.availableLiquidity.toFixed(0)}€ disponibili`;
+  } else if (metrics.warningLevel === 'CAUTION') {
+    return `⚠️ Liquidità scarsa: ${metrics.availableLiquidity.toFixed(0)}€ rimasti`;
+  } else {
+    return `🚨 Liquidità CRITICA: ${metrics.availableLiquidity.toFixed(0)}€ rimasti. Nuovi segnali in standby`;
   }
 }

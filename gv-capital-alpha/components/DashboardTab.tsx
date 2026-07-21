@@ -8,6 +8,8 @@ import dynamicImport from 'next/dynamic';
 const ProfessionalChart = dynamicImport(() => import('./ProfessionalChart'), { ssr: false });
 import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
+import AntigravityMonitor from './AntigravityMonitor';
+import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings } from 'lucide-react';
 
 interface Props { 
@@ -61,6 +63,17 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   });
   const [targetInputVal, setTargetInputVal] = useState<string>('');
   const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
+
+  const antigravityEngine = useMemo(() => new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG), []);
+  const leverageState = useMemo(() => {
+    return antigravityEngine.calculateLeverageState(
+      portfolio?.totalValue ?? 0,
+      portfolio?.positions
+        .filter(p => p.status === 'OPEN')
+        .reduce((sum, p) => sum + p.capitalAllocated, 0) ?? 0,
+      portfolio?.totalPnL ?? 0
+    );
+  }, [portfolio, antigravityEngine]);
 
   // Sync to localStorage and database (debounced to avoid spamming while typing)
   useEffect(() => {
@@ -359,6 +372,10 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               <>{p.totalPnL >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{p.totalPnL.toFixed(0)} ({p.totalPnLPercent >= 0 ? '+' : ''}{p.totalPnLPercent.toFixed(2)}%)</>
             )}
           </div>
+        </div>
+
+        <div style={{ marginTop: '24px', width: '100%', maxWidth: '700px' }}>
+          <AntigravityMonitor leverageState={leverageState} />
         </div>
       </div>
     );
