@@ -10,7 +10,8 @@ export function calculateKelly(
   winProbability: number,
   rewardRiskRatio: number,
   volatility: number = 0,
-  targetAnnualReturn: number = 0.25
+  targetAnnualReturn: number = 0.25,
+  momentumScore: number = 0 // Nuova parametrizzazione Momentum
 ): KellyResult {
   const p = Math.max(0.01, Math.min(0.99, winProbability));
   const b = Math.max(0.1, rewardRiskRatio);
@@ -21,8 +22,6 @@ export function calculateKelly(
   const expectedValue = b * p - q;
 
   // Inverse Volatility Scaling (Risk Parity)
-  // Utilizziamo un baseline benchmark dell'1.5% (mercato azionario standard).
-  // Curva continua matematica invece di scaglioni fissi.
   const BASELINE_VOL = 0.015;
   const volatilityPenalty = volatility > 0 ? Math.min(1.0, BASELINE_VOL / volatility) : 1.0;
 
@@ -30,11 +29,12 @@ export function calculateKelly(
   const targetMultiplier = Math.max(0.25, Math.min(1.0, Math.sqrt(targetAnnualReturn)));
 
   // Fractional Kelly (gamma factor): typically 0.20 - 0.50 to reduce volatility
-  // We scale targetMultiplier (0.25-1.0) into the [0.20, 0.50] range.
   const gamma = 0.20 + (targetMultiplier - 0.25) * (0.30 / 0.75); 
   
-  // Limite massimo rigido per singola posizione (es. 5% del portafoglio) come da audit.
-  const maxCap = 0.05; 
+  // Limite massimo rigido (Cap): 5% di base. Con forte momentum (score > 1), si alza fino al 10% (Kelly Momentum)
+  const baseCap = 0.05;
+  const momentumBoost = Math.max(0, Math.min(0.05, momentumScore * 0.025)); // +2.5% ogni +1 di score
+  const maxCap = baseCap + momentumBoost; 
 
   const dynamicKelly = kellyFraction * gamma;
   

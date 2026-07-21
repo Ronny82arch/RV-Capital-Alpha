@@ -279,7 +279,7 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
       ? portfolio.targets[assignedPortfolio] / 100
       : globalTarget;
 
-    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, pTarget);
+    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, pTarget, c.momentum * 100);
     const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
     
     const { capitalToAllocate, quantity } = calculatePositionSize(

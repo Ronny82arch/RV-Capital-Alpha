@@ -145,7 +145,8 @@ export class AntigravityEngine {
   public calculateLeverageState(
     effectiveCapital: number,
     deployedCapital: number,
-    realizedPnL: number
+    realizedPnL: number,
+    isMacroBearMarket: boolean = false
   ): LeverageState {
     const currentLeverage = effectiveCapital > 0
       ? deployedCapital / effectiveCapital
@@ -156,7 +157,9 @@ export class AntigravityEngine {
 
     // Determina status basato su P&L
     let status: 'NORMAL' | 'PROFIT_MODE' | 'CAUTION' | 'EMERGENCY_STOP' = 'NORMAL';
-    if (realizedPnL >= effectiveCapital * (this.config.profitTriggerPct / 100)) {
+    if (isMacroBearMarket) {
+      status = 'EMERGENCY_STOP';
+    } else if (realizedPnL >= effectiveCapital * (this.config.profitTriggerPct / 100)) {
       status = 'PROFIT_MODE';
     } else if (realizedPnL <= -(effectiveCapital * (this.config.maxDailyRiskPercent / 100))) {
       status = 'EMERGENCY_STOP';
@@ -185,18 +188,19 @@ export class AntigravityEngine {
   public evaluateLeverageAdjustment(
     currentLeverage: number,
     currentDrawdown: number,
-    daysSinceLastRebalance: number = 0
+    daysSinceLastRebalance: number = 0,
+    isMacroBearMarket: boolean = false // MACRO FILTER
   ): RebalanceAction {
     const effectiveDrawdown = currentDrawdown;
 
-    // ✅ EMERGENCY: Drawdown > 5% assoluto
-    if (effectiveDrawdown <= -(this.config.baseCapital * 0.05)) {
+    // ✅ EMERGENCY: Drawdown > 5% assoluto (o se siamo in Bear Market e c'è una perdita)
+    if (effectiveDrawdown <= -(this.config.baseCapital * 0.05) || (isMacroBearMarket && effectiveDrawdown < 0)) {
       return {
         action: 'EMERGENCY_EXIT',
         newLeverage: 1.0,
         coreTargetPct: 100,
         tbdTargetPct: 0,
-        reason: `🚨 DRAWDOWN CRITICO ${effectiveDrawdown.toFixed(2)}€ — Liquida TBD immediatamente`,
+        reason: isMacroBearMarket ? `🚨 BEAR MARKET MACRO ACCERTATO — Blocca leva e proteggi capitale` : `🚨 DRAWDOWN CRITICO ${effectiveDrawdown.toFixed(2)}€ — Liquida TBD immediatamente`,
         urgency: 'CRITICAL',
         estimatedPnLImpact: effectiveDrawdown * -0.5, // Evita ulteriori perdite
       };
@@ -216,8 +220,8 @@ export class AntigravityEngine {
       };
     }
 
-    // 🟢 PROFIT MODE: Profitto significativo
-    if (effectiveDrawdown >= (this.config.baseCapital * (this.config.profitTriggerPct / 100))) {
+    // 🟢 PROFIT MODE: Profitto significativo (Bloccato in caso di Bear Market per evitare false ripartenze)
+    if (effectiveDrawdown >= (this.config.baseCapital * (this.config.profitTriggerPct / 100)) && !isMacroBearMarket) {
       const newLeverage = Math.min(
         this.config.maxLeverage,
         currentLeverage * 1.15 // Aumenta 15%

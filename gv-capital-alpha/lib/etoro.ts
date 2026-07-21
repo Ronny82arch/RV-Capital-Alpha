@@ -81,7 +81,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
 
   const equity = available + totalInvestmentsValue;
 
-  const USD_TO_EUR = 0.92;
+  const USD_TO_EUR = 1.0;
   const availableEur = available * USD_TO_EUR;
   const equityEur = equity * USD_TO_EUR;
 
@@ -94,7 +94,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
 export async function getEtoroPositions(): Promise<any[]> {
   const data = await fetchEtoroPnL();
   const portfolio = data.clientPortfolio || {};
-  const USD_TO_EUR = 0.92;
+  const USD_TO_EUR = 1.0;
   // Fetch instruments catalog to resolve symbols and names
   let instrumentMap = new Map<number, { symbol: string; name: string; logoUrl: string }>();
   try {
@@ -244,7 +244,37 @@ export async function getEtoroPositions(): Promise<any[]> {
     return pos;
   });
 
-  // Il Copy Trading è già incluso nativamente nell'array positions di eToro.
-  // Mappare i mirrors aggiungerebbe duplicati al capitale totale, quindi restituiamo solo le posizioni (che includono sia manuali che copiate).
-  return [...mappedManual];
+  // 2. Mappa i CopyPortfolios (Mirrors)
+  // Per evitare discrepanze, il currentValue del mirror NON deve includere closedPositionsNetProfit (già incassato)
+  const mappedMirrors = (portfolio.mirrors || []).map((m: any) => {
+    const mirrorPositions = m.positions || [];
+    
+    // Somma importi investiti nel copytrader
+    const investedInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) * USD_TO_EUR;
+    const pnlInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (p.unrealizedPnL?.pnL || p.unrealizedPnl || 0), 0) * USD_TO_EUR;
+    
+    // Il valore corrente è: Cash NON investito + Valore posizioni aperte
+    const currentValue = ((m.availableAmount || 0)) * USD_TO_EUR + investedInCopy + pnlInCopy;
+    const initialInvestment = (m.initialInvestment || 1) * USD_TO_EUR;
+
+    return {
+      id: `etoro_mirror_${m.mirrorID}`,
+      symbol: m.mirrorParentDisplayFirstname || m.mirrorParentUsername || `Mirror ${m.mirrorID}`,
+      name: `Copy: ${m.mirrorParentUsername || m.mirrorID}`,
+      type: 'CRYPTO', // o ETF
+      action: 'BUY',
+      quantity: 1,
+      entryPrice: initialInvestment,
+      currentPrice: currentValue,
+      capitalAllocated: initialInvestment,
+      unrealizedPnl: currentValue - initialInvestment,
+      unrealizedPnlPercent: initialInvestment > 0 ? ((currentValue - initialInvestment) / initialInvestment) * 100 : 0,
+      status: 'OPEN',
+      entryDate: m.openDateTime || new Date().toISOString(),
+      logoUrl: m.mirrorParentAvatarUrl || '/placeholder-user.jpg',
+      avgOpenRate: 1,
+    };
+  });
+
+  return [...mappedManual, ...mappedMirrors];
 }
