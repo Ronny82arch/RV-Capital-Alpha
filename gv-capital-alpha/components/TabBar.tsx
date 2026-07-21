@@ -18,8 +18,8 @@ export default function TabBar({ tab, setTab, portfolio, tbdData }: Props) {
     }
   }, [tbdData]);
 
-  const pendingCount = portfolio?.signals.filter(s => s.status === 'PENDING').length ?? 0;
-  const openCount = portfolio?.positions.filter(p => p.status === 'OPEN').length ?? 0;
+  const pendingCount = (portfolio?.signals || []).filter(s => s.status === 'PENDING').length;
+  const openCount = (portfolio?.positions || []).filter(p => p.status === 'OPEN').length;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Compass size={16} /> },

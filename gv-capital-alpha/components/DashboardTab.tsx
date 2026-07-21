@@ -10,7 +10,7 @@ import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
 import AntigravityMonitor from './AntigravityMonitor';
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
-import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings } from 'lucide-react';
+import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings, Compass, Zap, Users } from 'lucide-react';
 
 interface Props { 
   portfolio: PortfolioState | null; 
