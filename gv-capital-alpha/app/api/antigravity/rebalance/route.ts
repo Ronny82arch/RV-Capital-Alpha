@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPortfolio, updatePortfolio } from '@/lib/storage';
+import { getPortfolio } from '@/lib/storage';
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
 
 export async function POST(request: Request) {
