@@ -439,16 +439,16 @@ export async function saveMarketData(data: MarketData[]): Promise<void> {
   await supabaseAdmin.from('market_data').upsert(rows);
 }
 
-export async function updatePositionPrices(marketData: MarketData[]): Promise<void> {
+export async function updatePositionPrices(updates: { positionId: string; currentPrice: number }[]): Promise<void> {
   await mutatePortfolio(p => {
-    p.positions.forEach(pos => {
-      if (pos.status === 'OPEN') {
-        const market = marketData.find(m => m.symbol === pos.symbol);
-        if (market) {
-          pos.currentPrice = market.price;
-        }
+    let changed = false;
+    for (const update of updates) {
+      const idx = p.positions.findIndex(pos => pos.id === update.positionId);
+      if (idx !== -1 && p.positions[idx].status === 'OPEN') {
+        p.positions[idx].currentPrice = update.currentPrice;
+        changed = true;
       }
-    });
+    }
   });
   await recalcPortfolio();
 }
