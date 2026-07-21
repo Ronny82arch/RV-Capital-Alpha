@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     // 3. Calcola il capitale residuo prima di generare i segnali
     const existing = await getActiveSignals();
     const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
-    const remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
+    let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
 
     // 4. Genera segnali dinamici usando il capitale residuo (così da sfruttare tutta la liquidità)
     const rawSignals = engine.scanMarketForSpeculation(marketData, remainingCapital);
