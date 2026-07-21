@@ -47,12 +47,6 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     if (portfolio?.targets && Object.keys(portfolio.targets).length > 0) {
       return portfolio.targets;
     }
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('portfolio_targets');
-      if (saved) {
-        try { return JSON.parse(saved); } catch {}
-      }
-    }
     return {
       'Tutti': 10,
       'Core': 8,
@@ -61,6 +55,17 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
       'PAC Sofia': 5
     };
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (!portfolio?.targets || Object.keys(portfolio.targets).length === 0)) {
+      const saved = localStorage.getItem('portfolio_targets');
+      if (saved) {
+        try { 
+          setPortfolioTargets(JSON.parse(saved)); 
+        } catch {}
+      }
+    }
+  }, [portfolio?.targets]);
   const [targetInputVal, setTargetInputVal] = useState<string>('');
   const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
 
@@ -503,36 +508,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
           </div>
         </div>
 
-        {selectedTag === 'Tutti' && onToggleCopyTrading && (
-          <button
-            onClick={async () => {
-              if (onToggleCopyTrading) {
-                await onToggleCopyTrading(!p.excludeCopyTrading);
-              }
-            }}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '24px',
-              border: `1px solid ${p.excludeCopyTrading ? 'var(--red)' : 'var(--green)'}`,
-              background: 'var(--bg2)',
-              color: p.excludeCopyTrading ? 'var(--red)' : 'var(--green)',
-              fontSize: '11px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = p.excludeCopyTrading ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = 'var(--bg2)';
-            }}
-          >
-            {p.excludeCopyTrading ? '🤖 COPY TRADING: ESCLUSO' : '🤖 COPY TRADING: INCLUSO'}
-          </button>
-        )}
+
       </div>
 
       {/* TOP KPI ROW */}

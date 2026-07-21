@@ -74,21 +74,21 @@ export async function POST(req: NextRequest) {
     // 2. Fetch dati mercato H1
     const marketData = await fetchAllTbdMarketData();
 
-    // 3. Genera segnali
-    const rawSignals = engine.scanMarketForSpeculation(marketData);
-
-    // 4. Filtra asset già in posizione attiva e controlla limite di capitale residuo
+    // 3. Calcola il capitale residuo prima di generare i segnali
     const existing = await getActiveSignals();
+    const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
+    const remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
+
+    // 4. Genera segnali dinamici usando il capitale residuo (così da sfruttare tutta la liquidità)
+    const rawSignals = engine.scanMarketForSpeculation(marketData, remainingCapital);
+
+    // 5. Filtra asset già in posizione attiva
     const activeCount = existing.length;
     const maxAllowedNew = Math.max(0, config.activeSlots - activeCount);
 
     const existingAssets = new Set(
       existing.map(s => `${s.asset}:${s.direction}`)
     );
-
-    // Calcola il capitale già impegnato nelle posizioni attive
-    const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
-    let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
 
     const newSignals: TbdSignal[] = [];
 

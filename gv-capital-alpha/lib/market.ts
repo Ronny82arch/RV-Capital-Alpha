@@ -192,7 +192,20 @@ export async function fetchAllMarketData(extraItems?: WatchlistItem[]): Promise<
   const uniqueList = list.filter((item, index, self) =>
     self.findIndex(t => t.symbol === item.symbol) === index
   );
-  const results = await Promise.allSettled(uniqueList.map(fetchMarketData));
+  
+  const BATCH_SIZE = 5;
+  const DELAY_MS = 500;
+  const results: PromiseSettledResult<MarketData | null>[] = [];
+
+  for (let i = 0; i < uniqueList.length; i += BATCH_SIZE) {
+    const batch = uniqueList.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.allSettled(batch.map(fetchMarketData));
+    results.push(...batchResults);
+    if (i + BATCH_SIZE < uniqueList.length) {
+      await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+    }
+  }
+
   return results
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => (r as PromiseFulfilledResult<MarketData>).value);
@@ -340,11 +353,22 @@ export async function fetchAllMarketDataForCalibration(extraItems?: WatchlistIte
   const uniqueList = list.filter((item, index, self) =>
     self.findIndex(t => t.symbol === item.symbol) === index
   );
-  const results = await Promise.allSettled(
-    uniqueList.map(item =>
-      item.type === 'CRYPTO' ? fetchCryptoDataForCalibration(item) : fetchYahooFinanceForCalibration(item)
-    )
-  );
+  
+  const BATCH_SIZE = 5;
+  const DELAY_MS = 1000; // Un po' più lento per richieste a 2 anni
+  const results: PromiseSettledResult<MarketData | null>[] = [];
+
+  for (let i = 0; i < uniqueList.length; i += BATCH_SIZE) {
+    const batch = uniqueList.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.allSettled(
+      batch.map(item => item.type === 'CRYPTO' ? fetchCryptoDataForCalibration(item) : fetchYahooFinanceForCalibration(item))
+    );
+    results.push(...batchResults);
+    if (i + BATCH_SIZE < uniqueList.length) {
+      await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+    }
+  }
+
   return results
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => (r as PromiseFulfilledResult<MarketData>).value);

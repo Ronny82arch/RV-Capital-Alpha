@@ -27,17 +27,16 @@ export function calculateKelly(
   const volatilityPenalty = volatility > 0 ? Math.min(1.0, BASELINE_VOL / volatility) : 1.0;
 
   // Dynamic Target Adaptation
-  // Target bassi usano frazioni sicure, target aggressivi si espandono verso il Full-Kelly
   const targetMultiplier = Math.max(0.25, Math.min(1.0, Math.sqrt(targetAnnualReturn)));
-  
-  let maxCap = 0.20;
-  if (targetAnnualReturn < 0.20) maxCap = 0.10;
-  else if (targetAnnualReturn > 0.60) maxCap = 0.40;
-  else if (targetAnnualReturn > 0.40) maxCap = 0.30;
 
-  // Base di partenza: Half-Kelly (normale) scalato dal targetMultiplier (es. 0.5 * 2 = Full Kelly se target = 100%)
-  // Poiché targetMultiplier va da 0.25 a 1.0, e vogliamo che 1.0 dia Full-Kelly, moltiplichiamo il kellyFraction per targetMultiplier
-  const dynamicKelly = kellyFraction * targetMultiplier;
+  // Fractional Kelly (gamma factor): typically 0.20 - 0.50 to reduce volatility
+  // We scale targetMultiplier (0.25-1.0) into the [0.20, 0.50] range.
+  const gamma = 0.20 + (targetMultiplier - 0.25) * (0.30 / 0.75); 
+  
+  // Limite massimo rigido per singola posizione (es. 5% del portafoglio) come da audit.
+  const maxCap = 0.05; 
+
+  const dynamicKelly = kellyFraction * gamma;
   
   const recommendedFraction = Math.max(0, Math.min(maxCap, dynamicKelly * volatilityPenalty));
 

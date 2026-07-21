@@ -115,25 +115,45 @@ export class TradingByDayEngine {
    * SCANNER SPECULATIVO H1
    * Identifica setup Long e Short su base statistica (Z-Score + CMO + volume).
    * Calcola size sicura, pre-trigger e R/R minimo enforced.
+   * Divide dinamicamente il capitale disponibile per il numero di segnali trovati, sfruttando tutta la liquidità.
    */
-  public scanMarketForSpeculation(marketData: MarketDataSnapshot[]): TbdSignal[] {
-    const { sizePerSlot, targetPerSlot, maxRiskPerSlot } = this.calculateClusterAllocation();
-    const signals: TbdSignal[] = [];
+  public scanMarketForSpeculation(marketData: MarketDataSnapshot[], availableCash?: number): TbdSignal[] {
+    const validSetups: { asset: MarketDataSnapshot, direction: TbdDirection }[] = [];
 
+    // 1. Identifica tutti i setup validi
     for (const asset of marketData) {
-      // Setup Bullish: Z-Score sotto -1.2 O (Squeeze + Volume Spike)
       const isBullishSetup =
         (asset.zScoreH1 <= -1.2 && (asset.volumeSpike || asset.bollingerSqueeze)) ||
         (asset.zScoreH1 <= -1.8 && asset.chandeMomentumH1 > -65);
 
-      // Setup Bearish: Z-Score sopra +1.2 O (Squeeze + Volume Spike)
       const isBearishSetup =
         (asset.zScoreH1 >= 1.2 && (asset.volumeSpike || asset.bollingerSqueeze)) ||
         (asset.zScoreH1 >= 1.8 && asset.chandeMomentumH1 < 65);
 
-      if (!isBullishSetup && !isBearishSetup) continue;
+      if (isBullishSetup) {
+        validSetups.push({ asset, direction: 'BUY' });
+      } else if (isBearishSetup) {
+        validSetups.push({ asset, direction: 'SELL' });
+      }
+    }
 
-      const direction: TbdDirection = isBullishSetup ? 'BUY' : 'SELL';
+    if (validSetups.length === 0) return [];
+
+    // 2. Calcola le allocazioni dinamiche (sfrutta tutta la liquidità disponibile divisa per i segnali trovati)
+    const cashToUse = availableCash !== undefined ? availableCash : this.config.totalCapital;
+    const activeSetupsCount = validSetups.length;
+    const sizePerSlot = cashToUse / activeSetupsCount;
+    
+    // Il rischio massimo totale per la giornata viene diviso sui setup attuali
+    const maxRiskTotal = this.config.totalCapital * (this.config.maxTotalRiskPercent / 100);
+    const maxRiskPerSlot = maxRiskTotal / activeSetupsCount;
+
+    const signals: TbdSignal[] = [];
+
+    // 3. Costruisci i segnali allocando il capitale
+    for (const setup of validSetups) {
+      const asset = setup.asset;
+      const direction = setup.direction;
       const entryPrice = asset.currentPrice;
       const atrBuffer  = asset.atrH1 * 1.5;
 

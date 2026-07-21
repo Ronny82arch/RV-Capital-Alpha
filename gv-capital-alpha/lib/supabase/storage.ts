@@ -528,14 +528,26 @@ export async function savePacConfig(config: PacConfig): Promise<void> {
 
 // ─── PUSH SUBSCRIPTIONS ───────────────────────────────────────────────────────
 
-export async function getPushSubscriptions(): Promise<any[]> {
-  // V2 uses a different push notification logic or we ignore them for this pass.
-  // Returning empty to avoid breaking types.
-  return [];
+export async function savePushSubscription(sub: any): Promise<void> {
+  if (!sub || !sub.endpoint || !sub.keys) return;
+  const row = {
+    endpoint: sub.endpoint,
+    p256dh: sub.keys.p256dh,
+    auth: sub.keys.auth
+  };
+  await supabaseAdmin.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' });
 }
 
-export async function savePushSubscription(sub: any): Promise<void> {
-  // Ignored in V2 for now
+export async function getPushSubscriptions(): Promise<any[]> {
+  const { data, error } = await supabaseAdmin.from('push_subscriptions').select('*');
+  if (error || !data) return [];
+  return data.map((d: any) => ({
+    endpoint: d.endpoint,
+    keys: {
+      p256dh: d.p256dh,
+      auth: d.auth
+    }
+  }));
 }
 
 import type { CalibrationTable } from '../backtest';

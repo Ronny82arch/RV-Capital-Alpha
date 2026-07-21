@@ -244,38 +244,7 @@ export async function getEtoroPositions(): Promise<any[]> {
     return pos;
   });
 
-  // 2. Map copy trading mirrors
-  const mirrors = portfolio.mirrors || [];
-  const mappedMirrors = mirrors.map((m: any) => {
-    const mirrorPositions = m.positions || [];
-    const investedInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) * USD_TO_EUR;
-    const pnlInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (p.unrealizedPnL?.pnL || p.unrealizedPnl || 0), 0) * USD_TO_EUR;
-    
-    // (availableAmount + closedPositionsNetProfit) is in USD, needs conversion!
-    const currentValue = ((m.availableAmount || 0) + (m.closedPositionsNetProfit || 0)) * USD_TO_EUR + investedInCopy + pnlInCopy;
-    const initialInvestment = (m.initialInvestment || 1) * USD_TO_EUR;
-    const unrealizedPnl = currentValue - initialInvestment;
-    const unrealizedPnlPercent = (unrealizedPnl / initialInvestment) * 100;
-    
-    return {
-      id: uuidv5(`etoro_mirror_${m.mirrorID}`, ETORO_NAMESPACE),
-      symbol: m.parentUsername || `COPY:${m.mirrorID}`,
-      name: `Copia ${m.parentUsername || m.mirrorID}`,
-      type: 'STOCK',
-      action: 'BUY',
-      // quantity=1, currentPrice=currentValue → recalcPortfolio gives correct total
-      quantity: 1,
-      entryPrice: initialInvestment,
-      currentPrice: currentValue,
-      capitalAllocated: initialInvestment,
-      stopLoss: 0,
-      takeProfit: 0,
-      entryDate: m.startedCopyDate || new Date().toISOString(),
-      status: 'OPEN',
-      unrealizedPnl,
-      unrealizedPnlPercent,
-    };
-  });
-
-  return [...mappedManual, ...mappedMirrors];
+  // Il Copy Trading è già incluso nativamente nell'array positions di eToro.
+  // Mappare i mirrors aggiungerebbe duplicati al capitale totale, quindi restituiamo solo le posizioni (che includono sia manuali che copiate).
+  return [...mappedManual];
 }

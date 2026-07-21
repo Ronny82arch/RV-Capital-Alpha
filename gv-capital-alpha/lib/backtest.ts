@@ -106,6 +106,7 @@ export function calibrateSetupsForSymbol(
 
     let outcome: 'win' | 'loss' | null = null;
     let exitReturn = 0;
+    const slippagePct = 0.0015; // 0.15% di slippage per simulare spread/costi reali
     const lastIdx = Math.min(t + holdingDays, history.length - 1);
 
     for (let f = t + 1; f <= lastIdx; f++) {
@@ -113,14 +114,14 @@ export function calibrateSetupsForSymbol(
       const lo = bar.low  ?? bar.close;
       const hi = bar.high ?? bar.close;
       // Ordine conservativo: se entrambi vengono toccati nello stesso giorno → loss
-      if (lo <= stopPrice)   { outcome = 'loss'; exitReturn = -slPct; break; }
-      if (hi >= targetPrice) { outcome = 'win';  exitReturn = tpPct;  break; }
+      if (lo <= stopPrice)   { outcome = 'loss'; exitReturn = -slPct - slippagePct; break; }
+      if (hi >= targetPrice) { outcome = 'win';  exitReturn = tpPct - slippagePct;  break; }
     }
 
     if (outcome === null) {
       // Time-based exit
       const exitClose = history[lastIdx].close;
-      exitReturn = (exitClose - price) / price;
+      exitReturn = ((exitClose - price) / price) - slippagePct;
       outcome = exitReturn > 0 ? 'win' : 'loss';
     }
 
