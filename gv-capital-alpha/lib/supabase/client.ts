@@ -40,6 +40,15 @@ export type Database = {
         };
         Insert: any;
         Update: any;
+      };
+      portfolios: {
+        Row: {
+          id: string;
+          user_id: string;
+          active_assets: string[];
+        };
+        Insert: any;
+        Update: any;
       }
     }
   }

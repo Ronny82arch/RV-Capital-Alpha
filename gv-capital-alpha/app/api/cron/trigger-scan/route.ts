@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     // 1. Recupera la lista degli asset da analizzare (es. tutti i portafogli attivi)
     // Usiamo Supabase Admin per bypassare RLS dato che è un cron job di sistema
     const { data: portfolios, error } = await supabaseAdmin
-      .from('portfolios' as any) // Assumiamo esista una tabella portfolios
+      .from('portfolios') // Usa i tipi definiti nel Database
       .select('id, user_id, active_assets');
 
     if (error) {
