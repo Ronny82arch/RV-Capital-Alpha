@@ -63,13 +63,13 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
  * Rispetta la Row Level Security (RLS). 
  * Se usato server-side, va passata la sessione dell'utente.
  */
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<any>(supabaseUrl, supabaseAnonKey);
 
 /**
  * Client Supabase con privilegi di amministratore (Bypassa RLS).
  * Da usare ESCLUSIVAMENTE nei background workers e API CRON server-side.
  */
-export const supabaseAdmin = createClient<Database>(supabaseUrl, supabaseServiceKey, {
+export const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -82,7 +82,7 @@ export const supabaseAdmin = createClient<Database>(supabaseUrl, supabaseService
  * @param userAccessToken Il token JWT dell'utente
  */
 export function createAuthenticatedClient(userAccessToken: string) {
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  return createClient<any>(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
         Authorization: `Bearer ${userAccessToken}`
