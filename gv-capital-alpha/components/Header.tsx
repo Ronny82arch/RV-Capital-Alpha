@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { PortfolioState, Alert } from '@/types';
 
+import { RefreshCw, Trash2, Bot, Bell } from 'lucide-react';
+
 interface Props {
   portfolio: PortfolioState | null;
   lastUpdate: string;
@@ -232,22 +234,22 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
         <div className="action-right">
           {/* Tasto Sincronizza eToro */}
           <button className="action-btn" onClick={onRefresh} title="Sincronizza eToro" disabled={syncing}>
-            <span className={syncing ? 'spin-animation' : ''} style={{ display: 'inline-block' }}>🔄</span>
+            <RefreshCw size={16} className={syncing ? 'spin-animation' : ''} />
           </button>
 
           {/* Tasto Reset & Sync (emergenza) */}
           {onReset && (
             <button className="action-btn" onClick={onReset} title="Reset & Sincronizza da zero" disabled={syncing} style={{ background: '#7f1d1d' }}>
-              🗑️
+              <Trash2 size={16} />
             </button>
           )}
 
           {/* Tasto Chat AI */}
           <button className="action-btn" onClick={onToggleChat} title="Chat AI">
-            🤖
+            <Bot size={16} />
           </button>
 
-          {/* Notifiche / Laptop icon */}
+          {/* Notifiche icon */}
           <button className="action-btn" onClick={() => {
             const willShow = !showMenu;
             setShowMenu(willShow);
@@ -264,12 +266,7 @@ export default function Header({ portfolio, lastUpdate, onScan, scanning, onRefr
               setHideBadge(true);
             }
           }} title="Notifiche" style={{ position: 'relative' }}>
-            {/* Laptop icon SVG */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-              <line x1="2" y1="20" x2="22" y2="20" />
-              <line x1="12" y1="17" x2="12" y2="20" />
-            </svg>
+            <Bell size={16} />
             {!hideBadge && unreadAlerts.length > 0 && (
               <span style={{ 
                 position: 'absolute', top: -3, right: -3, 
