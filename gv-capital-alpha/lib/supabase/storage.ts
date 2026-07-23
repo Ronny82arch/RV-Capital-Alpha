@@ -152,15 +152,10 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
   // Since deleting and re-inserting everything is slow but safe for this refactoring stage:
   // For production we would only update changed items. For now, bulk upsert is fine since there are not millions of rows.
   
-  // Positions
-  if (state.positions.length > 0) {
-    const activeIds = state.positions.map(p => p.id);
-    await supabaseAdmin
-      .from('positions')
-      .delete()
-      .eq('portfolio_id', DEFAULT_PORTFOLIO_ID)
-      .not('id', 'in', `(${activeIds.map(id => `"${id}"`).join(',')})`);
+  // Positions: delete all existing positions for default portfolio to avoid stale duplicates
+  await supabaseAdmin.from('positions').delete().eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
 
+  if (state.positions.length > 0) {
     const posRows = state.positions.map(p => ({
       id: p.id,
       portfolio_id: DEFAULT_PORTFOLIO_ID,
@@ -187,8 +182,6 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
       custom_portfolio_name: p.portfolio
     }));
     await supabaseAdmin.from('positions').upsert(posRows);
-  } else {
-    await supabaseAdmin.from('positions').delete().eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
   }
 
   // Signals
