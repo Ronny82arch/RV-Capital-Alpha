@@ -429,7 +429,11 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     });
     displayInvested = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
     const openValue = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
-    displayTotalValue = p.capitalAvailable + openValue;
+    if (!p.excludeCopyTrading && p.totalValue && p.totalValue > 0) {
+      displayTotalValue = p.totalValue;
+    } else {
+      displayTotalValue = p.capitalAvailable + openValue;
+    }
 
     const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
     const totalRealizedPnL = p.positions

@@ -107,21 +107,19 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
 
   const totalInvestmentsValue = totalManualInvested + totalManualPnL + mirrorsEquity;
 
-  let available = getProp(portfolio, 'availableCash', 'AvailableCash');
-  if (available === undefined || available === null) {
-    const credit = getProp(portfolio, 'credit', 'Credit');
-    if (credit !== undefined && credit !== null) {
-      if (credit >= totalInvestmentsValue) {
-        available = credit - totalInvestmentsValue;
-      } else {
-        available = credit;
-      }
-    } else {
-      available = 0;
-    }
-  }
+  const officialCredit = getProp(portfolio, 'credit', 'Credit', 'totalEquity', 'TotalEquity');
+  let available = getProp(portfolio, 'availableCash', 'AvailableCash', 'cash', 'Cash');
+  let equity = 0;
 
-  const equity = available + totalInvestmentsValue;
+  if (officialCredit !== undefined && officialCredit !== null && Number(officialCredit) > 0) {
+    equity = Number(officialCredit);
+    if (available === undefined || available === null) {
+      available = Math.max(0, equity - totalInvestmentsValue);
+    }
+  } else {
+    available = available || 0;
+    equity = available + totalInvestmentsValue;
+  }
 
   const USD_TO_EUR = 1.0;
   const availableEur = available * USD_TO_EUR;

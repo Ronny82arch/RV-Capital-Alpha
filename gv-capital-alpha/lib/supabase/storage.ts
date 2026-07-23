@@ -467,6 +467,11 @@ export async function syncEtoroPortfolio(): Promise<void> {
   }
 
   await recalcPortfolio(portfolio);
+  if (balance.TotalEquity && balance.TotalEquity > 0) {
+    portfolio.totalValue = balance.TotalEquity;
+    portfolio.totalPnL = portfolio.totalValue - (portfolio.depositedFunds || portfolio.capitalBase || 1);
+    portfolio.totalPnLPercent = portfolio.capitalBase > 0 ? (portfolio.totalPnL / portfolio.capitalBase) * 100 : 0;
+  }
   await savePortfolio(portfolio);
 }
 
