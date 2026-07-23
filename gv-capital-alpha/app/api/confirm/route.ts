@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
         currentPrice: executedPrice,
         unrealizedPnl: 0,
         unrealizedPnlPercent: 0,
+        realizedPnl: 0,
+        realizedPnlPercent: 0,
         portfolio: signal.portfolio,
       };
 
