@@ -24,12 +24,12 @@ export default function PositionsTab({
 }: Props) {
   const openPositions = (portfolio?.positions || []).filter(p => {
     if (p.status !== 'OPEN') return false;
-    if (portfolio?.excludeCopyTrading && p.id.startsWith('etoro_mirror_')) return false;
+    if (portfolio?.excludeCopyTrading && p.id?.startsWith('etoro_mirror_')) return false;
     return true;
   });
   const closedPositions = (portfolio?.positions || []).filter(p => {
     if (p.status !== 'CLOSED') return false;
-    if (portfolio?.excludeCopyTrading && p.id.startsWith('etoro_mirror_')) return false;
+    if (portfolio?.excludeCopyTrading && p.id?.startsWith('etoro_mirror_')) return false;
     return true;
   });
   const totalUnrealized = openPositions.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);

@@ -298,7 +298,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             if (tag === 'Tutti') {
               const openPositionsGlobal = p.positions.filter(pos => {
                 if (pos.status !== 'OPEN') return false;
-                if (p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')) return false;
+                if (p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
                 return true;
               });
               const openValue = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
@@ -306,7 +306,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
               const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
               const totalRealizedPnL = p.positions
-                .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')))
+                .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')))
                 .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
               const totalPnL = totalUnrealizedPnL + totalRealizedPnL;
 
@@ -424,7 +424,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   if (selectedTag === 'Tutti') {
     const openPositionsGlobal = p.positions.filter(pos => {
       if (pos.status !== 'OPEN') return false;
-      if (p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')) return false;
+      if (p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
       return true;
     });
     displayInvested = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
@@ -437,7 +437,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
     const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
     const totalRealizedPnL = p.positions
-      .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')))
+      .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')))
       .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
     displayPnL = totalUnrealizedPnL + totalRealizedPnL;
 
