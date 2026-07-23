@@ -72,6 +72,21 @@ async function fetchEtoroPnL(): Promise<any> {
   return await res.json();
 }
 
+async function getUsdToEurRate(): Promise<number> {
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.rates && typeof data.rates.EUR === 'number') {
+        return data.rates.EUR;
+      }
+    }
+  } catch (err: any) {
+    console.warn('[eToro] Exchange rate fetch failed, using fallback:', err.message);
+  }
+  return 0.963; // Fallback rate aligned with eToro EUR account display
+}
+
 function getPnLValue(p: any): number {
   if (!p) return 0;
   const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL', 'pnl', 'PnL');
@@ -117,7 +132,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
   const totalManualInvested = manualPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
   const totalManualPnL = manualPositions.reduce((sum: number, p: any) => sum + getPnLValue(p), 0);
 
-  const totalInvestmentsValue = totalManualInvested + totalManualPnL + mirrorsEquity;
+  const totalInvestmentsValue = totalManualInvested + totalManualPnL;
 
   const officialTotalEquity = getProp(portfolio, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue') ?? getProp(data, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue');
   const officialCredit = getProp(portfolio, 'credit', 'Credit', 'availableCash', 'AvailableCash', 'cash', 'Cash') ?? getProp(data, 'credit', 'Credit', 'availableCash', 'AvailableCash');
@@ -138,7 +153,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
     equity = available + totalInvestmentsValue;
   }
 
-  const USD_TO_EUR = 1.0;
+  const USD_TO_EUR = await getUsdToEurRate();
   const availableEur = (Number(available) || 0) * USD_TO_EUR;
   const equityEur = (Number(equity) || 0) * USD_TO_EUR;
 
@@ -151,7 +166,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
 export async function getEtoroPositions(): Promise<any[]> {
   const data = await fetchEtoroPnL();
   const portfolio = data.clientPortfolio || {};
-  const USD_TO_EUR = 1.0;
+  const USD_TO_EUR = await getUsdToEurRate();
 
   // Fetch instruments catalog to resolve symbols and names
   let instrumentMap = new Map<number, { symbol: string; name: string; logoUrl: string }>();
