@@ -105,7 +105,7 @@ export default function Home() {
             return pos;
           });
 
-          // Recalculate totals
+          // Recalculate totals dynamically relative to live eToro anchor
           const openPositions = updatedPositions.filter(pos => {
             if (pos.status !== 'OPEN') return false;
             if (prev.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
@@ -113,7 +113,7 @@ export default function Home() {
           });
 
           const openValue = openPositions.reduce((sum, pos) => {
-            const currentVal = pos.capitalAllocated + (pos.unrealizedPnl || 0);
+            const currentVal = (pos.capitalAllocated || 0) + (pos.unrealizedPnl || 0);
             return sum + currentVal;
           }, 0);
 
@@ -123,7 +123,15 @@ export default function Home() {
             .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
 
           const capitalBase = openPositions.reduce((sum, pos) => sum + (pos.capitalAllocated || 0), 0);
-          const totalValue = prev.capitalAvailable + openValue;
+
+          const prevUnrealizedPnL = prev.positions
+            .filter(pos => pos.status === 'OPEN' && !(prev.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')))
+            .reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
+
+          const pnlDelta = totalUnrealizedPnL - prevUnrealizedPnL;
+          const totalValue = (prev.totalValue && prev.totalValue > 0)
+            ? Math.max(0, prev.totalValue + pnlDelta)
+            : ((prev.capitalAvailable || 0) + openValue);
           const totalPnL = totalUnrealizedPnL + totalRealizedPnL;
           
           const baseForPnL = (prev.depositedFunds && prev.depositedFunds > 0)
