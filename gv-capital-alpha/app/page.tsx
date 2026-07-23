@@ -258,10 +258,8 @@ export default function Home() {
             console.warn('Audio alert error:', e);
           }
         });
-      }       lastSignalsCount.current = activeSignals.length;
-      } else {
-        lastSignalsCount.current = activeSignals.length;
       }
+      lastSignalsCount.current = activeSignals.length;
     }
   }, [tbdData]);
 
