@@ -392,11 +392,11 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             PATRIMONIO COMPLESSIVO
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
-            {isObscured ? '€ *****' : `€${p.totalValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
+            {isObscured ? '€ *****' : `€${(Number(p.totalValue) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: isObscured ? 'var(--text3)' : (p.totalPnL >= 0 ? '#84cc16' : 'var(--red)') }}>
+          <div style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: isObscured ? 'var(--text3)' : ((Number(p.totalPnL) || 0) >= 0 ? '#84cc16' : 'var(--red)') }}>
             {isObscured ? '*****' : (
-              <>{p.totalPnL >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{p.totalPnL.toFixed(0)} ({p.totalPnLPercent >= 0 ? '+' : ''}{p.totalPnLPercent.toFixed(2)}%)</>
+              <>{(Number(p.totalPnL) || 0) >= 0 ? 'Profitti totali: +' : 'Perdite totali: '}€{(Number(p.totalPnL) || 0).toFixed(0)} ({(Number(p.totalPnLPercent) || 0) >= 0 ? '+' : ''}{(Number(p.totalPnLPercent) || 0).toFixed(2)}%)</>
             )}
           </div>
         </div>
@@ -446,13 +446,13 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
       : (displayInvested > 0 ? displayInvested : 1);
     displayPnLPct = (displayPnL / baseForPnL) * 100;
   } else {
-    displayTotalValue = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
-    const unrealized = openPositions.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
-    const realized = closedPositions.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
+    displayTotalValue = openPositions.reduce((acc, pos) => acc + ((Number(pos.capitalAllocated) || 0) + (Number(pos.unrealizedPnl) || 0)), 0);
+    const unrealized = openPositions.reduce((acc, pos) => acc + (Number(pos.unrealizedPnl) || 0), 0);
+    const realized = closedPositions.reduce((acc, pos) => acc + (Number(pos.realizedPnl) || 0), 0);
     displayPnL = unrealized + realized;
-    displayInvested = openPositions.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
+    displayInvested = openPositions.reduce((acc, pos) => acc + (Number(pos.capitalAllocated) || 0), 0);
     
-    const subPortfolioBase = displayTotalValue > 0 ? displayTotalValue : p.capitalBase;
+    const subPortfolioBase = displayTotalValue > 0 ? displayTotalValue : (Number(p.capitalBase) || 1);
     displayPnLPct = (displayPnL / subPortfolioBase) * 100;
   }
 
@@ -585,34 +585,34 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         )}
         <KpiCard
           label="VALORE ALLOCATO"
-          value={`€${displayInvested.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={`€${(Number(displayInvested) || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           sub={selectedTag === 'Tutti' ? "capitale investito negli asset attivi" : "somma capitale investito"}
           color="var(--blue)"
         />
         <KpiCard
           label={selectedTag === 'Tutti' ? "VALORE PORTAFOGLIO" : `VALORE: ${selectedTag.toUpperCase()}`}
-          value={`€${displayTotalValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={`€${(Number(displayTotalValue) || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           sub={selectedTag === 'Tutti' ? "valore attuale totale (equity)" : "valore posizioni attuali"}
           color="var(--text)"
         />
         <KpiCard
           label="P&L TOTALE"
-          value={`${displayPnL >= 0 ? '+' : ''}€${displayPnL.toFixed(0)}`}
-          sub={`${displayPnLPct >= 0 ? '+' : ''}${displayPnLPct.toFixed(2)}%`}
-          color={displayPnL >= 0 ? '#84cc16' : 'var(--red)'}
+          value={`${(Number(displayPnL) || 0) >= 0 ? '+' : ''}€${(Number(displayPnL) || 0).toFixed(0)}`}
+          sub={`${(Number(displayPnLPct) || 0) >= 0 ? '+' : ''}${(Number(displayPnLPct) || 0).toFixed(2)}%`}
+          color={(Number(displayPnL) || 0) >= 0 ? '#84cc16' : 'var(--red)'}
         />
         {selectedTag !== 'Tutti' && (
           <KpiCard
             label="PESO SUL GLOBALE"
-            value={`${((displayTotalValue / Math.max(1, p.totalValue)) * 100).toFixed(1)}%`}
+            value={`${(((Number(displayTotalValue) || 0) / Math.max(1, Number(p.totalValue) || 1)) * 100).toFixed(1)}%`}
             sub="del portafoglio complessivo"
             color="var(--blue)"
           />
         )}
         <KpiCard
           label="LIQUIDITÀ DISPONIBILE"
-          value={`€${p.capitalAvailable.toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
-          sub={`${((p.capitalAvailable / (p.depositedFunds || p.capitalBase || 1)) * 100).toFixed(0)}% dei fondi depositati`}
+          value={`€${(Number(p.capitalAvailable) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
+          sub={`${(((Number(p.capitalAvailable) || 0) / (Number(p.depositedFunds) || Number(p.capitalBase) || 1)) * 100).toFixed(0)}% dei fondi depositati`}
           color="var(--blue)"
         />
         {selectedTag !== 'Tutti' && (
@@ -647,7 +647,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--yellow)', fontFamily: 'var(--font-mono)' }}>%</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>
-              ~€{targetEur.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+              ~€{(Number(targetEur) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}
             </div>
           </div>
         )}
@@ -984,7 +984,7 @@ function GeographicExposureWidget({ positions }: { positions: Position[] }) {
 function SectorDiversificationWidget({ positions }: { positions: Position[] }) {
   const sectorMap = positions.reduce((acc, pos) => {
     const sec = getSector(pos.symbol, pos.name, pos.type);
-    const val = pos.capitalAllocated + (pos.unrealizedPnl || 0);
+    const val = (Number(pos.capitalAllocated) || 0) + (Number(pos.unrealizedPnl) || 0);
     if (!acc[sec]) acc[sec] = { total: 0, assets: [] };
     acc[sec].total += val;
     acc[sec].assets.push({ symbol: pos.symbol, name: pos.name, value: val, logoUrl: pos.logoUrl });
@@ -1049,11 +1049,11 @@ function CoreSatelliteWidget({ positions }: { positions: Position[] }) {
   
   const coreValue = openPos
     .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
-    .reduce((sum, p) => sum + (p.capitalAllocated + (p.unrealizedPnl || 0)), 0);
+    .reduce((sum, p) => sum + ((Number(p.capitalAllocated) || 0) + (Number(p.unrealizedPnl) || 0)), 0);
 
   const satValue = openPos
     .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
-    .reduce((sum, p) => sum + (p.capitalAllocated + (p.unrealizedPnl || 0)), 0);
+    .reduce((sum, p) => sum + ((Number(p.capitalAllocated) || 0) + (Number(p.unrealizedPnl) || 0)), 0);
 
   const total = coreValue + satValue;
   if (total === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun asset Core/Satellite attivo.</div>;
@@ -1080,7 +1080,7 @@ function CoreSatelliteWidget({ positions }: { positions: Position[] }) {
         </div>
       </div>
       <div style={{ fontSize: '10px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
-        Totale allocato: €{total.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+        Totale allocato: €{(Number(total) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}
       </div>
     </div>
   );
