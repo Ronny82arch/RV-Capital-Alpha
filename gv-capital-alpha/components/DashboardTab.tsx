@@ -301,6 +301,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 if (p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
                 return true;
               });
+              const openValue = openPositionsGlobal.reduce((acc, pos) => acc + ((pos.capitalAllocated || 0) + (pos.unrealizedPnl || 0)), 0);
               if (!p.excludeCopyTrading && p.totalValue && p.totalValue > 0) {
                 val = p.totalValue;
               } else {
