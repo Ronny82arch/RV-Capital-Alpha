@@ -59,11 +59,11 @@ export interface Position {
   status: PositionStatus;
   closePrice?: number;
   closeDate?: string;
-  realizedPnl?: number;
-  realizedPnlPercent?: number;
+  realizedPnl: number;
+  realizedPnlPercent: number;
   currentPrice?: number;
-  unrealizedPnl?: number;
-  unrealizedPnlPercent?: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
   tags?: string[];
   logoUrl?: string;
   portfolio?: string;
