@@ -112,9 +112,9 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
 
   const totalInvestmentsValue = totalManualInvested + totalManualPnL + mirrorsEquity;
 
-  const officialTotalEquity = getProp(portfolio, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue');
-  const officialCredit = getProp(portfolio, 'credit', 'Credit');
-  let available = getProp(portfolio, 'availableCash', 'AvailableCash', 'cash', 'Cash', 'availableAmount', 'AvailableAmount');
+  const officialTotalEquity = getProp(portfolio, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue') ?? getProp(data, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue');
+  const officialCredit = getProp(portfolio, 'credit', 'Credit') ?? getProp(data, 'credit', 'Credit');
+  let available = getProp(portfolio, 'availableCash', 'AvailableCash', 'cash', 'Cash', 'availableAmount', 'AvailableAmount') ?? getProp(data, 'availableCash', 'AvailableCash', 'cash', 'Cash');
 
   if (available === undefined || available === null) {
     if (officialCredit !== undefined && officialCredit !== null) {
