@@ -24,17 +24,20 @@ interface Props {
   onToggleCopyTrading?: (exclude: boolean) => Promise<boolean>;
 }
 
-function getTagIcon(tag: string) {
-  const t = tag.toLowerCase();
-  if (t === 'tutti') return <Globe size={48} strokeWidth={1.5} color="var(--blue)" />;
-  if (t === 'da assegnare') return <Briefcase size={48} strokeWidth={1.5} color="var(--red)" />;
-  if (t.includes('core')) return <ShieldCheck size={48} strokeWidth={1.5} color="var(--green)" />;
-  if (t.includes('satellite') || t.includes('satelite')) return <Rocket size={48} strokeWidth={1.5} color="#f59e0b" />;
-  if (t.includes('pac') || t.includes('figli') || t.includes('ginevra') || t.includes('sofia')) return <Baby size={48} strokeWidth={1.5} color="#ec4899" />;
-  if (t.includes('cripto') || t.includes('crypto')) return <Bitcoin size={48} strokeWidth={1.5} color="#f59e0b" />;
-  if (t.includes('azion')) return <TrendingUp size={48} strokeWidth={1.5} color="var(--blue)" />;
-  if (t.includes('fond') || t.includes('etf')) return <BarChart3 size={48} strokeWidth={1.5} color="#8b5cf6" />;
-  return <Briefcase size={48} strokeWidth={1.5} color="var(--text2)" />;
+function getTagIcon(tag: string, size = 48) {
+  const t = (tag || '').toLowerCase();
+  if (t === 'tutti' || t === 'globale' || t === 'global') return <Globe size={size} strokeWidth={1.5} color="var(--blue)" />;
+  if (t === 'da assegnare' || t === 'unassigned') return <Briefcase size={size} strokeWidth={1.5} color="var(--red)" />;
+  if (t.includes('principale') || t.includes('main') || t.includes('master')) return <Compass size={size} strokeWidth={1.5} color="var(--blue)" />;
+  if (t.includes('trading') || t.includes('tbd') || t.includes('specul')) return <Zap size={size} strokeWidth={1.5} color="var(--yellow)" />;
+  if (t.includes('copy') || t.includes('mirror') || t.includes('trader')) return <Users size={size} strokeWidth={1.5} color="var(--purple)" />;
+  if (t.includes('core')) return <ShieldCheck size={size} strokeWidth={1.5} color="var(--green)" />;
+  if (t.includes('satellit') || t.includes('satelite')) return <Rocket size={size} strokeWidth={1.5} color="#f59e0b" />;
+  if (t.includes('pac') || t.includes('figli') || t.includes('ginevra') || t.includes('sofia') || t.includes('pension')) return <Baby size={size} strokeWidth={1.5} color="#ec4899" />;
+  if (t.includes('cripto') || t.includes('crypto') || t.includes('btc')) return <Bitcoin size={size} strokeWidth={1.5} color="#f59e0b" />;
+  if (t.includes('azion') || t.includes('stock') || t.includes('equity')) return <TrendingUp size={size} strokeWidth={1.5} color="var(--blue)" />;
+  if (t.includes('fond') || t.includes('etf') || t.includes('bond')) return <BarChart3 size={size} strokeWidth={1.5} color="#8b5cf6" />;
+  return <Briefcase size={size} strokeWidth={1.5} color="var(--text2)" />;
 }
 
 export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onAssignPortfolio, onUpdateCapitalBase, onUpdateDepositedFunds, onToggleCopyTrading }: Props) {

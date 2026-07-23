@@ -19,6 +19,31 @@ function getHeaders() {
   };
 }
 
+function getProp(obj: any, ...keys: string[]): any {
+  if (!obj) return undefined;
+  for (const k of keys) {
+    if (obj[k] !== undefined) return obj[k];
+    const lower = k.toLowerCase();
+    for (const actualKey of Object.keys(obj)) {
+      if (actualKey.toLowerCase() === lower && obj[actualKey] !== undefined) {
+        return obj[actualKey];
+      }
+    }
+  }
+  return undefined;
+}
+
+function isMirrorPosition(p: any, mirrorPosIds?: Set<number>): boolean {
+  if (!p) return false;
+  const posId = getProp(p, 'positionID', 'PositionID', 'id', 'Id');
+  if (posId && mirrorPosIds && mirrorPosIds.has(Number(posId))) return true;
+  const mId = getProp(p, 'mirrorID', 'MirrorID', 'parentPositionID', 'ParentPositionID');
+  if (mId && mId !== 0 && mId !== '0') return true;
+  const isM = getProp(p, 'isMirror', 'IsMirror');
+  if (isM === true || isM === 'true') return true;
+  return false;
+}
+
 async function fetchEtoroPnL(): Promise<any> {
   const headers = getHeaders();
   
@@ -51,31 +76,48 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
   const data = await fetchEtoroPnL();
   const portfolio = data.clientPortfolio || {};
   
-  const positions = (portfolio.positions || []).filter((p: any) => !p.mirrorID);
-  const totalInvested = positions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-  const totalPnL = positions.reduce((sum: number, p: any) => sum + (p.unrealizedPnL?.pnL || p.unrealizedPnl || 0), 0);
-  
-  // Add mirrors equity to total equity
-  const mirrors = portfolio.mirrors || [];
+  const mirrors = getProp(portfolio, 'mirrors', 'Mirrors') || [];
+  const mirrorPositionIds = new Set<number>();
   let mirrorsEquity = 0;
+
   for (const m of mirrors) {
-    const mirrorPositions = m.positions || [];
-    const mirrorInvested = mirrorPositions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-    const mirrorPnL = mirrorPositions.reduce((sum: number, p: any) => sum + (p.unrealizedPnL?.pnL || p.unrealizedPnl || 0), 0);
-    mirrorsEquity += (m.availableAmount || 0) + (m.closedPositionsNetProfit || 0) + mirrorInvested + mirrorPnL;
+    const mPositions = getProp(m, 'positions', 'Positions') || [];
+    for (const p of mPositions) {
+      const pId = getProp(p, 'positionID', 'PositionID', 'id', 'Id');
+      if (pId) mirrorPositionIds.add(Number(pId));
+    }
+    const mirrorInvested = mPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
+    const mirrorPnL = mPositions.reduce((sum: number, p: any) => {
+      const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
+      return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
+    }, 0);
+    const avail = getProp(m, 'availableAmount', 'AvailableAmount') || 0;
+    const closedProf = getProp(m, 'closedPositionsNetProfit', 'ClosedPositionsNetProfit') || 0;
+    mirrorsEquity += avail + closedProf + mirrorInvested + mirrorPnL;
   }
 
-  // Calculate true available cash
-  // In many eToro API responses, 'credit' represents the TOTAL EQUITY, not just free cash.
-  const totalInvestmentsValue = totalInvested + totalPnL + mirrorsEquity;
-  let available = portfolio.availableCash !== undefined ? portfolio.availableCash : 0;
-  
-  if (available === 0 && portfolio.credit !== undefined) {
-    // If credit is roughly equal to or greater than invested, it's likely the Total Equity.
-    if (portfolio.credit >= totalInvestmentsValue) {
-      available = portfolio.credit - totalInvestmentsValue;
+  const rawPositions = getProp(portfolio, 'positions', 'Positions') || [];
+  const manualPositions = rawPositions.filter((p: any) => !isMirrorPosition(p, mirrorPositionIds));
+
+  const totalManualInvested = manualPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
+  const totalManualPnL = manualPositions.reduce((sum: number, p: any) => {
+    const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
+    return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
+  }, 0);
+
+  const totalInvestmentsValue = totalManualInvested + totalManualPnL + mirrorsEquity;
+
+  let available = getProp(portfolio, 'availableCash', 'AvailableCash');
+  if (available === undefined || available === null) {
+    const credit = getProp(portfolio, 'credit', 'Credit');
+    if (credit !== undefined && credit !== null) {
+      if (credit >= totalInvestmentsValue) {
+        available = credit - totalInvestmentsValue;
+      } else {
+        available = credit;
+      }
     } else {
-      available = portfolio.credit;
+      available = 0;
     }
   }
 
@@ -95,6 +137,7 @@ export async function getEtoroPositions(): Promise<any[]> {
   const data = await fetchEtoroPnL();
   const portfolio = data.clientPortfolio || {};
   const USD_TO_EUR = 1.0;
+
   // Fetch instruments catalog to resolve symbols and names
   let instrumentMap = new Map<number, { symbol: string; name: string; logoUrl: string }>();
   try {
@@ -120,29 +163,25 @@ export async function getEtoroPositions(): Promise<any[]> {
     console.error('Failed to load instrument catalog:', err.message);
   }
 
-    // Raccogli tutti gli ID delle posizioni che appartengono a un Mirror
-    const mirrorPositionIds = new Set<number>();
-    if (portfolio.mirrors) {
-      for (const m of portfolio.mirrors) {
-        if (m.positions) {
-          for (const p of m.positions) {
-            if (p.PositionID) mirrorPositionIds.add(p.PositionID);
-          }
-        }
-      }
+  const mirrors = getProp(portfolio, 'mirrors', 'Mirrors') || [];
+  const mirrorPositionIds = new Set<number>();
+  for (const m of mirrors) {
+    const mPositions = getProp(m, 'positions', 'Positions') || [];
+    for (const p of mPositions) {
+      const pId = getProp(p, 'positionID', 'PositionID', 'id', 'Id');
+      if (pId) mirrorPositionIds.add(Number(pId));
     }
+  }
 
-    // 1. Map manual positions and group them by symbol+direction
-    // Assicuriamoci di escludere TUTTI i trade copiati
-    const manualPositions = (portfolio.positions || []).filter((p: any) => 
-      !p.mirrorID && !p.MirrorID && !p.IsMirror && !mirrorPositionIds.has(p.PositionID)
-    );
+  const rawPositions = getProp(portfolio, 'positions', 'Positions') || [];
+  const manualPositions = rawPositions.filter((p: any) => !isMirrorPosition(p, mirrorPositionIds));
 
   // Concurrently fetch live prices for all unique symbols in manual positions
   let marketPriceMap = new Map<string, number>();
   try {
     const uniqueSymbols = Array.from(new Set(manualPositions.map((p: any) => {
-      const info = instrumentMap.get(p.instrumentID);
+      const instId = getProp(p, 'instrumentID', 'InstrumentID');
+      const info = instrumentMap.get(instId);
       return info ? info.symbol : null;
     }).filter(Boolean))) as string[];
 
@@ -164,20 +203,23 @@ export async function getEtoroPositions(): Promise<any[]> {
   const symbolMap = new Map<string, any>();
 
   manualPositions.forEach((p: any) => {
-    const info = instrumentMap.get(p.instrumentID) || {
-      symbol: String(p.instrumentID),
-      name: `Instrument ${p.instrumentID}`,
-      logoUrl: `https://etoro-cdn.etorostatic.com/market-avatars/${p.instrumentID}/150x150.png`,
+    const instId = getProp(p, 'instrumentID', 'InstrumentID');
+    const info = instrumentMap.get(instId) || {
+      symbol: String(instId),
+      name: `Instrument ${instId}`,
+      logoUrl: `https://etoro-cdn.etorostatic.com/market-avatars/${instId}/150x150.png`,
     };
     const symbol = info.symbol;
-    const direction = p.isBuy ? 'BUY' : 'SELL';
+    const isBuy = getProp(p, 'isBuy', 'IsBuy');
+    const direction = isBuy ? 'BUY' : 'SELL';
     const compositeKey = `${symbol}_${direction}`;
 
-    const capitalAllocated = (p.amount || 0) * USD_TO_EUR;
-    const units = p.units || 0;
-    const openRate = p.openRate || 0;
-    const closeRate = p.unrealizedPnL?.closeRate || openRate || 0;
-    const entryDate = p.openDateTime || new Date().toISOString();
+    const capitalAllocated = (getProp(p, 'amount', 'Amount') || 0) * USD_TO_EUR;
+    const units = getProp(p, 'units', 'Units') || 0;
+    const openRate = getProp(p, 'openRate', 'OpenRate') || 0;
+    const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
+    const closeRate = getProp(pnlObj, 'closeRate', 'CloseRate') || openRate || 0;
+    const entryDate = getProp(p, 'openDateTime', 'OpenDateTime') || new Date().toISOString();
 
     const livePriceEur = marketPriceMap.get(symbol);
     const entryPriceEur = openRate * USD_TO_EUR;
@@ -190,7 +232,7 @@ export async function getEtoroPositions(): Promise<any[]> {
         ? (currentPriceEur - entryPriceEur) * units
         : (entryPriceEur - currentPriceEur) * units;
     } else {
-      unrealizedPnl = (p.unrealizedPnL?.pnL || 0) * USD_TO_EUR;
+      unrealizedPnl = (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0) * USD_TO_EUR;
       currentPriceEur = closeRate * USD_TO_EUR;
     }
 
@@ -207,13 +249,13 @@ export async function getEtoroPositions(): Promise<any[]> {
         entryPrice: entryPriceEur,
         currentPrice: currentPriceEur,
         capitalAllocated,
-        stopLoss: p.stopLossRate || 0,
-        takeProfit: p.takeProfitRate || 0,
+        stopLoss: getProp(p, 'stopLossRate', 'StopLossRate') || 0,
+        takeProfit: getProp(p, 'takeProfitRate', 'TakeProfitRate') || 0,
         entryDate,
         status: 'OPEN',
         unrealizedPnl,
         unrealizedPnlPercent: capitalAllocated > 0 ? (unrealizedPnl / capitalAllocated) * 100 : 0,
-        logoUrl: info.logoUrl || `https://etoro-cdn.etorostatic.com/market-avatars/${p.instrumentID}/150x150.png`,
+        logoUrl: info.logoUrl || `https://etoro-cdn.etorostatic.com/market-avatars/${instId}/150x150.png`,
         // accumulation helpers
         _totalCapital: capitalAllocated,
         _totalPnl: unrealizedPnl,
@@ -260,23 +302,27 @@ export async function getEtoroPositions(): Promise<any[]> {
   });
 
   // 2. Mappa i CopyPortfolios (Mirrors)
-  // Per evitare discrepanze, il currentValue del mirror NON deve includere closedPositionsNetProfit (già incassato)
-  const mappedMirrors = (portfolio.mirrors || []).map((m: any) => {
-    const mirrorPositions = m.positions || [];
+  const mappedMirrors = mirrors.map((m: any) => {
+    const mirrorPositions = getProp(m, 'positions', 'Positions') || [];
     
-    // Somma importi investiti nel copytrader
-    const investedInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) * USD_TO_EUR;
-    const pnlInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (p.unrealizedPnL?.pnL || p.unrealizedPnl || 0), 0) * USD_TO_EUR;
+    const investedInCopy = mirrorPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0) * USD_TO_EUR;
+    const pnlInCopy = mirrorPositions.reduce((sum: number, p: any) => {
+      const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
+      return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
+    }, 0) * USD_TO_EUR;
     
-    // Il valore corrente è: Cash NON investito + Valore posizioni aperte
-    const currentValue = ((m.availableAmount || 0)) * USD_TO_EUR + investedInCopy + pnlInCopy;
-    const initialInvestment = (m.initialInvestment || 1) * USD_TO_EUR;
+    const avail = getProp(m, 'availableAmount', 'AvailableAmount') || 0;
+    const currentValue = (avail * USD_TO_EUR) + investedInCopy + pnlInCopy;
+    const initialInvestment = (getProp(m, 'initialInvestment', 'InitialInvestment') || 1) * USD_TO_EUR;
+    const mId = getProp(m, 'mirrorID', 'MirrorID', 'id', 'Id') || Math.floor(Math.random() * 100000);
+    const username = getProp(m, 'mirrorParentUsername', 'MirrorParentUsername', 'username') || `Mirror ${mId}`;
+    const firstname = getProp(m, 'mirrorParentDisplayFirstname', 'MirrorParentDisplayFirstname', 'firstname') || username;
 
     return {
-      id: `etoro_mirror_${m.mirrorID}`,
-      symbol: m.mirrorParentDisplayFirstname || m.mirrorParentUsername || `Mirror ${m.mirrorID}`,
-      name: `Copy: ${m.mirrorParentUsername || m.mirrorID}`,
-      type: 'CRYPTO', // o ETF
+      id: `etoro_mirror_${mId}`,
+      symbol: firstname || username,
+      name: `Copy: ${username}`,
+      type: 'CRYPTO',
       action: 'BUY',
       quantity: 1,
       entryPrice: initialInvestment,
@@ -285,8 +331,8 @@ export async function getEtoroPositions(): Promise<any[]> {
       unrealizedPnl: currentValue - initialInvestment,
       unrealizedPnlPercent: initialInvestment > 0 ? ((currentValue - initialInvestment) / initialInvestment) * 100 : 0,
       status: 'OPEN',
-      entryDate: m.openDateTime || new Date().toISOString(),
-      logoUrl: m.mirrorParentAvatarUrl || '/placeholder-user.jpg',
+      entryDate: getProp(m, 'openDateTime', 'OpenDateTime') || new Date().toISOString(),
+      logoUrl: getProp(m, 'mirrorParentAvatarUrl', 'MirrorParentAvatarUrl') || '/placeholder-user.jpg',
       avgOpenRate: 1,
     };
   });

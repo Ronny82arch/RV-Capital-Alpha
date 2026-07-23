@@ -381,11 +381,8 @@ export async function recalcPortfolio(portfolio?: PortfolioState): Promise<void>
   let currentTotalValue = p.capitalAvailable;
   p.positions.forEach(pos => {
     if (pos.status === 'OPEN') {
-      const currentPrice = pos.currentPrice || pos.entryPrice;
-      const val = currentPrice * pos.quantity;
-      currentTotalValue += val;
-      pos.unrealizedPnl = (currentPrice - pos.entryPrice) * pos.quantity;
-      pos.unrealizedPnlPercent = ((currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
+      const posEquity = (pos.capitalAllocated || 0) + (pos.unrealizedPnl || 0);
+      currentTotalValue += posEquity;
     }
   });
   p.totalValue = currentTotalValue;
