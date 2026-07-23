@@ -247,7 +247,7 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
             PORTAFOGLIO: {label.toUpperCase()}
           </div>
           <div style={{ fontSize: '28px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
-            €{endValue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+            €{(Number(endValue) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color }}>
             {isPositive ? '+' : ''}€{pnl.toFixed(0)} ({isPositive ? '+' : ''}{pnlPct.toFixed(2)}%)
@@ -308,7 +308,7 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
             <Tooltip 
               contentStyle={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', fontFamily: 'var(--font-mono)' }}
               itemStyle={{ color: 'var(--text)', fontWeight: 'bold' }}
-              formatter={(value: any) => [`€${Number(value).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`, 'Valore']}
+              formatter={(value: any) => [`€${(Number(value) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`, 'Valore']}
               labelStyle={{ color: 'var(--text2)', marginBottom: '4px' }}
             />
             <Area 
