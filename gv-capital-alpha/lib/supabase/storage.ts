@@ -277,7 +277,9 @@ export function defaultPortfolio(): PortfolioState {
 
 export async function cleanPerformanceHistory(): Promise<void> {
   const portfolio = await getPortfolio();
+  portfolio.positions = sanitizePortfolioPositions(portfolio.positions);
   portfolio.performanceHistory = portfolio.performanceHistory.filter(h => h.totalValue !== 30000);
+  await recalcPortfolio(portfolio);
   await savePortfolio(portfolio);
 }
 
@@ -376,8 +378,21 @@ export async function updatePositionTags(positionId: string, tags: string[]): Pr
   await supabaseAdmin.from('positions').update({ tags }).eq('id', positionId);
 }
 
+export function sanitizePortfolioPositions(positions: Position[]): Position[] {
+  const seenIds = new Set<string>();
+  const clean: Position[] = [];
+  for (const p of positions || []) {
+    if (!p.id) continue;
+    if (seenIds.has(p.id)) continue;
+    seenIds.add(p.id);
+    clean.push(p);
+  }
+  return clean;
+}
+
 export async function recalcPortfolio(portfolio?: PortfolioState): Promise<void> {
   const p = portfolio || await getPortfolio();
+  p.positions = sanitizePortfolioPositions(p.positions);
   let currentTotalValue = p.capitalAvailable;
   p.positions.forEach(pos => {
     if (pos.status === 'OPEN') {
@@ -412,7 +427,7 @@ export async function syncEtoroPortfolio(): Promise<void> {
 
   // Attach tags and portfolios
   const finalPositions: Position[] = ePositions.map(p => {
-    const isCopy = p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ');
+    const isCopy = p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ') || p.name.startsWith('Copy:');
     
     let assignedPortfolio = existingPortfolios.get(p.symbol);
     if (!assignedPortfolio) {
@@ -426,20 +441,23 @@ export async function syncEtoroPortfolio(): Promise<void> {
     };
   });
 
-  // Preserve ONLY truly manual assets: exclude eToro-imported ones
-  // AND exclude old mock/demo positions (id starting with 'd' followed by a digit)
+  // Preserve ONLY truly manual custom assets created inside the app: exclude eToro-imported ones
+  // AND exclude old mock/demo positions
   const { v5: uuidv5 } = await import('uuid');
   const ETORO_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
   const manualPositions = portfolio.positions.filter(p => {
-    if (p.symbol.startsWith('COPY:') || p.name.startsWith('Copia ')) return false;
+    if (!p.id) return false;
+    if (p.id.startsWith('etoro_')) return false;
+    if (p.symbol.startsWith('COPY:') || p.symbol.startsWith('Copy:')) return false;
+    if (p.name.startsWith('Copia ') || p.name.startsWith('Copy:')) return false;
     if (p.id === uuidv5(`etoro_${p.symbol}_${p.action}`, ETORO_NAMESPACE)) return false;
     if (/^d\d+$/.test(p.id)) return false;
     return true;
   });
 
   // Merge: manual first, then fresh eToro positions
-  portfolio.positions = [...manualPositions, ...finalPositions];
+  portfolio.positions = sanitizePortfolioPositions([...manualPositions, ...finalPositions]);
 
   // capitalBase = total capital invested in open positions (meaningful for % P&L)
   // Only set if still at default 30000 or zero (preserve user-set value)
