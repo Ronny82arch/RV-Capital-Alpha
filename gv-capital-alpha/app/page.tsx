@@ -77,7 +77,7 @@ export default function Home() {
   const tickPrices = useCallback(async () => {
     const currentPortfolio = portfolioRef.current;
     if (!currentPortfolio || !currentPortfolio.positions || currentPortfolio.positions.length === 0) return;
-    const openPos = currentPortfolio.positions.filter(p => p.status === 'OPEN' && !p.id.startsWith('etoro_mirror_'));
+    const openPos = currentPortfolio.positions.filter(p => p.status === 'OPEN' && !p.id?.startsWith('etoro_mirror_'));
     if (openPos.length === 0) return;
     const uniqueSymbols = Array.from(new Set(openPos.map(p => p.symbol)));
     try {
@@ -87,7 +87,7 @@ export default function Home() {
         setPortfolio(prev => {
           if (!prev) return null;
           const updatedPositions = prev.positions.map(pos => {
-            if (pos.status === 'OPEN' && !pos.id.startsWith('etoro_mirror_')) {
+            if (pos.status === 'OPEN' && !pos.id?.startsWith('etoro_mirror_')) {
               const livePrice = json.prices[pos.symbol];
               if (livePrice !== undefined) {
                 const unrealized = pos.action === 'BUY'
@@ -108,7 +108,7 @@ export default function Home() {
           // Recalculate totals
           const openPositions = updatedPositions.filter(pos => {
             if (pos.status !== 'OPEN') return false;
-            if (prev.excludeCopyTrading && pos.id.startsWith('etoro_mirror_')) return false;
+            if (prev.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
             return true;
           });
 

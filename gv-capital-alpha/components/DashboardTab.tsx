@@ -296,16 +296,16 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             let val = 0;
 
             if (tag === 'Tutti') {
-              const openPositionsGlobal = p.positions.filter(pos => {
+              const openPositionsGlobal = (p.positions || []).filter(pos => {
                 if (pos.status !== 'OPEN') return false;
                 if (p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
                 return true;
               });
-              const openValue = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
-              val = p.capitalAvailable + openValue;
+              const openValue = openPositionsGlobal.reduce((acc, pos) => acc + ((pos.capitalAllocated || 0) + (pos.unrealizedPnl || 0)), 0);
+              val = (p.capitalAvailable || 0) + openValue;
 
               const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
-              const totalRealizedPnL = p.positions
+              const totalRealizedPnL = (p.positions || [])
                 .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')))
                 .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
               const totalPnL = totalUnrealizedPnL + totalRealizedPnL;
@@ -422,21 +422,21 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   let displayInvested = 0;
 
   if (selectedTag === 'Tutti') {
-    const openPositionsGlobal = p.positions.filter(pos => {
+    const openPositionsGlobal = (p.positions || []).filter(pos => {
       if (pos.status !== 'OPEN') return false;
       if (p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')) return false;
       return true;
     });
     displayInvested = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
-    const openValue = openPositionsGlobal.reduce((acc, pos) => acc + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
+    const openValue = openPositionsGlobal.reduce((acc, pos) => acc + ((pos.capitalAllocated || 0) + (pos.unrealizedPnl || 0)), 0);
     if (!p.excludeCopyTrading && p.totalValue && p.totalValue > 0) {
       displayTotalValue = p.totalValue;
     } else {
-      displayTotalValue = p.capitalAvailable + openValue;
+      displayTotalValue = (p.capitalAvailable || 0) + openValue;
     }
 
     const totalUnrealizedPnL = openPositionsGlobal.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
-    const totalRealizedPnL = p.positions
+    const totalRealizedPnL = (p.positions || [])
       .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')))
       .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
     displayPnL = totalUnrealizedPnL + totalRealizedPnL;
