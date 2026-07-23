@@ -22,9 +22,20 @@ export async function GET() {
         const { getEtoroBalance } = await import('@/lib/etoro');
         const balance = await getEtoroBalance();
         if (balance && typeof balance.AvailableBalance === 'number') {
+          let updated = false;
           if (portfolio.capitalAvailable !== balance.AvailableBalance) {
             portfolio.capitalAvailable = balance.AvailableBalance;
+            updated = true;
+          }
+          if (balance.TotalEquity && balance.TotalEquity > 0 && portfolio.totalValue !== balance.TotalEquity) {
+            portfolio.totalValue = balance.TotalEquity;
+            updated = true;
+          }
+          if (updated) {
             await recalcPortfolio(portfolio);
+            if (balance.TotalEquity && balance.TotalEquity > 0) {
+              portfolio.totalValue = balance.TotalEquity;
+            }
             await savePortfolio(portfolio);
           }
         }

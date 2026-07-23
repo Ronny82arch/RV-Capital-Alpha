@@ -394,16 +394,19 @@ export function sanitizePortfolioPositions(positions: Position[]): Position[] {
 export async function recalcPortfolio(portfolio?: PortfolioState): Promise<void> {
   const p = portfolio || await getPortfolio();
   p.positions = sanitizePortfolioPositions(p.positions);
-  let currentTotalValue = p.capitalAvailable;
+  let currentTotalValue = (p.capitalAvailable || 0);
   p.positions.forEach(pos => {
     if (pos.status === 'OPEN') {
-      const posEquity = (pos.capitalAllocated || 0) + (pos.unrealizedPnl || 0);
+      const posEquity = (Number(pos.capitalAllocated) || 0) + (Number(pos.unrealizedPnl) || 0);
       currentTotalValue += posEquity;
     }
   });
-  p.totalValue = currentTotalValue;
-  p.totalPnL = p.totalValue - p.capitalBase;
-  p.totalPnLPercent = p.capitalBase > 0 ? (p.totalPnL / p.capitalBase) * 100 : 0;
+  if (!p.totalValue || p.totalValue === 0) {
+    p.totalValue = currentTotalValue;
+  }
+  const baseFunds = p.depositedFunds || p.capitalBase || 1;
+  p.totalPnL = p.totalValue - baseFunds;
+  p.totalPnLPercent = baseFunds > 0 ? (p.totalPnL / baseFunds) * 100 : 0;
   if (!portfolio) await savePortfolio(p);
 }
 
