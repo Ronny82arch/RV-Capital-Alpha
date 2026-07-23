@@ -72,6 +72,19 @@ async function fetchEtoroPnL(): Promise<any> {
   return await res.json();
 }
 
+function getPnLValue(p: any): number {
+  if (!p) return 0;
+  const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL', 'pnl', 'PnL');
+  if (typeof pnlObj === 'number') return pnlObj;
+  if (pnlObj && typeof pnlObj === 'object') {
+    const val = getProp(pnlObj, 'pnL', 'PnL', 'pnl', 'value', 'Value', 'netProfit', 'NetProfit', 'unrealizedPnL', 'UnrealizedPnL');
+    if (typeof val === 'number') return val;
+  }
+  const directPnL = getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'pnL', 'PnL', 'netProfit', 'NetProfit');
+  if (typeof directPnL === 'number') return directPnL;
+  return 0;
+}
+
 export async function getEtoroBalance(): Promise<EtoroBalance> {
   const data = await fetchEtoroPnL();
   const portfolio = data.clientPortfolio || {};
@@ -91,10 +104,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
       mirrorsEquity += Number(mirrorVal);
     } else {
       const mirrorInvested = mPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
-      const mirrorPnL = mPositions.reduce((sum: number, p: any) => {
-        const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
-        return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
-      }, 0);
+      const mirrorPnL = mPositions.reduce((sum: number, p: any) => sum + getPnLValue(p), 0);
       const avail = getProp(m, 'availableAmount', 'AvailableAmount') || 0;
       const closedProf = getProp(m, 'closedPositionsNetProfit', 'ClosedPositionsNetProfit') || 0;
       mirrorsEquity += avail + closedProf + mirrorInvested + mirrorPnL;
@@ -105,15 +115,13 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
   const manualPositions = rawPositions.filter((p: any) => !isMirrorPosition(p, mirrorPositionIds));
 
   const totalManualInvested = manualPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
-  const totalManualPnL = manualPositions.reduce((sum: number, p: any) => {
-    const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
-    return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
-  }, 0);
+  const totalManualPnL = manualPositions.reduce((sum: number, p: any) => sum + getPnLValue(p), 0);
 
   const totalInvestmentsValue = totalManualInvested + totalManualPnL + mirrorsEquity;
 
   const officialTotalEquity = getProp(portfolio, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue') ?? getProp(data, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue');
-  const officialCredit = getProp(portfolio, 'credit', 'Credit') ?? getProp(data, 'credit', 'Credit');
+  const officialCredit = getProp(portfolio, 'credit', 'Credit', 'availableCash', 'AvailableCash', 'cash', 'Cash') ?? getProp(data, 'credit', 'Credit', 'availableCash', 'AvailableCash');
+  
   let available = getProp(portfolio, 'availableCash', 'AvailableCash', 'cash', 'Cash', 'availableAmount', 'AvailableAmount') ?? getProp(data, 'availableCash', 'AvailableCash', 'cash', 'Cash');
 
   if (available === undefined || available === null) {
