@@ -154,6 +154,13 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
   
   // Positions
   if (state.positions.length > 0) {
+    const activeIds = state.positions.map(p => p.id);
+    await supabaseAdmin
+      .from('positions')
+      .delete()
+      .eq('portfolio_id', DEFAULT_PORTFOLIO_ID)
+      .not('id', 'in', `(${activeIds.map(id => `"${id}"`).join(',')})`);
+
     const posRows = state.positions.map(p => ({
       id: p.id,
       portfolio_id: DEFAULT_PORTFOLIO_ID,
@@ -180,6 +187,8 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
       custom_portfolio_name: p.portfolio
     }));
     await supabaseAdmin.from('positions').upsert(posRows);
+  } else {
+    await supabaseAdmin.from('positions').delete().eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
   }
 
   // Signals
@@ -420,6 +429,9 @@ export async function syncEtoroPortfolio(): Promise<void> {
   
   const portfolio = await getPortfolio();
   portfolio.capitalAvailable = balance.AvailableBalance;
+
+  // Clear out old positions table entries before saving fresh sync
+  await supabaseAdmin.from('positions').delete().eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
 
   // Create a map of existing tags and portfolios to preserve them
   const existingTags = new Map<string, string[]>();
