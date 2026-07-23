@@ -462,6 +462,7 @@ export async function syncEtoroPortfolio(): Promise<void> {
     if (p.name.startsWith('Copia ') || p.name.startsWith('Copy:')) return false;
     if (p.id === uuidv5(`etoro_${p.symbol}_${p.action}`, ETORO_NAMESPACE)) return false;
     if (/^d\d+$/.test(p.id)) return false;
+    if (ePositions.some(ep => ep.id === p.id)) return false;
     return true;
   });
 

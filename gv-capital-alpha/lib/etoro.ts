@@ -349,7 +349,7 @@ export async function getEtoroPositions(): Promise<any[]> {
     const firstname = getProp(m, 'mirrorParentDisplayFirstname', 'MirrorParentDisplayFirstname', 'firstname') || username;
 
     return {
-      id: `etoro_mirror_${mId}`,
+      id: uuidv5(`etoro_mirror_${mId}`, ETORO_NAMESPACE),
       symbol: firstname || username,
       name: `Copy: ${username}`,
       type: 'CRYPTO',
