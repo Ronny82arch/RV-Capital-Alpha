@@ -86,14 +86,19 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
       const pId = getProp(p, 'positionID', 'PositionID', 'id', 'Id');
       if (pId) mirrorPositionIds.add(Number(pId));
     }
-    const mirrorInvested = mPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
-    const mirrorPnL = mPositions.reduce((sum: number, p: any) => {
-      const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
-      return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
-    }, 0);
-    const avail = getProp(m, 'availableAmount', 'AvailableAmount') || 0;
-    const closedProf = getProp(m, 'closedPositionsNetProfit', 'ClosedPositionsNetProfit') || 0;
-    mirrorsEquity += avail + closedProf + mirrorInvested + mirrorPnL;
+    const mirrorVal = getProp(m, 'value', 'Value', 'equity', 'Equity', 'amount', 'Amount');
+    if (mirrorVal !== undefined && mirrorVal !== null && Number(mirrorVal) > 0) {
+      mirrorsEquity += Number(mirrorVal);
+    } else {
+      const mirrorInvested = mPositions.reduce((sum: number, p: any) => sum + (getProp(p, 'amount', 'Amount') || 0), 0);
+      const mirrorPnL = mPositions.reduce((sum: number, p: any) => {
+        const pnlObj = getProp(p, 'unrealizedPnL', 'UnrealizedPnL');
+        return sum + (getProp(pnlObj, 'pnL', 'PnL') || getProp(p, 'unrealizedPnl', 'unrealizedPnL', 'PnL') || 0);
+      }, 0);
+      const avail = getProp(m, 'availableAmount', 'AvailableAmount') || 0;
+      const closedProf = getProp(m, 'closedPositionsNetProfit', 'ClosedPositionsNetProfit') || 0;
+      mirrorsEquity += avail + closedProf + mirrorInvested + mirrorPnL;
+    }
   }
 
   const rawPositions = getProp(portfolio, 'positions', 'Positions') || [];
@@ -107,23 +112,27 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
 
   const totalInvestmentsValue = totalManualInvested + totalManualPnL + mirrorsEquity;
 
-  const officialCredit = getProp(portfolio, 'credit', 'Credit', 'totalEquity', 'TotalEquity');
-  let available = getProp(portfolio, 'availableCash', 'AvailableCash', 'cash', 'Cash');
-  let equity = 0;
+  const officialTotalEquity = getProp(portfolio, 'totalEquity', 'TotalEquity', 'equity', 'Equity', 'accountValue', 'AccountValue');
+  const officialCredit = getProp(portfolio, 'credit', 'Credit');
+  let available = getProp(portfolio, 'availableCash', 'AvailableCash', 'cash', 'Cash', 'availableAmount', 'AvailableAmount');
 
-  if (officialCredit !== undefined && officialCredit !== null && Number(officialCredit) > 0) {
-    equity = Number(officialCredit);
-    if (available === undefined || available === null) {
-      available = Math.max(0, equity - totalInvestmentsValue);
+  if (available === undefined || available === null) {
+    if (officialCredit !== undefined && officialCredit !== null) {
+      available = Number(officialCredit);
     }
+  }
+
+  let equity = 0;
+  if (officialTotalEquity !== undefined && officialTotalEquity !== null && Number(officialTotalEquity) > 0) {
+    equity = Number(officialTotalEquity);
   } else {
-    available = available || 0;
+    available = Number(available) || 0;
     equity = available + totalInvestmentsValue;
   }
 
   const USD_TO_EUR = 1.0;
-  const availableEur = available * USD_TO_EUR;
-  const equityEur = equity * USD_TO_EUR;
+  const availableEur = (Number(available) || 0) * USD_TO_EUR;
+  const equityEur = (Number(equity) || 0) * USD_TO_EUR;
 
   return {
     AvailableBalance: availableEur,
