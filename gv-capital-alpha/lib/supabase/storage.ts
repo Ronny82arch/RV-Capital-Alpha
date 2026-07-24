@@ -181,7 +181,11 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
       tags: p.tags,
       custom_portfolio_name: p.portfolio
     }));
-    await supabaseAdmin.from('positions').upsert(posRows);
+    const { error: upsertErr } = await supabaseAdmin.from('positions').upsert(posRows);
+    if (upsertErr) {
+      console.error('POSITIONS UPSERT ERROR:', upsertErr);
+      throw new Error(`Positions upsert failed: ${upsertErr.message} - Details: ${upsertErr.details} - Hint: ${upsertErr.hint}`);
+    }
   }
 
   // Signals
