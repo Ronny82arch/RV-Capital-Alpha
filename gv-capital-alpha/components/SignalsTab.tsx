@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PortfolioState, Signal } from '@/types';
 
 interface Props {
@@ -15,7 +15,17 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
   const signals = portfolio?.signals ?? [];
   const pending = signals.filter(s => s.status === 'PENDING');
   const history = signals.filter(s => s.status !== 'PENDING');
-  const aiMode = portfolio?.aiMode || 'STRICT';
+  
+  const [localAiMode, setLocalAiMode] = useState<'STRICT'|'DYNAMIC'>(portfolio?.aiMode || 'STRICT');
+
+  useEffect(() => {
+    setLocalAiMode(portfolio?.aiMode || 'STRICT');
+  }, [portfolio?.aiMode]);
+
+  const handleModeChange = async (mode: 'STRICT' | 'DYNAMIC') => {
+    setLocalAiMode(mode);
+    if (onUpdateAiMode) await onUpdateAiMode(mode);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -25,24 +35,24 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
           display: 'flex', padding: '4px', gap: '4px' 
         }}>
           <button 
-            onClick={() => onUpdateAiMode?.('STRICT')}
+            onClick={() => handleModeChange('STRICT')}
             style={{
               padding: '6px 12px', borderRadius: '16px', border: 'none',
               fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold',
-              background: aiMode === 'STRICT' ? 'var(--blue)' : 'transparent',
-              color: aiMode === 'STRICT' ? '#fff' : 'var(--text3)',
+              background: localAiMode === 'STRICT' ? 'var(--blue)' : 'transparent',
+              color: localAiMode === 'STRICT' ? '#fff' : 'var(--text3)',
               transition: 'all 0.2s', cursor: 'pointer'
             }}
           >
             🎯 SNIPER (STRICT)
           </button>
           <button 
-            onClick={() => onUpdateAiMode?.('DYNAMIC')}
+            onClick={() => handleModeChange('DYNAMIC')}
             style={{
               padding: '6px 12px', borderRadius: '16px', border: 'none',
               fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold',
-              background: aiMode === 'DYNAMIC' ? 'var(--green)' : 'transparent',
-              color: aiMode === 'DYNAMIC' ? '#111' : 'var(--text3)',
+              background: localAiMode === 'DYNAMIC' ? 'var(--green)' : 'transparent',
+              color: localAiMode === 'DYNAMIC' ? '#111' : 'var(--text3)',
               transition: 'all 0.2s', cursor: 'pointer'
             }}
           >
