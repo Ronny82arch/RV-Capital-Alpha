@@ -34,7 +34,13 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+  let targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+  
+  // Aggiungo i parametri all'URL nel caso in cui l'app debba essere riaperta da zero
+  const titleEnc = encodeURIComponent(event.notification.title || '');
+  const bodyEnc = encodeURIComponent(event.notification.body || '');
+  const separator = targetUrl.includes('?') ? '&' : '?';
+  const urlWithParams = `${targetUrl}${separator}notify_title=${titleEnc}&notify_body=${bodyEnc}`;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -44,11 +50,16 @@ self.addEventListener('notificationclick', (event) => {
           if (action === 'rebalance') {
              client.postMessage({ type: 'FORCE_REBALANCE' });
           }
+          // Se l'app è già aperta, le mando subito i dati per aprire il modale
+          client.postMessage({ 
+            type: 'SHOW_NOTIFICATION_MODAL', 
+            payload: { title: event.notification.title, body: event.notification.body }
+          });
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(urlWithParams);
       }
     })
   );

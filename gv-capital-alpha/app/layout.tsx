@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import GlobalNotificationModal from '@/components/GlobalNotificationModal';
 
 export const metadata: Metadata = {
   title: 'RV Capital Alpha',
@@ -25,7 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#000000" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <GlobalNotificationModal />
+      </body>
     </html>
   );
 }
