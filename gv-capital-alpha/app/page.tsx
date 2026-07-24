@@ -445,6 +445,18 @@ export default function Home() {
     return data.success;
   };
 
+  const handleUpdateAiMode = async (aiMode: 'STRICT' | 'DYNAMIC') => {
+    const res = await fetch('/api/portfolio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'update_ai_mode', aiMode }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -482,6 +494,7 @@ export default function Home() {
             onReject={handleReject}
             onScan={handleScan}
             scanning={scanning}
+            onUpdateAiMode={handleUpdateAiMode}
           />
         )}
         {tab === 'positions' && (

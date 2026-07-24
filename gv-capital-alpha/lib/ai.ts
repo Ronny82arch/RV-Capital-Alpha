@@ -119,9 +119,16 @@ export function findPromisingCandidatesBatch(
   const available  = analyses.filter(a => !openSet.has(a.market.symbol));
   const skippedUntrusted: string[] = [];
 
+  const aiMode = portfolio.aiMode || 'STRICT';
+  const minWinProb = aiMode === 'STRICT' ? 0.55 : 0.52;
+  const requiresTrusted = aiMode === 'STRICT' ? true : false;
+
   const bullish = available.filter(a => {
     if (a.trend !== 'BULLISH') return false;
-    if (!a.winProbabilityTrusted || a.winProbability <= 0.55) {
+    
+    // Filtro dinamico in base all'aiMode
+    const isTrusted = requiresTrusted ? a.winProbabilityTrusted : true;
+    if (!isTrusted || a.winProbability <= minWinProb) {
       skippedUntrusted.push(a.market.symbol);
       return false;
     }

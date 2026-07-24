@@ -101,6 +101,8 @@ async function runScan() {
       analyses, portfolio, correlationMatrix
     );
 
+    const aiMode = portfolio.aiMode || 'STRICT';
+    
     // ── Daily summary Telegram ───────────────────────────────────────────────
     await notifyDailySummary(
       portfolio.totalValue,
@@ -112,7 +114,7 @@ async function runScan() {
     if (candidates.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'Nessun segnale: nessun setup con probabilità storicamente validata (≥30 osservazioni, >55%) e decorrelato dalle posizioni aperte.',
+        message: `Nessun segnale [Modo: ${aiMode}]: nessun setup con probabilità >${aiMode === 'STRICT' ? '55' : '52'}% e decorrelato dalle posizioni aperte.`,
         scanned: analyses.length,
         skippedForCorrelation,
         skippedUntrusted,

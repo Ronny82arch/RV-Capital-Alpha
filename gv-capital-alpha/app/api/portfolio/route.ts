@@ -121,6 +121,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'Target aggiornati', data: portfolio });
     }
 
+    if (body.type === 'update_ai_mode') {
+      const { aiMode } = body;
+      const portfolio = await getPortfolio();
+      portfolio.aiMode = aiMode;
+      await savePortfolio(portfolio);
+      return NextResponse.json({ success: true, message: `Modalità AI aggiornata a ${aiMode}`, data: portfolio });
+    }
+
     if (!process.env.ETORO_API_KEY || !process.env.ETORO_USER_KEY) {
       return NextResponse.json({ success: false, error: 'Chiavi API eToro non configurate' }, { status: 400 });
     }

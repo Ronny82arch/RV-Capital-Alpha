@@ -102,6 +102,7 @@ export interface PortfolioState {
   depositedFunds?: number;
   excludeCopyTrading?: boolean;
   targets?: Record<string, number>;
+  aiMode?: 'STRICT' | 'DYNAMIC';
 }
 
 
