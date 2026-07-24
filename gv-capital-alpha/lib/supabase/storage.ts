@@ -25,6 +25,7 @@ function mapToPortfolioState(
     totalPnL: Number(p.total_pnl || 0),
     totalPnLPercent: 0, // Recalculated dynamically if needed
     targetAnnualReturn: Number(p.target_annual_return || 0.25),
+    aiMode: (p.ai_mode === 'DYNAMIC' ? 'DYNAMIC' : 'STRICT'),
     startDate: p.start_date || new Date().toISOString(),
     aiManagedTags: p.active_assets || [],
     customPortfolios: p.custom_portfolios || [],
@@ -143,6 +144,7 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
     total_value: state.totalValue,
     total_pnl: state.totalPnL,
     target_annual_return: state.targetAnnualReturn,
+    ai_mode: state.aiMode || 'STRICT',
     start_date: state.startDate,
     active_assets: state.aiManagedTags || [],
     custom_portfolios: state.customPortfolios || [],
