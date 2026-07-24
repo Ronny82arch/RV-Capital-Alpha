@@ -8,15 +8,49 @@ interface Props {
   onReject: (signalId: string) => void;
   onScan: () => void;
   scanning: boolean;
+  onUpdateAiMode?: (mode: 'STRICT' | 'DYNAMIC') => Promise<boolean>;
 }
 
-export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, scanning }: Props) {
+export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, scanning, onUpdateAiMode }: Props) {
   const signals = portfolio?.signals ?? [];
   const pending = signals.filter(s => s.status === 'PENDING');
   const history = signals.filter(s => s.status !== 'PENDING');
+  const aiMode = portfolio?.aiMode || 'STRICT';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ 
+          background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '20px', 
+          display: 'flex', padding: '4px', gap: '4px' 
+        }}>
+          <button 
+            onClick={() => onUpdateAiMode?.('STRICT')}
+            style={{
+              padding: '6px 12px', borderRadius: '16px', border: 'none',
+              fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold',
+              background: aiMode === 'STRICT' ? 'var(--blue)' : 'transparent',
+              color: aiMode === 'STRICT' ? '#fff' : 'var(--text3)',
+              transition: 'all 0.2s', cursor: 'pointer'
+            }}
+          >
+            🎯 SNIPER (STRICT)
+          </button>
+          <button 
+            onClick={() => onUpdateAiMode?.('DYNAMIC')}
+            style={{
+              padding: '6px 12px', borderRadius: '16px', border: 'none',
+              fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold',
+              background: aiMode === 'DYNAMIC' ? 'var(--green)' : 'transparent',
+              color: aiMode === 'DYNAMIC' ? '#111' : 'var(--text3)',
+              transition: 'all 0.2s', cursor: 'pointer'
+            }}
+          >
+            🌊 DINAMICA (LESS RESTRICTIVE)
+          </button>
+        </div>
+      </div>
+
       {pending.length === 0 && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0, 212, 170, 0.1)', padding: '6px 14px', borderRadius: '20px', border: '1px solid #00d4aa33' }}>
