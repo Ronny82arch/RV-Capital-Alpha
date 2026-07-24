@@ -138,7 +138,7 @@ export async function getEtoroBalance(): Promise<EtoroBalance> {
     equity = Number(officialTotalEquity);
   } else {
     available = Number(available) || 0;
-    equity = available + totalInvestmentsValue;
+    equity = available + totalInvestmentsValue + mirrorsEquity;
   }
 
   const USD_TO_EUR = await getUsdToEurRate();
