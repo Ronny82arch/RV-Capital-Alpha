@@ -107,7 +107,7 @@ export function findPromisingCandidatesBatch(
   analyses: AnalyzedAsset[],
   portfolio: PortfolioState,
   correlationMatrix: CorrelationMatrix,
-  maxPositions = 5,
+  maxPositions = 30,
   correlationThreshold = 0.70
 ): CandidatesBatchResult {
   const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
@@ -120,7 +120,7 @@ export function findPromisingCandidatesBatch(
   const skippedUntrusted: string[] = [];
 
   const aiMode = portfolio.aiMode || 'STRICT';
-  const minWinProb = aiMode === 'STRICT' ? 0.55 : 0.52;
+  const minWinProb = aiMode === 'STRICT' ? 0.55 : 0.50;
   const requiresTrusted = aiMode === 'STRICT' ? true : false;
 
   const bullish = available.filter(a => {

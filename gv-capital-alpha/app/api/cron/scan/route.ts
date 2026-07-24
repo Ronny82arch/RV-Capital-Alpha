@@ -114,7 +114,7 @@ async function runScan() {
     if (candidates.length === 0) {
       return NextResponse.json({
         success: true,
-        message: `Nessun segnale [Modo: ${aiMode}]: nessun setup con probabilità >${aiMode === 'STRICT' ? '55' : '52'}% e decorrelato dalle posizioni aperte.`,
+        message: `Nessun segnale [Modo: ${aiMode}]: nessun setup con probabilità >${aiMode === 'STRICT' ? '55' : '50'}% e decorrelato dalle posizioni aperte.`,
         scanned: analyses.length,
         skippedForCorrelation,
         skippedUntrusted,
