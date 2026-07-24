@@ -77,6 +77,28 @@ export const WATCHLIST: WatchlistItem[] = [
 // (Lines between 25 and 131 remain unchanged)
 
 
+// ─── EXCHANGE RATE CACHE ────────────────────────────────────────────────────────
+let cachedUsdRate = 0.963;
+let lastRateFetch = 0;
+
+export async function getUsdToEurRate(): Promise<number> {
+  if (Date.now() - lastRateFetch < 3600000) return cachedUsdRate; // 1 hour cache
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.rates && typeof data.rates.EUR === 'number') {
+        cachedUsdRate = data.rates.EUR;
+        lastRateFetch = Date.now();
+        return cachedUsdRate;
+      }
+    }
+  } catch (err: any) {
+    console.warn('[market] Exchange rate fetch failed, using fallback:', err.message);
+  }
+  return cachedUsdRate;
+}
+
 // ─── YAHOO FINANCE ────────────────────────────────────────────────────────────
 export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData | null> {
   const yahooSymbol = item.yahooSymbol || item.symbol;
@@ -95,7 +117,7 @@ export async function fetchYahooFinance(item: WatchlistItem): Promise<MarketData
 
     const meta = result.meta;
     const currency = meta.currency || 'USD';
-    const rate = currency.toUpperCase() === 'USD' ? 0.92 : 1.0;
+    const rate = currency.toUpperCase() === 'USD' ? await getUsdToEurRate() : 1.0;
 
     const timestamps: number[] = result.timestamp || [];
     const closes: number[] = result.indicators?.quote?.[0]?.close || [];

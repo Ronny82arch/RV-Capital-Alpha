@@ -1,4 +1,5 @@
 import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
+import { getUsdToEurRate } from './market';
 
 const ETORO_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
@@ -72,20 +73,7 @@ async function fetchEtoroPnL(): Promise<any> {
   return await res.json();
 }
 
-async function getUsdToEurRate(): Promise<number> {
-  try {
-    const res = await fetch('https://open.er-api.com/v6/latest/USD');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.rates && typeof data.rates.EUR === 'number') {
-        return data.rates.EUR;
-      }
-    }
-  } catch (err: any) {
-    console.warn('[eToro] Exchange rate fetch failed, using fallback:', err.message);
-  }
-  return 0.963; // Fallback rate aligned with eToro EUR account display
-}
+// getUsdToEurRate importata da market.ts
 
 function getPnLValue(p: any): number {
   if (!p) return 0;
