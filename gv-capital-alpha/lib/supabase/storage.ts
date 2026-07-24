@@ -155,11 +155,14 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
   // Positions: delete all existing positions for default portfolio to avoid stale duplicates
   await supabaseAdmin.from('positions').delete().eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isValidUUID = (id?: string) => id ? UUID_REGEX.test(id) : false;
+
   if (state.positions.length > 0) {
-    const posRows = state.positions.map(p => ({
+    const posRows = state.positions.filter(p => isValidUUID(p.id)).map(p => ({
       id: p.id,
       portfolio_id: DEFAULT_PORTFOLIO_ID,
-      signal_id: p.signalId || null,
+      signal_id: isValidUUID(p.signalId) ? p.signalId : null,
       symbol: p.symbol,
       name: p.name,
       type: p.type,
@@ -461,6 +464,8 @@ export async function syncEtoroPortfolio(): Promise<void> {
 
   const manualPositions = portfolio.positions.filter(p => {
     if (!p.id) return false;
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(p.id)) return false;
     if (p.id.startsWith('etoro_')) return false;
     if (p.symbol.startsWith('COPY:') || p.symbol.startsWith('Copy:')) return false;
     if (p.name.startsWith('Copia ') || p.name.startsWith('Copy:')) return false;
