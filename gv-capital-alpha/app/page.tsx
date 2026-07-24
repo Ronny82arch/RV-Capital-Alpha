@@ -161,7 +161,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(tickPrices, 3000); // Ticker locale ogni 3 secondi (senza chiamate DB!)
+    const interval = setInterval(tickPrices, 1500); // Ticker locale ogni 1.5 secondi (live price)
     return () => clearInterval(interval);
   }, []);
 
@@ -202,7 +202,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(tickMarket, 6000); // Ticker mercato ogni 6 secondi (cache a 5s per Yahoo, 15s per Crypto)
+    const interval = setInterval(tickMarket, 2500); // Ticker mercato ogni 2.5 secondi
     return () => clearInterval(interval);
   }, [tickMarket]);
 
