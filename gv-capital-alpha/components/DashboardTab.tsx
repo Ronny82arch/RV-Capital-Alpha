@@ -287,8 +287,11 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
           </div>
         )}
 
-        <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '12px', textAlign: 'center' }}>
+        <div style={{ fontSize: '22px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--text)', marginBottom: '4px', textAlign: 'center' }}>
           Seleziona il Portafoglio
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text3)', textAlign: 'center', marginBottom: '12px', maxWidth: '500px', margin: '0 auto 12px' }}>
+          "Globale" include la liquidità non investita. Gli altri portafogli mostrano solo il valore delle posizioni assegnate.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '20px', width: '100%', maxWidth: '700px' }}>
           {allTags.map(tag => {
@@ -340,6 +343,9 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               <button
                 key={tag}
                 onClick={() => setSelectedTag(tag)}
+                title={tag === 'Tutti' 
+                  ? 'Patrimonio complessivo: liquidità + tutte le posizioni' 
+                  : 'Solo le posizioni assegnate a questo portafoglio. Non include la liquidità non investita.'}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                   padding: '32px 16px', background: 'var(--bg2)', border: '1px solid var(--border)',
@@ -612,6 +618,11 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             sub="del portafoglio complessivo"
             color="var(--blue)"
           />
+        )}
+        {selectedTag !== 'Tutti' && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', fontSize: '11px', color: 'var(--text3)', display: 'flex', alignItems: 'center' }}>
+            ℹ️&nbsp;Questo valore non include la liquidità non investita, mostrata separatamente qui sotto.
+          </div>
         )}
         <KpiCard
           label="LIQUIDITÀ DISPONIBILE"
