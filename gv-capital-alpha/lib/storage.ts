@@ -245,9 +245,6 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
   if (state.performanceHistory.length > 0) {
     // Generate simple deterministic hashes for history ids based on date to allow upserting safely
     const histRows = state.performanceHistory.map(h => ({
-      id: uuidv4(), // We actually need stable IDs or we just delete all and re-insert. 
-      // Actually, Supabase handles date insertion. Let's just bulk insert and ignore conflicts if we add unique constraint on (portfolio_id, date).
-      // Since we don't have unique constraint, we'll just delete and re-insert for now, or match on date.
       portfolio_id: DEFAULT_PORTFOLIO_ID,
       date: h.date,
       total_value: h.totalValue,
@@ -503,6 +500,25 @@ export async function recalcPortfolio(portfolio?: PortfolioState & { _historyCha
   const baseForPnL = (p.depositedFunds && p.depositedFunds > 0) ? p.depositedFunds : (p.capitalBase > 0 ? p.capitalBase : 1);
   p.totalPnL = p.totalValue - baseForPnL;
   p.totalPnLPercent = computePnLPercent(p.totalPnL, p.capitalBase, p.depositedFunds);
+
+  // Fix Bug 4 Regression: Track history and flag it as changed
+  const today = new Date().toISOString().split('T')[0];
+  const alreadyLogged = p.performanceHistory.some(h => h.date.startsWith(today));
+  if (!alreadyLogged) {
+    p.performanceHistory.push({ date: new Date().toISOString(), totalValue: p.totalValue, pnlPercent: p.totalPnLPercent });
+    (p as any)._historyChanged = true;
+  } else {
+    // If we want to update today's value with the latest
+    const lastSnapshot = p.performanceHistory[p.performanceHistory.length - 1];
+    if (lastSnapshot && lastSnapshot.date.startsWith(today)) {
+      if (lastSnapshot.totalValue !== p.totalValue || lastSnapshot.pnlPercent !== p.totalPnLPercent) {
+        lastSnapshot.totalValue = p.totalValue;
+        lastSnapshot.pnlPercent = p.totalPnLPercent;
+        (p as any)._historyChanged = true;
+      }
+    }
+  }
+
   if (!portfolio) await savePortfolio(p);
 }
 
