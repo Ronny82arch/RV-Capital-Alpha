@@ -252,7 +252,11 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
     }));
     
     if ((state as any)._historyChanged && histRows.length > 0) {
-      await supabaseAdmin.from('performance_history').upsert(histRows, { onConflict: 'portfolio_id, date' });
+      const { error } = await supabaseAdmin.from('performance_history')
+        .upsert(histRows, { onConflict: 'portfolio_id, date' });
+      if (error) {
+        console.error('[savePortfolio] performance_history upsert fallito:', error);
+      }
     }
   }
 
@@ -501,22 +505,16 @@ export async function recalcPortfolio(portfolio?: PortfolioState & { _historyCha
   p.totalPnL = p.totalValue - baseForPnL;
   p.totalPnLPercent = computePnLPercent(p.totalPnL, p.capitalBase, p.depositedFunds);
 
-  // Fix Bug 4 Regression: Track history and flag it as changed
-  const today = new Date().toISOString().split('T')[0];
-  const alreadyLogged = p.performanceHistory.some(h => h.date.startsWith(today));
-  if (!alreadyLogged) {
-    p.performanceHistory.push({ date: new Date().toISOString(), totalValue: p.totalValue, pnlPercent: p.totalPnLPercent });
+  // ✅ FIX: registra uno snapshot giornaliero dello storico, una sola volta al giorno
+  const todayStr = new Date().toISOString().split('T')[0];
+  const alreadyLoggedToday = p.performanceHistory.some(h => h.date.startsWith(todayStr));
+  if (!alreadyLoggedToday) {
+    p.performanceHistory.push({
+      date: new Date().toISOString(),
+      totalValue: p.totalValue,
+      pnlPercent: p.totalPnLPercent,
+    });
     (p as any)._historyChanged = true;
-  } else {
-    // If we want to update today's value with the latest
-    const lastSnapshot = p.performanceHistory[p.performanceHistory.length - 1];
-    if (lastSnapshot && lastSnapshot.date.startsWith(today)) {
-      if (lastSnapshot.totalValue !== p.totalValue || lastSnapshot.pnlPercent !== p.totalPnLPercent) {
-        lastSnapshot.totalValue = p.totalValue;
-        lastSnapshot.pnlPercent = p.totalPnLPercent;
-        (p as any)._historyChanged = true;
-      }
-    }
   }
 
   if (!portfolio) await savePortfolio(p);
