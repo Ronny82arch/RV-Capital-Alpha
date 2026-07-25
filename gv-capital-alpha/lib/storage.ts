@@ -4,6 +4,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 const DEFAULT_PORTFOLIO_ID = '00000000-0000-0000-0000-000000000001';
 
+export function computePnLPercent(totalPnL: number, capitalBase: number, depositedFunds?: number): number {
+  const baseForPnL = (depositedFunds && depositedFunds > 0) ? depositedFunds : (capitalBase > 0 ? capitalBase : 1);
+  return baseForPnL > 0 ? (totalPnL / baseForPnL) * 100 : 0;
+}
+
 export function generateId(): string {
   return uuidv4();
 }
@@ -130,7 +135,7 @@ export async function getPortfolio(): Promise<PortfolioState> {
   );
   
   // Calculate PnL percent safely
-  state.totalPnLPercent = state.capitalBase > 0 ? (state.totalPnL / state.capitalBase) * 100 : 0;
+  state.totalPnLPercent = computePnLPercent(state.totalPnL, state.capitalBase, state.depositedFunds);
   return state;
 }
 
@@ -249,9 +254,9 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
       pnl_percent: h.pnlPercent
     }));
     
-    // Quick hack: delete old history and insert new to prevent duplicates in this lazy sync model
-    await supabaseAdmin.from('performance_history').delete().eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
-    await supabaseAdmin.from('performance_history').insert(histRows);
+    if ((state as any)._historyChanged && histRows.length > 0) {
+      await supabaseAdmin.from('performance_history').upsert(histRows, { onConflict: 'portfolio_id, date' });
+    }
   }
 
   // Alerts
@@ -333,25 +338,38 @@ export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> |
 }
 
 export async function updatePositionPortfolio(positionId: string, portfolioName: string): Promise<void> {
-  await supabaseAdmin.from('positions').update({ custom_portfolio_name: portfolioName }).eq('id', positionId);
+  await mutatePortfolio(p => {
+    const pos = p.positions.find(x => x.id === positionId);
+    if (pos) pos.portfolio = portfolioName;
+  });
 }
 
 export async function updateCustomPortfolios(portfolios: string[]): Promise<void> {
-  await supabaseAdmin.from('portfolios').update({ custom_portfolios: portfolios }).eq('id', DEFAULT_PORTFOLIO_ID);
+  await mutatePortfolio(p => {
+    p.customPortfolios = portfolios;
+  });
 }
 
 export async function deleteCustomPortfolio(portfolioName: string): Promise<void> {
-  await updateCustomPortfolios((await getPortfolio()).customPortfolios?.filter(n => n !== portfolioName) || []);
-  await supabaseAdmin.from('positions').update({ custom_portfolio_name: 'Da Assegnare' }).eq('custom_portfolio_name', portfolioName);
+  await mutatePortfolio(p => {
+    p.customPortfolios = (p.customPortfolios || []).filter(n => n !== portfolioName);
+    p.positions.forEach(pos => {
+      if (pos.portfolio === portfolioName) pos.portfolio = 'Da Assegnare';
+    });
+  });
 }
 
 export async function renameCustomPortfolio(oldName: string, newName: string): Promise<void> {
-  const p = await getPortfolio();
-  if (p.customPortfolios) {
-    await updateCustomPortfolios(p.customPortfolios.map(n => n === oldName ? newName : n));
-  }
-  await supabaseAdmin.from('positions').update({ custom_portfolio_name: newName }).eq('custom_portfolio_name', oldName);
+  await mutatePortfolio(p => {
+    if (p.customPortfolios) {
+      p.customPortfolios = p.customPortfolios.map(n => n === oldName ? newName : n);
+    }
+    p.positions.forEach(pos => {
+      if (pos.portfolio === oldName) pos.portfolio = newName;
+    });
+  });
 }
+
 
 export async function addAlert(alertInfo: Omit<Alert, 'id' | 'date' | 'read'>): Promise<void> {
   const a = { id: generateId(), date: new Date().toISOString(), read: false, ...alertInfo };
@@ -373,16 +391,25 @@ export async function addSignal(signal: Signal): Promise<void> {
 }
 
 export async function updateSignalStatus(signalId: string, status: Signal['status'], extra?: Partial<Signal>): Promise<Signal | null> {
-  const { data } = await supabaseAdmin.from('trading_signals').update({ status, ...extra }).eq('id', signalId).select().single();
-  // Simplified for now: just mutate the full portfolio to keep everything in sync
-  const p = await getPortfolio();
-  return p.signals.find(s => s.id === signalId) || null;
+  let updatedSignal: Signal | null = null;
+  await mutatePortfolio(p => {
+    const s = p.signals.find(x => x.id === signalId);
+    if (s) {
+      s.status = status;
+      if (extra) Object.assign(s, extra);
+      updatedSignal = s;
+    }
+  });
+  return updatedSignal;
 }
 
 export async function openPosition(position: Position): Promise<void> {
   await mutatePortfolio(p => {
+    if (position.capitalAllocated > p.capitalAvailable) {
+      throw new Error(`Capitale insufficiente: richiesto €${position.capitalAllocated}, disponibile €${p.capitalAvailable}`);
+    }
     p.positions.push(position);
-    p.capitalAvailable = Math.max(0, p.capitalAvailable - position.capitalAllocated);
+    p.capitalAvailable -= position.capitalAllocated;
   });
 }
 
@@ -417,7 +444,10 @@ export async function deletePosition(positionId: string): Promise<Position | nul
 }
 
 export async function updatePositionTags(positionId: string, tags: string[]): Promise<void> {
-  await supabaseAdmin.from('positions').update({ tags }).eq('id', positionId);
+  await mutatePortfolio(p => {
+    const pos = p.positions.find(x => x.id === positionId);
+    if (pos) pos.tags = tags;
+  });
 }
 
 export function sanitizePortfolioPositions(positions: Position[]): Position[] {
@@ -432,7 +462,7 @@ export function sanitizePortfolioPositions(positions: Position[]): Position[] {
   return clean;
 }
 
-export async function recalcPortfolio(portfolio?: PortfolioState): Promise<void> {
+export async function recalcPortfolio(portfolio?: PortfolioState & { _historyChanged?: boolean }): Promise<void> {
   const p = portfolio || await getPortfolio();
   p.positions = sanitizePortfolioPositions(p.positions);
   let currentTotalValue = (p.capitalAvailable || 0);
@@ -470,11 +500,9 @@ export async function recalcPortfolio(portfolio?: PortfolioState): Promise<void>
   if (!p.totalValue || p.totalValue === 0) {
     p.totalValue = currentTotalValue;
   }
-  const baseForPnL = (p.depositedFunds && p.depositedFunds > 0)
-    ? p.depositedFunds
-    : (p.capitalBase > 0 ? p.capitalBase : 1);
+  const baseForPnL = (p.depositedFunds && p.depositedFunds > 0) ? p.depositedFunds : (p.capitalBase > 0 ? p.capitalBase : 1);
   p.totalPnL = p.totalValue - baseForPnL;
-  p.totalPnLPercent = baseForPnL > 0 ? (p.totalPnL / baseForPnL) * 100 : 0;
+  p.totalPnLPercent = computePnLPercent(p.totalPnL, p.capitalBase, p.depositedFunds);
   if (!portfolio) await savePortfolio(p);
 }
 
@@ -542,11 +570,9 @@ export async function syncEtoroPortfolio(): Promise<void> {
   await recalcPortfolio(portfolio);
   if (balance.TotalEquity && balance.TotalEquity > 0) {
     portfolio.totalValue = balance.TotalEquity;
-    const baseForPnL = (portfolio.depositedFunds && portfolio.depositedFunds > 0)
-      ? portfolio.depositedFunds
-      : (portfolio.capitalBase > 0 ? portfolio.capitalBase : 1);
+    const baseForPnL = (portfolio.depositedFunds && portfolio.depositedFunds > 0) ? portfolio.depositedFunds : (portfolio.capitalBase > 0 ? portfolio.capitalBase : 1);
     portfolio.totalPnL = portfolio.totalValue - baseForPnL;
-    portfolio.totalPnLPercent = baseForPnL > 0 ? (portfolio.totalPnL / baseForPnL) * 100 : 0;
+    portfolio.totalPnLPercent = computePnLPercent(portfolio.totalPnL, portfolio.capitalBase, portfolio.depositedFunds);
   }
   await savePortfolio(portfolio);
 }
@@ -653,15 +679,20 @@ export async function getPushSubscriptions(): Promise<any[]> {
 
 import type { CalibrationTable } from './backtest';
 
+import { kvGet, kvSet } from './tbd-storage';
+
 export async function getCalibrationTable(): Promise<CalibrationTable | null> {
-  return null;
+  const raw = await kvGet('engine:calibration');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 export async function saveCalibrationTable(table: CalibrationTable): Promise<void> {
-  console.log('Mock saveCalibrationTable:', Object.keys(table).length);
+  await kvSet('engine:calibration', JSON.stringify(table), 30 * 24 * 3600);
+  await kvSet('engine:calibration_updated_at', new Date().toISOString(), 30 * 24 * 3600);
 }
 
 export async function getCalibrationUpdatedAt(): Promise<string | null> {
-  return null;
+  return await kvGet('engine:calibration_updated_at');
 }
 

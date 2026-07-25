@@ -168,10 +168,16 @@ export function calculatePositionSize(
   if (price === 0) return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
   const quantity = Math.floor(capitalToAllocate / price);
   const actualCapital = quantity * price;
+
+  // Bug 7: se il capitale effettivo scende sotto il limite minimo, azzera la size invece di gonfiarla
+  if (actualCapital < 100) {
+    return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
+  }
+
   const clampedQty = Math.max(1, quantity);
   const riskAmount = clampedQty * Math.abs(price - stopLossPrice);
   return {
-    capitalToAllocate: Math.max(100, actualCapital),
+    capitalToAllocate: actualCapital,
     quantity: clampedQty,
     riskAmount,
   };

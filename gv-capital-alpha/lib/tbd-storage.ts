@@ -8,7 +8,7 @@ import { TradingDayLog, TbdSignal, TradingEngineConfig, DEFAULT_CONFIG } from '.
 
 // ─── KV ADAPTER (stessa infrastruttura di storage.ts) ────────────────────────
 
-async function kvGet(key: string): Promise<string | null> {
+export async function kvGet(key: string): Promise<string | null> {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     const res = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
       headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
@@ -21,7 +21,7 @@ async function kvGet(key: string): Promise<string | null> {
   return null;
 }
 
-async function kvSet(key: string, value: string, exSeconds?: number): Promise<void> {
+export async function kvSet(key: string, value: string, exSeconds?: number): Promise<void> {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     const url = exSeconds
       ? `${process.env.KV_REST_API_URL}/set/${key}?ex=${exSeconds}` // ✅ FIX
