@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { savePushSubscription, getPushSubscriptions } from '@/lib/supabase/storage';
+import { savePushSubscription, getPushSubscriptions } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 

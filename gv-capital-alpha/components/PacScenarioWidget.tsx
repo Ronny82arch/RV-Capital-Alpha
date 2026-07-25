@@ -1,15 +1,24 @@
 'use client';
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Target, ShieldCheck, Gift } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, Gift } from 'lucide-react';
 
 interface Props {
-  currentValue: number;
-  currentAllocated: number;
+  currentValue?: number;
+  currentAllocated?: number;
 }
 
-export default function PacScenarioWidget({ currentValue, currentAllocated }: Props) {
+function fmt(val: any): string {
+  const n = Number(val);
+  if (isNaN(n)) return '0';
+  return n.toLocaleString('it-IT', { maximumFractionDigits: 0 });
+}
+
+export default function PacScenarioWidget({ currentValue = 0, currentAllocated = 0 }: Props) {
   const [years, setYears] = useState<number>(10);
   const [monthlyDeposit, setMonthlyDeposit] = useState<number>(200);
+
+  const safeCurrentVal = Number(currentValue) || 0;
+  const safeCurrentAllocated = Number(currentAllocated) || 0;
 
   // Return rates
   const rates = {
@@ -19,7 +28,7 @@ export default function PacScenarioWidget({ currentValue, currentAllocated }: Pr
   };
 
   const calculateScenario = (rate: number) => {
-    let finalValue = currentValue;
+    let finalValue = safeCurrentVal;
     const monthlyRate = rate / 12;
     const months = years * 12;
     
@@ -33,7 +42,7 @@ export default function PacScenarioWidget({ currentValue, currentAllocated }: Pr
       finalValue += monthlyDeposit * months;
     }
 
-    const totalInvested = currentAllocated + (monthlyDeposit * months);
+    const totalInvested = safeCurrentAllocated + (monthlyDeposit * months);
     const grossProfit = finalValue - totalInvested;
     const tax = grossProfit > 0 ? grossProfit * 0.26 : 0; // 26% tax on profit
     
@@ -88,7 +97,7 @@ export default function PacScenarioWidget({ currentValue, currentAllocated }: Pr
           </div>
           <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px dashed var(--border)' }}>
             <div style={{ fontSize: '10px', color: 'var(--text3)' }}>Capitale totale investito a fine piano:</div>
-            <div style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>€{real.totalInvested.toLocaleString('it-IT', { maximumFractionDigits: 0 })}</div>
+            <div style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>€{fmt(real.totalInvested)}</div>
           </div>
         </div>
 
@@ -100,19 +109,19 @@ export default function PacScenarioWidget({ currentValue, currentAllocated }: Pr
           </div>
           <div>
             <div style={{ fontSize: '10px', color: 'var(--text3)' }}>Lordo stimato</div>
-            <div style={{ fontSize: '24px', fontFamily: 'var(--font-mono)', fontWeight: '900', color: 'var(--text)' }}>€{real.gross.toLocaleString('it-IT', { maximumFractionDigits: 0 })}</div>
+            <div style={{ fontSize: '24px', fontFamily: 'var(--font-mono)', fontWeight: '900', color: 'var(--text)' }}>€{fmt(real.gross)}</div>
           </div>
           <div style={{ display: 'grid', gap: '8px' }}>
             <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: '4px', borderLeft: '2px solid var(--red)' }}>
               <div style={{ fontSize: '9px', color: 'var(--text3)' }}>Netto con Liquidazione (Tasse 26%)</div>
-              <div style={{ fontSize: '14px', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>€{real.netLiquidation.toLocaleString('it-IT', { maximumFractionDigits: 0 })}</div>
+              <div style={{ fontSize: '14px', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>€{fmt(real.netLiquidation)}</div>
             </div>
             <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: '4px', borderLeft: '2px solid var(--green)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Gift size={10} color="var(--green)" />
                 <span style={{ fontSize: '9px', color: 'var(--text3)' }}>Netto con Donazione (Esente)</span>
               </div>
-              <div style={{ fontSize: '14px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--green)' }}>€{real.netDonation.toLocaleString('it-IT', { maximumFractionDigits: 0 })}</div>
+              <div style={{ fontSize: '14px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--green)' }}>€{fmt(real.netDonation)}</div>
             </div>
           </div>
         </div>
@@ -125,9 +134,9 @@ export default function PacScenarioWidget({ currentValue, currentAllocated }: Pr
             <span style={{ fontSize: '11px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>Pessimistico ({(rates.pessimistic*100).toFixed(1)}%)</span>
             <TrendingDown size={14} color="var(--red)" />
           </div>
-          <div style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '4px' }}>€{pessimistic.gross.toLocaleString('it-IT', { maximumFractionDigits: 0 })} <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text3)' }}>Lordo</span></div>
-          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{pessimistic.netLiquidation.toLocaleString('it-IT', { maximumFractionDigits: 0 })} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Netto Liq.</span></div>
-          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>€{pessimistic.netDonation.toLocaleString('it-IT', { maximumFractionDigits: 0 })} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Donazione</span></div>
+          <div style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '4px' }}>€{fmt(pessimistic.gross)} <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text3)' }}>Lordo</span></div>
+          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{fmt(pessimistic.netLiquidation)} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Netto Liq.</span></div>
+          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>€{fmt(pessimistic.netDonation)} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Donazione</span></div>
         </div>
         
         {/* OPTIMISTIC */}
@@ -136,9 +145,9 @@ export default function PacScenarioWidget({ currentValue, currentAllocated }: Pr
             <span style={{ fontSize: '11px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>Ottimistico ({(rates.optimistic*100).toFixed(1)}%)</span>
             <TrendingUp size={14} color="var(--green)" />
           </div>
-          <div style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '4px' }}>€{optimistic.gross.toLocaleString('it-IT', { maximumFractionDigits: 0 })} <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text3)' }}>Lordo</span></div>
-          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{optimistic.netLiquidation.toLocaleString('it-IT', { maximumFractionDigits: 0 })} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Netto Liq.</span></div>
-          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>€{optimistic.netDonation.toLocaleString('it-IT', { maximumFractionDigits: 0 })} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Donazione</span></div>
+          <div style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '4px' }}>€{fmt(optimistic.gross)} <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text3)' }}>Lordo</span></div>
+          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{fmt(optimistic.netLiquidation)} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Netto Liq.</span></div>
+          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>€{fmt(optimistic.netDonation)} <span style={{ fontSize: '10px', color: 'var(--text3)' }}>Donazione</span></div>
         </div>
       </div>
     </div>

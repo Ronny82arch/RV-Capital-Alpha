@@ -11,7 +11,7 @@ import { analyzeAsset, findPromisingCandidatesBatch, evaluateCandidatesWithAIBat
 import {
   getPortfolio, addSignal, updatePositionPrices,
   getCalibrationTable, getCalibrationUpdatedAt,
-} from '@/lib/supabase/storage';
+} from '@/lib/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
 
@@ -62,12 +62,10 @@ export async function POST(req: NextRequest) {
 
 async function runScan() {
   try {
-    const [portfolio, marketData, calibrationTable, calibrationUpdatedAt] = await Promise.all([
-      getPortfolio(),
-      fetchAllMarketData(),
-      getCalibrationTable(),
-      getCalibrationUpdatedAt(),
-    ]);
+    const portfolio = await getPortfolio();
+    const marketData = await fetchAllMarketData();
+    const calibrationTable = await getCalibrationTable();
+    const calibrationUpdatedAt = await getCalibrationUpdatedAt();
 
     if (!calibrationTable) {
       console.warn('[scan] Nessuna tabella di calibrazione: le probabilità usano il prior neutro 50%. Attendi che /api/cron/calibrate giri almeno una volta.');

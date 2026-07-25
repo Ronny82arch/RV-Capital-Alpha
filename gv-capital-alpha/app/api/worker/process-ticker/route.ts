@@ -30,6 +30,25 @@ export async function POST(req: Request) {
     const payload = JSON.parse(bodyText);
     const { portfolio_id, ticker, strategy, user_id } = payload;
     
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data: existingSignal } = await supabaseAdmin
+      .from('trading_signals')
+      .select('id')
+      .eq('portfolio_id', portfolio_id)
+      .eq('ticker', ticker)
+      .gte('created_at', today + 'T00:00:00Z')
+      .maybeSingle();
+    
+    if (existingSignal) {
+      console.log(`[Worker] Segnale già esistente per ${ticker} oggi. Skip.`);
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Segnale già generato oggi per questo ticker.',
+        signal_id: existingSignal.id 
+      });
+    }
+
     console.log(`[Worker] Elaborazione Ticker ${ticker} per portafoglio ${portfolio_id}`);
 
     // TODO: Recuperare i dati di mercato da eToro/Broker (implementazione mock per ora)
@@ -54,7 +73,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'Segnale scartato dal risk management' });
     }
 
-    // 6. Salvataggio nel Data Layer (Supabase) in stato RISK_CHECK_PASSED o DRAFT/TRIGGERED
+    // 7. Salvataggio nel Data Layer (Supabase) in stato RISK_CHECK_PASSED o DRAFT/TRIGGERED
     const { error: dbError } = await supabaseAdmin
       .from('trading_signals')
       .insert({

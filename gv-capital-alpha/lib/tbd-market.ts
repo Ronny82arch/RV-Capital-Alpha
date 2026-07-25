@@ -30,36 +30,9 @@ const STOCK_ASSETS = [
   { symbol: 'META', display: 'META' },
 ];
 
-// ─── CACHE GLOBAL (Next.js hot-reloading safe) ────────────────────────────────
 
-const globalAny = global as any;
-if (!globalAny.tbdPriceCache) globalAny.tbdPriceCache = new Map<string, number>();
-if (!globalAny.tbdBookCache)  globalAny.tbdBookCache  = new Map<string, number>();
-const priceCache = globalAny.tbdPriceCache;
-const bookCache = globalAny.tbdBookCache;
 
-// ─── WEBSOCKET CLIENTS ────────────────────────────────────────────────────────
 
-function connectBinance() {
-  // Disabilitato in ambiente Serverless / Next.js API Routes per prevenire errori di runtime
-}
-
-function connectYahoo() {
-  // Disabilitato in ambiente Serverless / Next.js API Routes per prevenire errori di runtime
-}
-
-// Inizializza le connessioni in background (solo se ambiente supporta persistent WS)
-export function initTbdWebSockets() {
-  try {
-    if (process.env.VERCEL || process.env.VERCEL_ENV || typeof window === 'undefined') {
-      return;
-    }
-    connectBinance();
-    connectYahoo();
-  } catch (e) {
-    console.warn('WebSocket init skipped in current environment');
-  }
-}
 
 // ─── CALCOLI STATISTICI ───────────────────────────────────────────────────────
 
@@ -143,13 +116,7 @@ async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot
     const closes  = candles.map(c => c.c);
     const volumes = candles.map(c => c.v);
 
-    // Sovrascrivi il prezzo corrente con quello del WebSocket in tempo reale (se disponibile)
     let currentPrice = closes[closes.length - 1];
-    const wsPrice = priceCache.get(symbol.toUpperCase());
-    if (wsPrice) {
-      currentPrice = wsPrice;
-      candles[candles.length - 1].c = wsPrice;
-    }
 
     return {
       asset:             symbol.replace('USDT', '/USDT'),
@@ -169,7 +136,10 @@ async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot
 async function fetchYahooRESTCandlesH1(symbol: string): Promise<MarketDataSnapshot | null> {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1h&range=5d`;
-    const res = await fetch(url, { next: { revalidate: 1800 } });
+    const res = await fetch(url, { 
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RV-Capital-Alpha/1.0)' },
+      next: { revalidate: 1800 } 
+    });
     if (!res.ok) return null;
     const data = await res.json();
     const result = data.chart?.result?.[0];
@@ -195,13 +165,7 @@ async function fetchYahooRESTCandlesH1(symbol: string): Promise<MarketDataSnapsh
     const closes  = candles.map(c => c.c);
     const volumes = candles.map(c => c.v);
 
-    // Sovrascrivi il prezzo corrente con quello del WebSocket in tempo reale (se disponibile)
     let currentPrice = closes[closes.length - 1];
-    const wsPrice = priceCache.get(symbol.toUpperCase());
-    if (wsPrice) {
-      currentPrice = wsPrice;
-      candles[candles.length - 1].c = wsPrice;
-    }
 
     return {
       asset:             symbol,
@@ -218,31 +182,12 @@ async function fetchYahooRESTCandlesH1(symbol: string): Promise<MarketDataSnapsh
   }
 }
 
-// ─── MOCK FALLBACK (Solo come salvagente estremo) ────────────────────────────
 
-function generateMockSnapshot(asset: string, assetType: 'CRYPTO' | 'STOCK'): MarketDataSnapshot {
-  const basePrice = assetType === 'CRYPTO' ? 95000 + Math.random() * 5000 : 150 + Math.random() * 50;
-  const zScore    = (Math.random() * 6) - 3;
-  return {
-    asset,
-    currentPrice:     Number(basePrice.toFixed(2)),
-    atrH1:            Number((basePrice * 0.008).toFixed(4)),
-    zScoreH1:         Number(zScore.toFixed(3)),
-    chandeMomentumH1: Number(((Math.random() * 140) - 70).toFixed(2)),
-    volumeSpike:      Math.random() > 0.7,
-    bollingerSqueeze: Math.random() > 0.6,
-    assetType,
-  };
-}
 
 // ─── FETCHER PRINCIPALE ───────────────────────────────────────────────────────
 
 export async function fetchAllTbdMarketData(): Promise<MarketDataSnapshot[]> {
   const results: MarketDataSnapshot[] = [];
-
-  // Assicura che i WebSocket siano connessi/attivi
-  initTbdWebSockets();
-
   // 1. Fetch Crypto via Binance
   const cryptoPromises = CRYPTO_ASSETS.map(a => fetchBinanceCandlesH1(a.symbol));
   const cryptoResults  = await Promise.allSettled(cryptoPromises);
@@ -250,8 +195,6 @@ export async function fetchAllTbdMarketData(): Promise<MarketDataSnapshot[]> {
   cryptoResults.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value) {
       results.push(r.value);
-    } else {
-      results.push(generateMockSnapshot(CRYPTO_ASSETS[i].display, 'CRYPTO'));
     }
   });
 
@@ -262,8 +205,6 @@ export async function fetchAllTbdMarketData(): Promise<MarketDataSnapshot[]> {
   stockResults.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value) {
       results.push(r.value);
-    } else {
-      results.push(generateMockSnapshot(STOCK_ASSETS[i].display, 'STOCK'));
     }
   });
 

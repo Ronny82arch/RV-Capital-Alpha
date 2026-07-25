@@ -1,0 +1,194 @@
+{
+  "source": "real",
+  "rawCreditField": 530.48,
+  "positions": {
+    "count": 11,
+    "totalAmounts": 9949.59,
+    "totalPnl": 2756.2799999999997,
+    "totalCurrentValue": 12705.869999999999,
+    "details": [
+      {
+        "instrumentID": 18,
+        "isBuy": true,
+        "amount": 999.98,
+        "units": 0.222006,
+        "openRate": 4504.32,
+        "closeRate": 3982.56,
+        "pnl": -115.83,
+        "currentValue": 884.15,
+        "impliedUnits": "0.222005",
+        "leverageRatio": "1.00x"
+      },
+      {
+        "instrumentID": 18,
+        "isBuy": true,
+        "amount": 581.86,
+        "units": 0.258347,
+        "openRate": 4504.49,
+        "closeRate": 3982.56,
+        "pnl": -134.84,
+        "currentValue": 447.02,
+        "impliedUnits": "0.129173",
+        "leverageRatio": "2.00x"
+      },
+      {
+        "instrumentID": 1002,
+        "isBuy": true,
+        "amount": 595.66,
+        "units": 1.831334,
+        "openRate": 325.26,
+        "closeRate": 358.52,
+        "pnl": 60.91,
+        "currentValue": 656.5699999999999,
+        "impliedUnits": "1.831335",
+        "leverageRatio": "1.00x"
+      },
+      {
+        "instrumentID": 1137,
+        "isBuy": true,
+        "amount": 2500,
+        "units": 14.671361,
+        "openRate": 170.4,
+        "closeRate": 207.21,
+        "pnl": 540.05,
+        "currentValue": 3040.05,
+        "impliedUnits": "14.671362",
+        "leverageRatio": "1.00x"
+      },
+      {
+        "instrumentID": 1137,
+        "isBuy": true,
+        "amount": 480,
+        "units": 3.394625,
+        "openRate": 141.4,
+        "closeRate": 207.21,
+        "pnl": 223.4,
+        "currentValue": 703.4,
+        "impliedUnits": "3.394625",
+        "leverageRatio": "1.00x"
+      },
+      {
+        "instrumentID": 1283,
+        "isBuy": true,
+        "amount": 500,
+        "units": 24.928581,
+        "openRate": 16.94,
+        "closeRate": 21.17,
+        "pnl": 103.58,
+        "currentValue": 603.58,
+        "impliedUnits": "29.515939",
+        "leverageRatio": "0.84x"
+      },
+      {
+        "instrumentID": 1305,
+        "isBuy": true,
+        "amount": 581.63,
+        "units": 264.619525,
+        "openRate": 9.405,
+        "closeRate": 10.08,
+        "pnl": 204.28,
+        "currentValue": 785.91,
+        "impliedUnits": "61.842637",
+        "leverageRatio": "4.28x"
+      },
+      {
+        "instrumentID": 1330,
+        "isBuy": true,
+        "amount": 581.52,
+        "units": 133.220744,
+        "openRate": 18.678,
+        "closeRate": 20.94,
+        "pnl": 344.64,
+        "currentValue": 926.16,
+        "impliedUnits": "31.133954",
+        "leverageRatio": "4.28x"
+      },
+      {
+        "instrumentID": 1969,
+        "isBuy": true,
+        "amount": 581.66,
+        "units": 91.98416,
+        "openRate": 31.6174,
+        "closeRate": 51.19,
+        "pnl": 1800.37,
+        "currentValue": 2382.0299999999997,
+        "impliedUnits": "18.396832",
+        "leverageRatio": "5.00x"
+      },
+      {
+        "instrumentID": 4244,
+        "isBuy": true,
+        "amount": 1147.43,
+        "units": 0.668287,
+        "openRate": 1716.97,
+        "closeRate": 1793.61,
+        "pnl": 51.22,
+        "currentValue": 1198.65,
+        "impliedUnits": "0.668288",
+        "leverageRatio": "1.00x"
+      },
+      {
+        "instrumentID": 8796,
+        "isBuy": true,
+        "amount": 1399.85,
+        "units": 25.843702,
+        "openRate": 270.83,
+        "closeRate": 258.39,
+        "pnl": -321.5,
+        "currentValue": 1078.35,
+        "impliedUnits": "5.168741",
+        "leverageRatio": "5.00x"
+      }
+    ]
+  },
+  "mirrors": {
+    "count": 2,
+    "totalInitialInvestment": 1200,
+    "totalCurrentValueA": 1269.6100000000001,
+    "totalCurrentValueB": 1286.3200000000002,
+    "details": [
+      {
+        "mirrorID": 10921548,
+        "parentUsername": "Core-Equity",
+        "initialInvestment": 500,
+        "availableAmount": 11.37,
+        "closedPositionsNetProfit": 9.46,
+        "subPositionsCount": 51,
+        "subInvested": 498.21000000000004,
+        "subPnl": 48.98000000000001,
+        "subCurrValue": 547.19,
+        "currentValueA": 558.5600000000001,
+        "currentValueB": 568.0200000000001,
+        "pnlA": 58.56000000000006,
+        "pnlB": 68.0200000000001
+      },
+      {
+        "mirrorID": 11093112,
+        "parentUsername": "Core-Stability",
+        "initialInvestment": 700,
+        "availableAmount": 13.89,
+        "closedPositionsNetProfit": 7.25,
+        "subPositionsCount": 39,
+        "subInvested": 693.77,
+        "subPnl": 3.389999999999999,
+        "subCurrValue": 697.16,
+        "currentValueA": 711.05,
+        "currentValueB": 718.3,
+        "pnlA": 11.049999999999955,
+        "pnlB": 18.299999999999955
+      }
+    ]
+  },
+  "grandTotals": {
+    "withMirrorA": {
+      "totalInvested": 11149.59,
+      "totalCurrentValue": 14505.96,
+      "totalPnl": 2825.89
+    },
+    "withMirrorB": {
+      "totalInvested": 11149.59,
+      "totalCurrentValue": 14522.669999999998,
+      "totalPnl": 2842.6
+    }
+  }
+}

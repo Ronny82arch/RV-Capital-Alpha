@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPacConfig, savePacConfig } from '@/lib/supabase/storage';
+import { getPacConfig, savePacConfig } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 

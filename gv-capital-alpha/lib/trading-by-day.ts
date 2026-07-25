@@ -183,8 +183,8 @@ export class TradingByDayEngine {
       // Pre-Trigger: avvisa prima che tocchi l'entry
       const bufferPct   = this.config.preTriggerBufferPercent / 100;
       const preTriggerPx = direction === 'BUY'
-        ? entryPrice * (1 - bufferPct)   // avvisa sotto il prezzo attuale (rimbalzo verso entry)
-        : entryPrice * (1 + bufferPct);  // avvisa sopra il prezzo attuale (short)
+        ? entryPrice * (1 + bufferPct)   // ✅ FIX: sopra l'entry (più vicino al prezzo di mercato)
+        : entryPrice * (1 - bufferPct);  // ✅ FIX: sotto l'entry (più vicino al prezzo di mercato)
 
       const expectedPnL = allocatedSize * effectiveProfitPct;
       const maxLoss     = allocatedSize * lossPercentage;
@@ -217,8 +217,12 @@ export class TradingByDayEngine {
    * Blocca nuovi segnali se target raggiunto o max loss toccata.
    */
   public evaluateDailyCircuitBreaker(
-    currentRealizedPnL: number
+    currentRealizedPnL: number,
+    activeSignals: Array<{ maxLoss: number }> = []
   ): { stopTrading: boolean; reason: 'TARGET' | 'MAX_LOSS' | 'NONE'; message: string } {
+    const totalOpenRisk = activeSignals.reduce((sum, s) => sum + (s.maxLoss || 0), 0);
+    const effectivePnL = currentRealizedPnL - totalOpenRisk; // Peggior scenario: tutti gli SL colpiscono
+
     if (currentRealizedPnL >= this.config.dailyTarget) {
       return {
         stopTrading: true,
@@ -228,11 +232,11 @@ export class TradingByDayEngine {
     }
 
     const maxLossThreshold = -(this.config.totalCapital * (this.config.maxTotalRiskPercent / 100));
-    if (currentRealizedPnL <= maxLossThreshold) {
+    if (effectivePnL <= maxLossThreshold) {
       return {
         stopTrading: true,
         reason: 'MAX_LOSS',
-        message: `🛑 MAX LOSS RAGGIUNTA ${currentRealizedPnL.toFixed(2)}€ (limite ${maxLossThreshold.toFixed(2)}€). Operatività inibita fino a domani.`,
+        message: `🛑 MAX LOSS (realizzato ${currentRealizedPnL.toFixed(2)}€ + rischio aperto ${totalOpenRisk.toFixed(2)}€). Operatività inibita fino a domani.`,
       };
     }
 
@@ -240,7 +244,7 @@ export class TradingByDayEngine {
     return {
       stopTrading: false,
       reason: 'NONE',
-      message: `✅ Motore attivo. Scansione cluster in corso. Mancano ${remaining.toFixed(2)}€ al target.`,
+      message: `✅ Motore attivo. Rischio aperto: ${totalOpenRisk.toFixed(2)}€. Mancano ${remaining.toFixed(2)}€ al target.`,
     };
   }
 

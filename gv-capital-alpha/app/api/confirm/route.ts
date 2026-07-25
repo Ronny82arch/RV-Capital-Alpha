@@ -6,7 +6,7 @@ import {
   closePosition,
   deletePosition,
   generateId,
-} from '@/lib/supabase/storage';
+} from '@/lib/storage';
 import { Position } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -44,9 +44,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Segnale non più in attesa' }, { status: 400 });
       }
 
+      // ✅ FIX: Calcola slippage massimo consentito (0.5%)
+      const slippage = Math.abs((executedPrice - signal.suggestedPrice) / signal.suggestedPrice);
+      const MAX_SLIPPAGE = 0.005; // 0.5%
+      if (slippage > MAX_SLIPPAGE) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Slippage eccessivo: ${(slippage * 100).toFixed(2)}% > ${(MAX_SLIPPAGE * 100).toFixed(2)}%. Esecuzione rifiutata.` 
+        }, { status: 400 });
+      }
+
+      // ✅ FIX: Ricalcola quantity per rispettare capitalToAllocate approvato dal Kelly
+      const recalculatedQty = Math.floor(signal.capitalToAllocate / executedPrice);
+      const finalQty = Math.max(1, recalculatedQty);
+      const actualCapitalAllocated = executedPrice * finalQty;
+
+      // ✅ FIX: Se il capitale effettivo supera quello approvato + tolleranza, blocca
+      const capitalTolerance = signal.capitalToAllocate * 1.02; // 2% tolleranza
+      if (actualCapitalAllocated > capitalTolerance) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Capitale richiesto (${actualCapitalAllocated.toFixed(2)}€) supera l'allocazione approvata (${signal.capitalToAllocate.toFixed(2)}€)` 
+        }, { status: 400 });
+      }
+
       const positionId = generateId();
 
-      // Recalculate stop/take based on actual execution price (slight adjustment)
       const slPct = signal.stopLossPercent / 100;
       const tpPct = signal.takeProfitPercent / 100;
       const stopLoss = parseFloat((executedPrice * (1 - slPct)).toFixed(2));
@@ -60,8 +83,8 @@ export async function POST(req: NextRequest) {
         type: signal.type,
         action: signal.action,
         entryPrice: executedPrice,
-        quantity: signal.quantity,
-        capitalAllocated: executedPrice * signal.quantity,
+        quantity: finalQty, // ✅ FIX: usa quantity ricalcolata
+        capitalAllocated: actualCapitalAllocated, // ✅ FIX: usa capitale effettivo
         stopLoss,
         takeProfit,
         entryDate: new Date().toISOString(),
@@ -84,7 +107,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Posizione aperta — ${signal.quantity} ${signal.symbol} a €${executedPrice}`,
+        message: `Posizione aperta — ${finalQty} ${signal.symbol} a €${executedPrice} (slippage: ${(slippage * 100).toFixed(2)}%)`,
         positionId,
       });
     }

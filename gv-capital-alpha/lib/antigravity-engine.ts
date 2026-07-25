@@ -294,6 +294,7 @@ export class AntigravityEngine {
   public stressTestMarketShock(
     totalPortfolioValue: number,
     currentLeverage: number,
+    deployedCapital: number, // ✅ FIX: capitale effettivamente esposto in $
     shockPercent: number = -10
   ): {
     portfolioValueAfterShock: number;
@@ -303,14 +304,16 @@ export class AntigravityEngine {
   } {
     const lossAmount = (totalPortfolioValue * shockPercent) / 100;
     const portfolioAfter = totalPortfolioValue + lossAmount;
-    const deployedAfter = portfolioAfter * currentLeverage;
-    const leverageAfter = Math.min(this.config.maxLeverage, deployedAfter / portfolioAfter);
-
+    
+    // Il capitale deployato rimane fisso (nessun rebalance istantaneo)
+    const leverageAfter = deployedCapital / portfolioAfter; // ✅ FIX
+    
+    const remainingCapital = Math.max(0, portfolioAfter - deployedCapital);
     const canSustain = portfolioAfter > 0 && leverageAfter <= this.config.maxLeverage;
 
     return {
       portfolioValueAfterShock: portfolioAfter,
-      remainingCapital: Math.max(0, portfolioAfter - deployedAfter),
+      remainingCapital,
       canSustain,
       leverageAfterShock: leverageAfter,
     };
@@ -349,7 +352,7 @@ export class AntigravityEngine {
       leverageUtilization,
       lastRebalanceTime: lastRebalanceTime.toISOString(),
       daysUntilNextRebalance,
-      drift: ((currentValue / baseCapital) - this.config.targetLeverage) * 100,
+      drift: ((currentLeverage - this.config.targetLeverage) / this.config.targetLeverage) * 100, // ✅ FIX
       projectedValue30Days,
     };
   }

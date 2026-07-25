@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPortfolio } from '@/lib/supabase/storage';
+import { getPortfolio } from '@/lib/storage';
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
 
 export async function POST(request: Request) {
@@ -14,14 +14,15 @@ export async function POST(request: Request) {
 
     // Calcola rebalance
     const engine = new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG);
-    const simulation = engine.simulateRebalancing(
+    const deployedCapital = portfolio.positions
+      .filter(p => p.status === 'OPEN')
+      .reduce((sum, p) => sum + p.capitalAllocated, 0);
+
+    const simulation = engine.stressTestMarketShock(
       portfolio.totalValue,
       newLeverage,
-      portfolio.capitalAvailable, // Approssimazione Core
-      portfolio.positions
-        .filter(p => p.status === 'OPEN')
-        .reduce((sum, p) => sum + p.capitalAllocated, 0), // TBD
-      { action, newLeverage, coreTargetPct: targetCorePct, tbdTargetPct: targetTbdPct, reason: '', urgency: 'LOW', estimatedPnLImpact: 0 }
+      deployedCapital, // ✅ FIX
+      -10
     );
 
     // TODO: Applicare il rebalancing effettivo al portfolio

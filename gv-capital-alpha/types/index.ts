@@ -103,6 +103,8 @@ export interface PortfolioState {
   excludeCopyTrading?: boolean;
   targets?: Record<string, number>;
   aiMode?: 'STRICT' | 'DYNAMIC';
+  portfolioPerformances?: Record<string, { totalValue: number, invested: number, pnl: number, pnlPercent: number }>;
+  _version?: number;
 }
 
 

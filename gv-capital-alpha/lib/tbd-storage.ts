@@ -24,7 +24,7 @@ async function kvGet(key: string): Promise<string | null> {
 async function kvSet(key: string, value: string, exSeconds?: number): Promise<void> {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     const url = exSeconds
-      ? `${process.env.KV_REST_API_URL}/setex/${key}/${exSeconds}`
+      ? `${process.env.KV_REST_API_URL}/set/${key}?ex=${exSeconds}` // ✅ FIX
       : `${process.env.KV_REST_API_URL}/set/${key}`;
     await fetch(url, {
       method: 'POST',
@@ -95,26 +95,22 @@ export async function getActiveSignals(): Promise<TbdSignal[]> {
   if (!raw) return [];
   try {
     const all = JSON.parse(raw) as TbdSignal[];
-    // Restituisce solo i segnali non chiusi e delle ultime 24h
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     return all.filter(s =>
-      !['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(s.status) &&
-      new Date(s.timestamp).getTime() > cutoff
+      !['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(s.status)
     );
   } catch { return []; }
 }
 
 export async function saveSignals(signals: TbdSignal[]): Promise<void> {
-  // Mantieni al massimo 50 segnali in memoria
-  const trimmed = signals.slice(0, 50);
-  await kvSet('tbd:signals', JSON.stringify(trimmed), 48 * 3600);
+  // Mantieni al massimo 100 segnali in memoria
+  const trimmed = signals.slice(0, 100);
+  await kvSet('tbd:signals', JSON.stringify(trimmed));
 }
 
 export async function addSignal(signal: TbdSignal): Promise<void> {
   const existing = await getActiveSignals();
-  // Evita duplicati sullo stesso asset nella stessa direzione
   const deduped = existing.filter(
-    s => !(s.asset === signal.asset && s.direction === signal.direction)
+    s => !(s.asset === signal.asset && s.direction === signal.direction && s.timeframe === signal.timeframe)
   );
   await saveSignals([signal, ...deduped]);
 }
@@ -130,13 +126,15 @@ export async function updateSignalStatus(
   const idx = all.findIndex(s => s.id === signalId);
   if (idx === -1) return null;
 
+  const isClosing = ['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(status);
+
   all[idx] = {
     ...all[idx],
     status,
     ...(realizedPnL !== undefined ? { realizedPnL } : {}),
-    ...(['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(status)
-      ? { closedAt: new Date().toISOString() }
-      : { triggeredAt: new Date().toISOString() }),
+    ...(isClosing ? { closedAt: new Date().toISOString() } : {}),
+    // ✅ FIX: imposta triggeredAt solo se mancante
+    ...(!isClosing && !all[idx].triggeredAt ? { triggeredAt: new Date().toISOString() } : {}),
   };
   await saveSignals(all);
   return all[idx];
@@ -153,4 +151,25 @@ export async function getTbdConfig(): Promise<TradingEngineConfig> {
 export async function saveTbdConfig(config: Partial<TradingEngineConfig>): Promise<void> {
   const current = await getTbdConfig();
   await kvSet('tbd:config', JSON.stringify({ ...current, ...config }));
+}
+
+// ─── LOCK ATOMICO PER LOG GIORNALIERO ─────────────────────────────────────────
+
+export async function acquireDayLock(date: string, maxWaitMs = 5000): Promise<boolean> {
+  const lockKey = `tbd:lock:${date}`;
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const isLocked = await kvGet(lockKey);
+    const lockAge = isLocked ? Date.now() - parseInt(isLocked) : Infinity;
+    if (!isLocked || lockAge > 15000) {
+      await kvSet(lockKey, Date.now().toString(), 30); // TTL 30s
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return false;
+}
+
+export async function releaseDayLock(date: string): Promise<void> {
+  await kvSet(`tbd:lock:${date}`, '', 1);
 }
