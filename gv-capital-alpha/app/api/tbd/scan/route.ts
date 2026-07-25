@@ -8,7 +8,8 @@ import { TradingByDayEngine, TbdSignal } from '@/lib/trading-by-day';
 import { fetchAllTbdMarketData } from '@/lib/tbd-market';
 import {
   getTodayLog, saveTodayLog, getTbdConfig,
-  getActiveSignals, addSignal, updateSignalStatus, todayKey
+  getActiveSignals, addSignal, updateSignalStatus, todayKey,
+  acquireDayLock, releaseDayLock
 } from '@/lib/tbd-storage';
 import { 
   sendPreAlertNotification, sendCircuitBreakerNotification,
@@ -56,7 +57,10 @@ export async function POST(req: NextRequest) {
       await saveTodayLog(log);
     }
     const pnl     = log.realizedPnL;
-    const breaker = engine.evaluateDailyCircuitBreaker(pnl);
+    
+    // N2: leggi i segnali attivi PRIMA del circuit breaker
+    const existing = await getActiveSignals();
+    const breaker = engine.evaluateDailyCircuitBreaker(pnl, existing);
 
     if (breaker.stopTrading) {
       if (breaker.reason !== 'NONE') {
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
     const marketData = await fetchAllTbdMarketData();
 
     // 3. Calcola il capitale residuo prima di generare i segnali
-    const existing = await getActiveSignals();
+    // existing già letto in alto
     const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
     let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
 
@@ -95,6 +99,8 @@ export async function POST(req: NextRequest) {
     for (const s of rawSignals) {
       if (newSignals.length >= maxAllowedNew) break;
       if (existingAssets.has(`${s.asset}:${s.direction}`)) continue;
+
+      if (s.allocatedSize <= 0) continue; // N4: Filtro segnali con size 0 mancante
 
       // Se la size del segnale supera la liquidità residua, riduci la size
       if (s.allocatedSize > remainingCapital) {
@@ -116,45 +122,56 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Monitora segnali attivi per trigger o uscita SL/TP
-    for (const signal of existing) {
-      const md = marketData.find(m => m.asset === signal.asset);
-      if (!md) continue;
+    const dateKey = todayKey();
+    const hasLock = await acquireDayLock(dateKey);
 
-      const currentPrice = md.currentPrice;
-      const isBuy = signal.direction === 'BUY';
+    if (!hasLock) {
+      console.warn('[TBD] Lock non acquisito, skip monitoraggio TP/SL in questo run');
+    } else {
+      try {
+        for (const signal of existing) {
+          const md = marketData.find(m => m.asset === signal.asset);
+          if (!md) continue;
 
-      if (signal.status === 'PRE_ALERT') {
-        const reachedEntry = isBuy 
-          ? currentPrice <= signal.entryPrice 
-          : currentPrice >= signal.entryPrice;
-        if (reachedEntry) {
-          await updateSignalStatus(signal.id, 'TRIGGERED');
-          signal.status = 'TRIGGERED';
-          await sendSignalTriggeredNotification(signal, currentPrice);
-        }
-      } else if (signal.status === 'TRIGGERED' || signal.status === 'ACTIVE') {
-        const hitTp = isBuy 
-          ? currentPrice >= signal.takeProfit 
-          : currentPrice <= signal.takeProfit;
-        const hitSl = isBuy 
-          ? currentPrice <= signal.stopLoss 
-          : currentPrice >= signal.stopLoss;
+          const currentPrice = md.currentPrice;
+          const isBuy = signal.direction === 'BUY';
 
-        if (hitTp) {
-          const updatedSignal = await updateSignalStatus(signal.id, 'CLOSED_TP', signal.expectedPnL);
-          if (updatedSignal && log) {
-            const updatedLog = engine.updateDayLog(log, updatedSignal);
-            await saveTodayLog(updatedLog);
+          if (signal.status === 'PRE_ALERT') {
+            const reachedEntry = isBuy 
+              ? currentPrice <= signal.entryPrice 
+              : currentPrice >= signal.entryPrice;
+            if (reachedEntry) {
+              await updateSignalStatus(signal.id, 'TRIGGERED');
+              signal.status = 'TRIGGERED';
+              await sendSignalTriggeredNotification(signal, currentPrice);
+            }
+          } else if (signal.status === 'TRIGGERED' || signal.status === 'ACTIVE') {
+            const hitTp = isBuy 
+              ? currentPrice >= signal.takeProfit 
+              : currentPrice <= signal.takeProfit;
+            const hitSl = isBuy 
+              ? currentPrice <= signal.stopLoss 
+              : currentPrice >= signal.stopLoss;
+
+            if (hitTp) {
+              const updatedSignal = await updateSignalStatus(signal.id, 'CLOSED_TP', signal.expectedPnL);
+              if (updatedSignal && log) {
+                const updatedLog = engine.updateDayLog(log, updatedSignal);
+                await saveTodayLog(updatedLog);
+              }
+              await sendExitNotification(signal, 'TP', currentPrice);
+            } else if (hitSl) {
+              const updatedSignal = await updateSignalStatus(signal.id, 'CLOSED_SL', -signal.maxLoss);
+              if (updatedSignal && log) {
+                const updatedLog = engine.updateDayLog(log, updatedSignal);
+                await saveTodayLog(updatedLog);
+              }
+              await sendExitNotification(signal, 'SL', currentPrice);
+            }
           }
-          await sendExitNotification(signal, 'TP', currentPrice);
-        } else if (hitSl) {
-          const updatedSignal = await updateSignalStatus(signal.id, 'CLOSED_SL', -signal.maxLoss);
-          if (updatedSignal && log) {
-            const updatedLog = engine.updateDayLog(log, updatedSignal);
-            await saveTodayLog(updatedLog);
-          }
-          await sendExitNotification(signal, 'SL', currentPrice);
         }
+      } finally {
+        await releaseDayLock(dateKey);
       }
     }
 

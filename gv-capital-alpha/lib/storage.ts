@@ -303,15 +303,33 @@ export async function cleanPerformanceHistory(): Promise<void> {
 }
 
 export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> | T): Promise<T> {
-  const portfolio = await getPortfolio();
-  const result = await fn(portfolio);
-  
-  // P8: Incrementa versione e aggiorna timestamp
-  portfolio._version = (portfolio._version || 0) + 1;
-  portfolio.updatedAt = new Date().toISOString();
-  
-  await savePortfolio(portfolio);
-  return result;
+  const MAX_RETRIES = 3;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const portfolio = await getPortfolio();
+    const versionAtRead = portfolio._version || 0;
+
+    const result = await fn(portfolio);
+
+    portfolio._version = versionAtRead + 1;
+    portfolio.updatedAt = new Date().toISOString();
+
+    // P8: rileggi subito prima di scrivere, per rilevare scritture concorrenti
+    const freshCheck = await getPortfolio();
+    const versionNow = freshCheck._version || 0;
+
+    if (versionNow !== versionAtRead) {
+      // qualcun altro ha scritto tra la nostra lettura e la nostra scrittura
+      console.warn(`[mutatePortfolio] Conflitto versione (attesa ${versionAtRead}, trovata ${versionNow}). Retry ${attempt + 1}/${MAX_RETRIES}`);
+      await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
+      continue; // rilegge da capo e riapplica fn() al nuovo stato
+    }
+
+    await savePortfolio(portfolio);
+    return result;
+  }
+
+  throw new Error('[mutatePortfolio] Impossibile scrivere: conflitti di concorrenza persistenti dopo i retry');
 }
 
 export async function updatePositionPortfolio(positionId: string, portfolioName: string): Promise<void> {

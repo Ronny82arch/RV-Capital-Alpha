@@ -23,7 +23,7 @@ export async function GET() {
 
     const engine  = new TradingByDayEngine(config);
     const pnl     = todayLog?.realizedPnL ?? 0;
-    const breaker = engine.evaluateDailyCircuitBreaker(pnl);
+    const breaker = engine.evaluateDailyCircuitBreaker(pnl, activeSignals);
 
     return NextResponse.json({
       success: true,
