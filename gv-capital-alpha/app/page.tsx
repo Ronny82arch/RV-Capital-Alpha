@@ -340,6 +340,12 @@ export default function Home() {
   };
 
   const handleUpdateTags = async (positionId: string, tags: string[]) => {
+    // ⚡ Aggiornamento Ottimistico
+    setPortfolio(prev => prev ? {
+      ...prev,
+      positions: prev.positions.map(p => p.id === positionId ? { ...p, tags } : p)
+    } : prev);
+
     const res = await fetch('/api/tags', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -352,6 +358,9 @@ export default function Home() {
   };
 
   const handleUpdateAIFilters = async (aiManagedTags: string[]) => {
+    // ⚡ Aggiornamento Ottimistico
+    setPortfolio(prev => prev ? { ...prev, aiManagedTags } : prev);
+
     const res = await fetch('/api/tags', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -364,6 +373,9 @@ export default function Home() {
   };
 
   const handleUpdatePortfolios = async (customPortfolios: string[]) => {
+    // ⚡ Aggiornamento Ottimistico
+    setPortfolio(prev => prev ? { ...prev, customPortfolios } : prev);
+
     const res = await fetch('/api/tags', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -388,6 +400,12 @@ export default function Home() {
   };
 
   const handleAssignPortfolio = async (positionId: string, portfolioName: string) => {
+    // ⚡ Aggiornamento Ottimistico per fixare il salto della select e la latenza
+    setPortfolio(prev => prev ? {
+      ...prev,
+      positions: prev.positions.map(p => p.id === positionId ? { ...p, portfolio: portfolioName } : p)
+    } : prev);
+
     const res = await fetch('/api/tags', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
