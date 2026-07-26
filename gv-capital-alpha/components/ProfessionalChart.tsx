@@ -229,6 +229,9 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
   const isPositive = pnl >= 0;
   const color = isPositive ? '#00d4aa' : '#ef4444';
 
+  const isShortTermFilter = filter === '1H' || filter === '1D';
+  const isSynthetic = !history || history.length === 0 || isShortTermFilter;
+
   if (!mounted) {
     return (
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginTop: '24px', height: '380px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -252,8 +255,10 @@ export default function ProfessionalChart({ currentValue, label, history }: Prop
           <div style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color }}>
             {isPositive ? '+' : ''}€{pnl.toFixed(0)} ({isPositive ? '+' : ''}{pnlPct.toFixed(2)}%)
             <span style={{ color: 'var(--text3)', fontWeight: 'normal', marginLeft: '6px' }}>{filter}</span>
-            {(!history || history.length === 0) && (
-              <span style={{ fontSize: '9px', background: '#f59e0b22', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px', fontWeight: 'bold' }}>DATI DIMOSTRATIVI</span>
+            {isSynthetic && (
+              <span style={{ fontSize: '9px', background: '#f59e0b22', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px', fontWeight: 'bold' }}>
+                {isShortTermFilter && history && history.length > 0 ? 'STIMA INTRADAY' : 'DATI DIMOSTRATIVI'}
+              </span>
             )}
           </div>
         </div>
