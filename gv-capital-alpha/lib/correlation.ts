@@ -48,7 +48,8 @@ export function buildCorrelationMatrix(marketData: MarketData[], minPoints = 30)
     matrix[a.symbol] = {};
     for (const b of marketData) {
       if (a.symbol === b.symbol) { matrix[a.symbol][b.symbol] = 1; continue; }
-      matrix[a.symbol][b.symbol] = pairwiseCorrelation(a.history, b.history, minPoints) ?? 0;
+      const rho = pairwiseCorrelation(a.history, b.history, minPoints);
+      matrix[a.symbol][b.symbol] = rho ?? NaN; // ✅ FIX: sconosciuto ≠ zero
     }
   }
   return matrix;
@@ -69,9 +70,11 @@ export function checkCorrelationAgainstOpenPositions(
 ): CorrelationCheck {
   for (const open of openSymbols) {
     const rho = matrix[candidateSymbol]?.[open];
-    if (rho != null && Math.abs(rho) > threshold) {
-      return { blocked: true, conflictWith: open, correlation: rho };
+    if (rho === undefined || Number.isNaN(rho)) {
+      console.warn(`[Correlation] Dati insufficienti per ${candidateSymbol} vs ${open} — procedo con cautela`);
+      continue;
     }
+    if (Math.abs(rho) > threshold) return { blocked: true, conflictWith: open, correlation: rho };
   }
   return { blocked: false };
 }
