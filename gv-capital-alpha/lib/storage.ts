@@ -22,6 +22,24 @@ function mapToPortfolioState(
   history: any[], 
   alerts: any[]
 ): PortfolioState {
+  const globalHistory = history
+    .filter(h => h.portfolio_tag === 'GLOBAL' || !h.portfolio_tag)
+    .map(h => ({
+      date: h.date,
+      totalValue: Number(h.total_value),
+      pnlPercent: Number(h.pnl_percent)
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const perTagHistory: Record<string, PerformanceSnapshot[]> = {};
+  for (const h of history) {
+    if (h.portfolio_tag === 'GLOBAL' || !h.portfolio_tag) continue;
+    if (!perTagHistory[h.portfolio_tag]) perTagHistory[h.portfolio_tag] = [];
+    perTagHistory[h.portfolio_tag].push({ date: h.date, totalValue: Number(h.total_value), pnlPercent: Number(h.pnl_percent) });
+  }
+  for (const tag in perTagHistory) {
+    perTagHistory[tag].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
   return {
     capitalBase: Number(p.capital_base || 30000),
     capitalAvailable: Number(p.capital_available || 0),
@@ -94,11 +112,8 @@ function mapToPortfolioState(
       portfolio: sig.custom_portfolio_name || undefined
     })),
     
-    performanceHistory: history.map(h => ({
-      date: h.date,
-      totalValue: Number(h.total_value),
-      pnlPercent: Number(h.pnl_percent)
-    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    performanceHistory: globalHistory,
+    perTagHistory: perTagHistory,
     
     alerts: alerts.map(a => ({
       id: a.id,
@@ -244,20 +259,25 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
   }
 
   // History (Insert only missing dates)
-  if (state.performanceHistory.length > 0) {
-    // Generate simple deterministic hashes for history ids based on date to allow upserting safely
-    const histRows = state.performanceHistory.map(h => ({
-      portfolio_id: DEFAULT_PORTFOLIO_ID,
-      date: h.date,
-      total_value: h.totalValue,
-      pnl_percent: h.pnlPercent
-    }));
+  if (state.performanceHistory.length > 0 || (state.perTagHistory && Object.keys(state.perTagHistory).length > 0)) {
+    if ((state as any)._historyChanged) {
+      const histRows: any[] = [];
     
-    if ((state as any)._historyChanged && histRows.length > 0) {
-      const { error } = await supabaseAdmin.from('performance_history')
-        .upsert(histRows, { onConflict: 'portfolio_id, date' });
-      if (error) {
-        console.error('[savePortfolio] performance_history upsert fallito:', error);
+      for (const h of state.performanceHistory) {
+        histRows.push({ portfolio_id: DEFAULT_PORTFOLIO_ID, portfolio_tag: 'GLOBAL', date: h.date, total_value: h.totalValue, pnl_percent: h.pnlPercent });
+      }
+      for (const [tag, snapshots] of Object.entries(state.perTagHistory || {})) {
+        for (const h of snapshots) {
+          histRows.push({ portfolio_id: DEFAULT_PORTFOLIO_ID, portfolio_tag: tag, date: h.date, total_value: h.totalValue, pnl_percent: h.pnlPercent });
+        }
+      }
+    
+      if (histRows.length > 0) {
+        const { error } = await supabaseAdmin.from('performance_history')
+          .upsert(histRows, { onConflict: 'portfolio_id, date, portfolio_tag' });
+        if (error) {
+          console.error('[savePortfolio] performance_history upsert fallito:', error);
+        }
       }
     }
   }
@@ -538,6 +558,13 @@ export async function recalcPortfolio(portfolio?: PortfolioState & { _historyCha
       totalValue: p.totalValue,
       pnlPercent: p.totalPnLPercent,
     });
+    
+    p.perTagHistory = p.perTagHistory || {};
+    for (const [tag, perf] of Object.entries(p.portfolioPerformances || {})) {
+      if (!p.perTagHistory[tag]) p.perTagHistory[tag] = [];
+      p.perTagHistory[tag].push({ date: new Date().toISOString(), totalValue: perf.totalValue, pnlPercent: perf.pnlPercent });
+    }
+    
     (p as any)._historyChanged = true;
   }
 

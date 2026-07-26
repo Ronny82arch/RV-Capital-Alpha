@@ -755,7 +755,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
       <ProfessionalChart 
         currentValue={displayTotalValue} 
         label={selectedTag === 'Tutti' || !selectedTag ? 'TOTALE' : selectedTag.toUpperCase()} 
-        history={selectedTag === 'Tutti' || !selectedTag ? p.performanceHistory : undefined}
+        history={selectedTag === 'Tutti' || !selectedTag ? p.performanceHistory : (p.perTagHistory?.[selectedTag] || undefined)}
       />
 
       {/* STATS ROW */}

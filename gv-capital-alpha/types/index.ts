@@ -95,6 +95,7 @@ export interface PortfolioState {
   targetAnnualReturn: number;
   startDate: string;
   performanceHistory: PerformanceSnapshot[];
+  perTagHistory?: Record<string, PerformanceSnapshot[]>;
   alerts: Alert[];
   updatedAt: string;
   aiManagedTags: string[];
