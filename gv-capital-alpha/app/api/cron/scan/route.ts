@@ -114,7 +114,7 @@ async function runScan() {
           );
           const aiRec = engine.calculateAllocationTargets(portfolio.totalValue, leverageState.currentLeverage, 70, 30);
           
-          await notifyCoreSatelliteDrift(corePct, userTarget, aiRec.targetCorePct, aiRec.targetTbdPct);
+          await notifyCoreSatelliteDrift(corePct, userTarget, aiRec.coreAssetsPct, aiRec.tbdAssetsPct);
         }
       }
     }
