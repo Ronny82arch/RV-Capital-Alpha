@@ -92,12 +92,20 @@ export function calculateMomentum(prices: number[], period = 20): number {
 }
 
 export function calculateVolatility(prices: number[], period = 20): number {
-  if (prices.length < period) return 0;
-  const slice = prices.slice(-period);
-  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
-  if (mean === 0) return 0;
-  const variance = slice.reduce((sum, p) => sum + Math.pow(p - mean, 2), 0) / slice.length;
-  return Math.sqrt(variance) / mean;
+  // ✅ FIX: deviazione standard dei RENDIMENTI giornalieri, non dei livelli di prezzo.
+  // Prima calcolava il coefficiente di variazione dei prezzi grezzi, che confonde
+  // il trend con la volatilità reale.
+  if (prices.length < period + 1) return 0;
+  const slice = prices.slice(-(period + 1));
+  const returns: number[] = [];
+  for (let i = 1; i < slice.length; i++) {
+    if (slice[i - 1] === 0) continue;
+    returns.push((slice[i] - slice[i - 1]) / slice[i - 1]);
+  }
+  if (returns.length === 0) return 0;
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+  return Math.sqrt(variance); // deviazione standard dei rendimenti giornalieri (non annualizzata)
 }
 
 export function calculateATR(
