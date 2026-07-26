@@ -61,6 +61,7 @@ export interface CalibrationEntry {
   shrunkWinRate: number;
   avgWinReturn: number;
   avgLossReturn: number;
+  timeCappedCount: number; // ✅ FIX: quanti setup non hanno risolto TP/SL entro l'orizzonte, sono usciti "a tempo"
 }
 
 export type CalibrationTable = Record<string, CalibrationEntry>;
@@ -73,10 +74,10 @@ interface Bar { date: string; close: number; high?: number; low?: number; }
 // quello effettivamente eseguito.
 export function calibrateSetupsForSymbol(
   history: Bar[],
-  holdingDays = 10
-): Map<string, { wins: number; total: number; winReturns: number[]; lossReturns: number[] }> {
+  holdingDays = 120 // ✅ FIX: era 10
+): Map<string, { wins: number; total: number; winReturns: number[]; lossReturns: number[]; timeCapped: number }> {
   const closes = history.map(h => h.close);
-  const out = new Map<string, { wins: number; total: number; winReturns: number[]; lossReturns: number[] }>();
+  const out = new Map<string, { wins: number; total: number; winReturns: number[]; lossReturns: number[]; timeCapped: number }>();
   const minLookback = 55;
 
   for (let t = minLookback; t < history.length - 1; t++) {
@@ -106,6 +107,7 @@ export function calibrateSetupsForSymbol(
 
     let outcome: 'win' | 'loss' | null = null;
     let exitReturn = 0;
+    let wasTimeCapped = false; // ✅ FIX
     const slippagePct = 0.0015; // 0.15% di slippage per simulare spread/costi reali
     const lastIdx = Math.min(t + holdingDays, history.length - 1);
 
@@ -119,16 +121,19 @@ export function calibrateSetupsForSymbol(
     }
 
     if (outcome === null) {
-      // Time-based exit
+      // ✅ FIX: non è più un "time-based exit" per regola di strategia,
+      // è solo il limite dei dati disponibili (fine storico o fine orizzonte tecnico)
+      wasTimeCapped = true;
       const exitClose = history[lastIdx].close;
       exitReturn = ((exitClose - price) / price) - slippagePct;
       outcome = exitReturn > 0 ? 'win' : 'loss';
     }
 
-    const e = out.get(key) || { wins: 0, total: 0, winReturns: [], lossReturns: [] };
+    const e = out.get(key) || { wins: 0, total: 0, winReturns: [], lossReturns: [], timeCapped: 0 };
     e.total += 1;
     if (outcome === 'win') { e.wins += 1; e.winReturns.push(exitReturn); }
     else { e.lossReturns.push(exitReturn); }
+    if (wasTimeCapped) e.timeCapped += 1; // ✅ FIX
     out.set(key, e);
   }
 
@@ -138,18 +143,19 @@ export function calibrateSetupsForSymbol(
 // ─── TABELLA COMPLETA (tutti i simboli) ──────────────────────────────────────
 export function buildCalibrationTable(
   historyBySymbol: Record<string, Bar[]>,
-  holdingDays = 10
+  holdingDays = 120 // ✅ FIX: era 10, coerente col default sopra
 ): CalibrationTable {
-  const merged = new Map<string, { wins: number; total: number; winReturns: number[]; lossReturns: number[] }>();
+  const merged = new Map<string, { wins: number; total: number; winReturns: number[]; lossReturns: number[]; timeCapped: number }>();
 
   for (const symbol of Object.keys(historyBySymbol)) {
     const perSymbol = calibrateSetupsForSymbol(historyBySymbol[symbol], holdingDays);
     for (const [key, v] of Array.from(perSymbol.entries())) {
-      const acc = merged.get(key) || { wins: 0, total: 0, winReturns: [], lossReturns: [] };
+      const acc = merged.get(key) || { wins: 0, total: 0, winReturns: [], lossReturns: [], timeCapped: 0 };
       acc.wins += v.wins;
       acc.total += v.total;
       acc.winReturns.push(...v.winReturns);
       acc.lossReturns.push(...v.lossReturns);
+      acc.timeCapped += v.timeCapped; // ✅ FIX
       merged.set(key, acc);
     }
   }
@@ -166,6 +172,7 @@ export function buildCalibrationTable(
       shrunkWinRate: shrinkWinRate(v.wins, v.total),
       avgWinReturn: avgWin,
       avgLossReturn: avgLoss,
+      timeCappedCount: v.timeCapped, // ✅ FIX
     };
   }
   return table;
