@@ -40,7 +40,7 @@ export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [antigravityState, setAntigravityState] = useState<LeverageState | null>(null);
+
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -165,29 +165,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    // Monitora antigravity ogni minuto
-    const interval = setInterval(() => {
-      if (!portfolioRef.current) return;
 
-      const engine = new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG);
-      const levState = engine.calculateLeverageState(
-        portfolioRef.current.totalValue,
-        portfolioRef.current.positions
-          .filter(p => p.status === 'OPEN')
-          .reduce((sum, p) => sum + p.capitalAllocated, 0),
-        portfolioRef.current.totalPnL
-      );
-
-      setAntigravityState(levState);
-
-      if (levState.status !== 'NORMAL') {
-        console.log(`[Antigravity] ${levState.status}: ${levState.driftFromTarget.toFixed(1)}% drift`);
-      }
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const tickMarket = useCallback(async () => {
     try {

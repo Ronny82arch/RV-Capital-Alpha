@@ -83,6 +83,15 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     );
   }, [portfolio, antigravityEngine]);
 
+  useEffect(() => {
+    if (leverageState && leverageState.status !== 'NORMAL') {
+      fetch('/api/alerts/leverage-warning', {
+        method: 'POST',
+        body: JSON.stringify({ status: leverageState.status, drift: leverageState.driftFromTarget }),
+      }).catch(() => {});
+    }
+  }, [leverageState?.status]);
+
   // Sync to localStorage and database (debounced to avoid spamming while typing)
   useEffect(() => {
     if (typeof window !== 'undefined') {
