@@ -1121,15 +1121,20 @@ function CoreSatelliteWidget({
   const openPos = positions.filter(p => p.status === 'OPEN');
   
   const coreValue = openPos
-    .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
+    .filter(p => p.tags?.some(t => t.toLowerCase() === 'core') || p.portfolio?.toLowerCase() === 'core')
     .reduce((sum, p) => sum + ((Number(p.capitalAllocated) || 0) + (Number(p.unrealizedPnl) || 0)), 0);
 
   const satValue = openPos
-    .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
+    .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite') || p.portfolio?.toLowerCase() === 'satellite')
     .reduce((sum, p) => sum + ((Number(p.capitalAllocated) || 0) + (Number(p.unrealizedPnl) || 0)), 0);
 
   const total = coreValue + satValue;
-  if (total === 0) return <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>Nessun asset Core/Satellite attivo.</div>;
+  if (total === 0) return (
+    <div style={{ color: 'var(--text3)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+      Nessun asset Core/Satellite attivo.<br/><br/>
+      💡 Assegna l'etichetta "Core" o "Satellite" alle singole posizioni (dalla scheda Posizioni), oppure rinomina uno dei tuoi portafogli in "Core" o "Satellite" perché vengano tracciati qui.
+    </div>
+  );
 
   const corePct = (coreValue / total) * 100;
   const satPct = (satValue / total) * 100;
@@ -1171,9 +1176,9 @@ function CoreSatelliteWidget({
         </div>
       )}
 
-      {engineRecommendation && Math.abs(engineRecommendation.targetCorePct - userTarget) > 5 && (
+      {engineRecommendation && Math.abs(engineRecommendation.coreAssetsPct - userTarget) > 5 && (
         <div style={{ fontSize: '10px', color: '#3b82f6', textAlign: 'center', marginTop: '4px', background: '#3b82f611', padding: '6px', borderRadius: '4px', border: '1px solid #3b82f644' }}>
-          <b>🤖 Opinione Antigravity:</b> Al momento la leva è espansa. Il motore consiglia un'allocazione tattica <b>{engineRecommendation.targetCorePct.toFixed(0)}% Core / {engineRecommendation.targetTbdPct.toFixed(0)}% Satellite</b>.
+          <b>🤖 Opinione Antigravity:</b> Al momento la leva è espansa. Il motore consiglia un'allocazione tattica <b>{engineRecommendation.coreAssetsPct.toFixed(0)}% Core / {engineRecommendation.tbdAssetsPct.toFixed(0)}% Satellite</b>.
         </div>
       )}
 
