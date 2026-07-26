@@ -88,7 +88,6 @@ export function calibrateSetupsForSymbol(
     const sma20 = calculateSMA(w, 20);
     const sma50 = calculateSMA(w, 50);
     const momentum = calculateMomentum(w, 20);
-    const volatility = calculateVolatility(w, 20);
 
     const key = setupKey(
       bucketRSI(rsi),
