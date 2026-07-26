@@ -353,6 +353,24 @@ export async function updateCustomPortfolios(portfolios: string[]): Promise<void
   });
 }
 
+export async function createCustomPortfolio(name: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await mutatePortfolio(p => {
+      const existing = p.customPortfolios || ['Principale', 'Trading', 'Copy Trading', 'PAC'];
+      if (existing.includes(name)) {
+        throw new Error('DUPLICATE_PORTFOLIO_NAME');
+      }
+      p.customPortfolios = [...existing, name];
+    });
+    return { success: true, message: 'Portafoglio creato' };
+  } catch (err: any) {
+    if (err.message === 'DUPLICATE_PORTFOLIO_NAME') {
+      return { success: false, message: 'Questo portafoglio esiste già' };
+    }
+    throw err;
+  }
+}
+
 export async function deleteCustomPortfolio(portfolioName: string): Promise<void> {
   await mutatePortfolio(p => {
     p.customPortfolios = (p.customPortfolios || []).filter(n => n !== portfolioName);

@@ -18,6 +18,7 @@ interface Props {
   setTab?: (t: Tab) => void; 
   tbdData?: any; 
   onUpdatePortfolios?: (customPortfolios: string[]) => Promise<boolean>;
+  onCreatePortfolio?: (portfolioName: string) => Promise<boolean>;
   onAssignPortfolio?: (positionId: string, portfolioName: string) => Promise<boolean>;
   onUpdateCapitalBase?: (base: number) => Promise<boolean>;
   onUpdateDepositedFunds?: (funds: number) => Promise<boolean>;
@@ -40,12 +41,13 @@ function getTagIcon(tag: string, size = 48) {
   return <Briefcase size={size} strokeWidth={1.5} color="var(--text2)" />;
 }
 
-export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onAssignPortfolio, onUpdateCapitalBase, onUpdateDepositedFunds, onToggleCopyTrading }: Props) {
+export default function DashboardTab({ portfolio, market, setTab, tbdData: externalTbdData, onUpdatePortfolios, onCreatePortfolio, onAssignPortfolio, onUpdateCapitalBase, onUpdateDepositedFunds, onToggleCopyTrading }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedPosId, setExpandedPosId] = useState<string | null>(null);
   const [isObscured, setIsObscured] = useState(false);
   const [isLight, setIsLight] = useState(false);
   const [showManagePortfolios, setShowManagePortfolios] = useState(false);
+  const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
   const [portfolioTargets, setPortfolioTargets] = useState<Record<string, number>>(() => {
     if (portfolio?.targets && Object.keys(portfolio.targets).length > 0) {
       return portfolio.targets;
@@ -175,6 +177,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             <>
               <button 
                 onClick={async () => {
+                  if (isCreatingPortfolio) return;
                   const name = prompt('Nome del nuovo portafoglio:');
                   if (!name || !name.trim()) return;
                   const trimmed = name.trim();
@@ -182,11 +185,16 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                     alert('Questo portafoglio esiste già');
                     return;
                   }
-                  await onUpdatePortfolios([...customPortfolios, trimmed]);
+                  if (onCreatePortfolio) {
+                    setIsCreatingPortfolio(true);
+                    await onCreatePortfolio(trimmed);
+                    setIsCreatingPortfolio(false);
+                  }
                 }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
-                onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                disabled={isCreatingPortfolio}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: isCreatingPortfolio ? 'not-allowed' : 'pointer', opacity: isCreatingPortfolio ? 0.5 : 1 }}
+                onMouseOver={(e) => { if (!isCreatingPortfolio) { e.currentTarget.style.background = 'var(--bg3)'; e.currentTarget.style.borderColor = 'var(--blue)'; } }}
+                onMouseOut={(e) => { if (!isCreatingPortfolio) { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.borderColor = 'var(--border)'; } }}
                 title="Crea Portafoglio"
               >
                 <FolderPlus size={20} />

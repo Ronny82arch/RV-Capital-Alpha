@@ -375,6 +375,18 @@ export default function Home() {
     return data.success;
   };
 
+  const handleCreatePortfolio = async (portfolioName: string) => {
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'create_portfolio', portfolioName }),
+    });
+    const data = await res.json();
+    showToast(data.message, data.success);
+    if (data.success) await refresh();
+    return data.success;
+  };
+
   const handleAssignPortfolio = async (positionId: string, portfolioName: string) => {
     const res = await fetch('/api/tags', {
       method: 'POST',
@@ -459,6 +471,7 @@ export default function Home() {
             setTab={setTab} 
             tbdData={tbdData}
             onUpdatePortfolios={handleUpdatePortfolios}
+            onCreatePortfolio={handleCreatePortfolio}
             onAssignPortfolio={handleAssignPortfolio}
             onUpdateCapitalBase={handleUpdateCapitalBase}
             onUpdateDepositedFunds={handleUpdateDepositedFunds}

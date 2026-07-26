@@ -27,6 +27,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Portafogli aggiornati' });
     }
 
+    if (type === 'create_portfolio') {
+      if (!portfolioName || !portfolioName.trim()) {
+        return NextResponse.json({ success: false, message: 'Nome mancante' }, { status: 400 });
+      }
+      const { createCustomPortfolio } = await import('@/lib/storage');
+      const result = await createCustomPortfolio(portfolioName.trim());
+      if (!result.success) {
+        return NextResponse.json({ success: false, message: result.message }, { status: 409 });
+      }
+      return NextResponse.json({ success: true, message: result.message });
+    }
+
     if (type === 'delete_portfolio') {
       if (!portfolioName) return NextResponse.json({ success: false, message: 'Nome mancante' }, { status: 400 });
       const { deleteCustomPortfolio } = await import('@/lib/storage');
