@@ -181,9 +181,15 @@ export async function fetchCryptoData(item: WatchlistItem): Promise<MarketData |
     const change24h = coin.eur_24h_change || 0;
     const previousPrice = currentPrice / (1 + change24h / 100);
 
+    const closesForVol = (histData.prices || []).map(([, p]: [number, number]) => p);
+    const returns = closesForVol.slice(1).map((c: number, i: number) => Math.abs(Math.log(c / closesForVol[i])));
+    const avgDailyVol = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0.02;
+
     const history = (histData.prices || []).map(([ts, price]: [number, number]) => ({
       date: new Date(ts).toISOString().split('T')[0],
       close: price,
+      high: price * (1 + avgDailyVol),
+      low: price * (1 - avgDailyVol),
     }));
 
     return {
@@ -299,11 +305,15 @@ async function fetchCryptoDataForCalibration(item: WatchlistItem): Promise<Marke
     const change24h = coin.eur_24h_change || 0;
     const previousPrice = currentPrice / (1 + change24h / 100);
 
+    const closesForVol = (histData.prices || []).map(([, p]: [number, number]) => p);
+    const returns = closesForVol.slice(1).map((c: number, i: number) => Math.abs(Math.log(c / closesForVol[i])));
+    const avgDailyVol = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0.02;
+
     const history = (histData.prices || []).map(([ts, price]: [number, number]) => ({
       date: new Date(ts).toISOString().split('T')[0],
       close: price,
-      high: price * 1.005, // Mock high/low for crypto history since CoinGecko doesn't provide it
-      low: price * 0.995,
+      high: price * (1 + avgDailyVol), // ✅ FIX: banda proporzionale alla volatilità reale, non fissa
+      low: price * (1 - avgDailyVol),
     }));
 
     return {

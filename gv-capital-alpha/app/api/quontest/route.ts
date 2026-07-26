@@ -24,7 +24,16 @@ async function fetchDeepHistory(ticker: string): Promise<HistoricalOHLCV | null>
       const data = await res.json();
       const close  = (data.prices  || []).map(([, p]: [number, number]) => p);
       const volume = (data.total_volumes || []).map(([, v]: [number, number]) => v);
-      return { close, high: close.map((c: number) => c * 1.005), low: close.map((c: number) => c * 0.995), volume };
+      
+      const returns = close.slice(1).map((c: number, i: number) => Math.abs(Math.log(c / close[i])));
+      const avgDailyVol = returns.length > 0 ? returns.reduce((a: number, b: number) => a + b, 0) / returns.length : 0.02;
+
+      return { 
+        close, 
+        high: close.map((c: number) => c * (1 + avgDailyVol)), 
+        low: close.map((c: number) => c * (1 - avgDailyVol)), 
+        volume 
+      };
     } catch { return null; }
   }
 
