@@ -62,3 +62,22 @@ export async function notifyDailySummary(
   });
   return true;
 }
+
+export async function notifyCoreSatelliteDrift(
+  coreActual: number,
+  coreTarget: number,
+  aiTargetCore: number,
+  aiTargetSat: number
+): Promise<boolean> {
+  const diff = coreActual - coreTarget;
+  const direction = diff > 0 ? 'troppo alto' : 'troppo basso';
+  
+  const message = `⚖️ SBILANCIAMENTO STRUTTURALE\n\nIl tuo Core è attualmente al ${coreActual.toFixed(1)}% (Target: ${coreTarget}%). È ${direction}.\n\n🤖 Opinione Antigravity:\nIl motore tattico consiglierebbe al momento un peso del ${aiTargetCore.toFixed(0)}% sul Core e ${aiTargetSat.toFixed(0)}% sul Satellite.\n\nValuta se ribilanciare seguendo il tuo target fisso o assecondare il motore.`;
+
+  await addAlert({
+    title: `Sbilanciamento Core/Satellite`,
+    message,
+    type: 'WARNING'
+  });
+  return true;
+}

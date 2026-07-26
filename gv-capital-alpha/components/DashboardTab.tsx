@@ -301,6 +301,37 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 </div>
               </div>
             ))}
+            
+            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+                TARGET STRUTTURALE (CORE / SATELLITE)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+                  <span>Core Target: <b>{portfolio?.coreSatelliteTarget ?? 70}%</b></span>
+                  <span>Satellite Target: <b>{100 - (portfolio?.coreSatelliteTarget ?? 70)}%</b></span>
+                </div>
+                <input 
+                  type="range" 
+                  min="50" max="95" step="5"
+                  value={portfolio?.coreSatelliteTarget ?? 70}
+                  onChange={async (e) => {
+                    const val = parseInt(e.target.value, 10);
+                    // Optimistic UI update could be complex, we just trigger the API
+                    const res = await fetch('/api/portfolio', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ type: 'update_core_satellite_target', coreSatelliteTarget: val })
+                    });
+                    if (res.ok) window.location.reload();
+                  }}
+                  style={{ width: '100%', accentColor: 'var(--green)' }}
+                />
+                <div style={{ fontSize: '10px', color: 'var(--text3)' }}>
+                  Trascina per impostare il peso ideale. Il motore Antigravity ti consiglierà deviazioni tattiche, ma riceverai una notifica se il portafoglio reale si sbilancia troppo dal tuo target.
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -313,6 +344,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '20px', width: '100%', maxWidth: '700px' }}>
           {allTags.map(tag => {
             let pnlPct = 0;
+            let absPnL = 0;
             let val = 0;
 
             if (tag === 'Tutti') {
@@ -333,6 +365,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 .filter(pos => pos.status === 'CLOSED' && !(p.excludeCopyTrading && pos.id?.startsWith('etoro_mirror_')))
                 .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
               const totalPnL = totalUnrealizedPnL + totalRealizedPnL;
+              absPnL = totalPnL;
 
               const baseForPnL = (p.depositedFunds && p.depositedFunds > 0)
                 ? p.depositedFunds
@@ -347,6 +380,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               const unrealized = openTagPos.reduce((acc, pos) => acc + (pos.unrealizedPnl || 0), 0);
               const realized = closedTagPos.reduce((acc, pos) => acc + (pos.realizedPnl || 0), 0);
               const totalPnL = unrealized + realized;
+              absPnL = totalPnL;
               const invested = openTagPos.reduce((acc, pos) => acc + (pos.capitalAllocated || 0), 0);
               
               pnlPct = invested > 0 ? (totalPnL / invested) * 100 : 0;
@@ -379,6 +413,9 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                 <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'var(--bg)', padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--bg3)' }}>
                   <span style={{ fontSize: '14px', fontWeight: 'bold', color: pnlColor, fontFamily: 'var(--font-mono)' }}>
                     {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: pnlColor, fontFamily: 'var(--font-mono)' }}>
+                    {isPositive ? '+' : ''}€{absPnL.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
                   </span>
                   <span style={{ fontSize: '10px', color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
                     €{val.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
@@ -429,7 +466,14 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         </div>
 
         <div style={{ marginTop: '24px', width: '100%', maxWidth: '700px' }}>
-          <AntigravityMonitor leverageState={leverageState} />
+          <AntigravityMonitor 
+            leverageState={leverageState} 
+            rebalanceAction={
+              leverageState 
+                ? antigravityEngine.evaluateLeverageAdjustment(leverageState.currentLeverage, Number(portfolio.totalPnL) || 0, 0, false)
+                : undefined
+            } 
+          />
         </div>
       </div>
     );
@@ -746,7 +790,15 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
               <Scale size={32} /> RAPPORTO CORE / SATELLITE
             </div>
-            <CoreSatelliteWidget positions={p.positions} />
+            <CoreSatelliteWidget 
+              positions={p.positions} 
+              userTarget={portfolio?.coreSatelliteTarget ?? 70}
+              engineRecommendation={
+                leverageState 
+                  ? antigravityEngine.calculateAllocationTargets(portfolio?.totalValue ?? 0, leverageState.currentLeverage, 70, 30) 
+                  : null
+              }
+            />
           </div>
         )}
       </div>
@@ -1076,7 +1128,15 @@ function SectorDiversificationWidget({ positions }: { positions: Position[] }) {
   );
 }
 
-function CoreSatelliteWidget({ positions }: { positions: Position[] }) {
+function CoreSatelliteWidget({ 
+  positions, 
+  userTarget = 70, 
+  engineRecommendation 
+}: { 
+  positions: Position[], 
+  userTarget?: number, 
+  engineRecommendation?: any 
+}) {
   const openPos = positions.filter(p => p.status === 'OPEN');
   
   const coreValue = openPos
@@ -1092,25 +1152,50 @@ function CoreSatelliteWidget({ positions }: { positions: Position[] }) {
 
   const corePct = (coreValue / total) * 100;
   const satPct = (satValue / total) * 100;
+  const drift = Math.abs(corePct - userTarget);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', height: '16px', borderRadius: '8px', overflow: 'hidden' }}>
-        <div style={{ width: `${corePct}%`, background: 'var(--green)', transition: 'width 0.5s' }} title={`Core: ${corePct.toFixed(1)}%`} />
-        <div style={{ width: `${satPct}%`, background: '#f59e0b', transition: 'width 0.5s' }} title={`Satellite: ${satPct.toFixed(1)}%`} />
+      <div style={{ position: 'relative', height: '16px', borderRadius: '8px', overflow: 'hidden', background: '#f59e0b', border: drift > 5 ? '1px solid #f59e0b' : 'none' }}>
+        <div style={{ width: `${corePct}%`, height: '100%', background: 'var(--green)', transition: 'width 0.5s' }} title={`Core Reale: ${corePct.toFixed(1)}%`} />
+        {/* User Target Marker */}
+        <div style={{ 
+          position: 'absolute', 
+          left: `${userTarget}%`, 
+          top: 0, 
+          height: '100%', 
+          width: '2px', 
+          background: 'white',
+          boxShadow: '0 0 4px rgba(0,0,0,0.5)',
+          zIndex: 10
+        }} title={`Target Utente: ${userTarget}%`} />
       </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--green)' }} />
-          <span style={{ color: 'var(--text2)' }}>Core</span>
-          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{corePct.toFixed(1)}%</span>
+          <span style={{ color: 'var(--text2)' }}>Core (Target: {userTarget}%)</span>
+          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>Reale: {corePct.toFixed(1)}%</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{satPct.toFixed(1)}%</span>
-          <span style={{ color: 'var(--text2)' }}>Satellite</span>
+          <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>Reale: {satPct.toFixed(1)}%</span>
+          <span style={{ color: 'var(--text2)' }}>(Target: {100 - userTarget}%) Satellite</span>
           <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
         </div>
       </div>
+      
+      {drift > 5 && (
+        <div style={{ fontSize: '10px', color: '#f59e0b', textAlign: 'center', marginTop: '2px', fontWeight: 'bold' }}>
+          ⚠️ SBILANCIAMENTO: Deviazione del {drift.toFixed(1)}% dal target strutturale!
+        </div>
+      )}
+
+      {engineRecommendation && Math.abs(engineRecommendation.targetCorePct - userTarget) > 5 && (
+        <div style={{ fontSize: '10px', color: '#3b82f6', textAlign: 'center', marginTop: '4px', background: '#3b82f611', padding: '6px', borderRadius: '4px', border: '1px solid #3b82f644' }}>
+          <b>🤖 Opinione Antigravity:</b> Al momento la leva è espansa. Il motore consiglia un'allocazione tattica <b>{engineRecommendation.targetCorePct.toFixed(0)}% Core / {engineRecommendation.targetTbdPct.toFixed(0)}% Satellite</b>.
+        </div>
+      )}
+
       <div style={{ fontSize: '10px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>
         Totale allocato: €{(Number(total) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}
       </div>

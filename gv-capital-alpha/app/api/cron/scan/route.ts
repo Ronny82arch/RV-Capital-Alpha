@@ -13,7 +13,9 @@ import {
   getCalibrationTable, getCalibrationUpdatedAt,
 } from '@/lib/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
-import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary } from '@/lib/alerts';
+import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary, notifyCoreSatelliteDrift } from '@/lib/alerts';
+import { AntigravityEngine } from '@/lib/antigravity-engine';
+import { DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +91,33 @@ async function runScan() {
       if (!md) continue;
       if (md.price <= pos.stopLoss)   await notifyStopLossAlert(pos, md.price);
       if (md.price >= pos.takeProfit) await notifyTakeProfitAlert(pos, md.price);
+    }
+
+    // ── Alert Core/Satellite Drift ──────────────────────────────────────────
+    if (openPositions.length > 0) {
+      const coreValue = openPositions
+        .filter(p => p.tags?.some(t => t.toLowerCase() === 'core'))
+        .reduce((sum, p) => sum + ((Number(p.capitalAllocated) || 0) + (Number(p.unrealizedPnl) || 0)), 0);
+      const satValue = openPositions
+        .filter(p => p.tags?.some(t => t.toLowerCase() === 'satellite'))
+        .reduce((sum, p) => sum + ((Number(p.capitalAllocated) || 0) + (Number(p.unrealizedPnl) || 0)), 0);
+      const totalCoreSat = coreValue + satValue;
+      if (totalCoreSat > 0) {
+        const corePct = (coreValue / totalCoreSat) * 100;
+        const userTarget = portfolio.coreSatelliteTarget ?? 70;
+        
+        if (Math.abs(corePct - userTarget) > 5) {
+          const engine = new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG);
+          const leverageState = engine.calculateLeverageState(
+            portfolio.totalValue,
+            openPositions.reduce((sum, p) => sum + p.capitalAllocated, 0),
+            portfolio.totalPnL
+          );
+          const aiRec = engine.calculateAllocationTargets(portfolio.totalValue, leverageState.currentLeverage, 70, 30);
+          
+          await notifyCoreSatelliteDrift(corePct, userTarget, aiRec.targetCorePct, aiRec.targetTbdPct);
+        }
+      }
     }
 
     // ── Matrice di correlazione su dati live ─────────────────────────────────

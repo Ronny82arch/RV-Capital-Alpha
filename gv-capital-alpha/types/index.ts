@@ -104,7 +104,8 @@ export interface PortfolioState {
   excludeCopyTrading?: boolean;
   targets?: Record<string, number>;
   aiMode?: 'STRICT' | 'DYNAMIC';
-  antigravityTargetLeverage?: number; // ✅ FIX: target leva persistito, non più hardcoded
+  antigravityTargetLeverage?: number;
+  coreSatelliteTarget?: number; // ✅ Target personalizzato per l'allocazione Core (es. 70 significa 70% Core, 30% Satellite)
   portfolioPerformances?: Record<string, { totalValue: number, invested: number, pnl: number, pnlPercent: number }>;
   _version?: number;
 }
