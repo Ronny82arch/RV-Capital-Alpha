@@ -669,7 +669,19 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         <KpiCard
           label="LIQUIDITÀ DISPONIBILE"
           value={`€${(Number(p.capitalAvailable) || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 })}`}
-          sub={`${(((Number(p.capitalAvailable) || 0) / (Number(p.depositedFunds) || Number(p.capitalBase) || 1)) * 100).toFixed(0)}% dei fondi depositati`}
+          sub={
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span>{(((Number(p.capitalAvailable) || 0) / (Number(p.depositedFunds) || Number(p.capitalBase) || 1)) * 100).toFixed(0)}% dei fondi depositati</span>
+              {tbdData?.totalCapital && (
+                <div style={{ padding: '4px 6px', background: 'var(--bg3)', borderRadius: '4px', borderLeft: '2px solid var(--yellow)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text2)' }}>Riservato TBD: <b>€{tbdData.totalCapital.toLocaleString('it-IT')}</b></div>
+                  {tbdData.totalCapital > (Number(p.capitalAvailable) || 0) && (
+                    <div style={{ color: '#ef4444', fontWeight: 'bold', marginTop: '2px', fontSize: '9px' }}>⚠️ Riserva > Liquidità!</div>
+                  )}
+                </div>
+              )}
+            </div>
+          }
           color="var(--blue)"
         />
         {selectedTag !== 'Tutti' && (
