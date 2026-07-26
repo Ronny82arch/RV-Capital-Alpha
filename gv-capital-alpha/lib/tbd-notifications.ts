@@ -134,42 +134,7 @@ async function sendFcmMessage(payload: FcmPayload): Promise<boolean> {
   }
 }
 
-// ─── WEB PUSH FALLBACK ────────────────────────────────────────────────────
 
-async function sendWebPushNotification(
-  title: string,
-  options: NotificationOptions & { tag: string }
-): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || typeof window === 'undefined' || !('Notification' in window)) {
-    console.warn('[Web Push] API not supported');
-    return false;
-  }
-
-  // Richiedere permessi se non già concessi
-  if (Notification.permission === 'default') {
-    await Notification.requestPermission();
-  }
-
-  if (Notification.permission !== 'granted') {
-    console.warn('[Web Push] Permission denied');
-    return false;
-  }
-
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    await registration.showNotification(title, {
-      ...options,
-      requireInteraction: true,
-      badge: '/apple-touch-icon.png',
-    });
-    
-    console.log('[Web Push] Notification shown:', title);
-    return true;
-  } catch (e) {
-    console.error('[Web Push] Error:', e);
-    return false;
-  }
-}
 
 // ─── NOTIFICA PRE-ALERT ───────────────────────────────────────────────────────
 
@@ -207,17 +172,8 @@ export async function sendPreAlertNotification(signal: TbdSignal): Promise<void>
     },
   };
 
-  // ✅ FIX: Inviare su entrambi i canali (FCM + Web Push)
-  const fcmSent = await sendFcmMessage(payload);
-  
-  // Web Push come fallback
-  if (!fcmSent && typeof window !== 'undefined') {
-    await sendWebPushNotification(title, {
-      body,
-      tag: `tbd-pre-alert-${signal.id}`,
-      icon: '/apple-touch-icon.png',
-    });
-  }
+  // Invio FCM (se configurato)
+  await sendFcmMessage(payload);
 
   // Anche aggiungere all'alert store interno
   try {
@@ -245,13 +201,7 @@ export async function sendCircuitBreakerNotification(
       type: reason === 'TARGET' ? 'SUCCESS' : 'WARNING'
     });
 
-    // Prova Web Push anche qui
-    if (typeof window !== 'undefined') {
-      await sendWebPushNotification(`${emoji} ${reason}`, {
-        body: message,
-        tag: `tbd-circuit-${reason}`,
-      });
-    }
+
   } catch (e) {
     console.error('[TBD] Circuit breaker notification error:', e);
   }
@@ -272,12 +222,7 @@ export async function sendSignalTriggeredNotification(
       type: 'INFO'
     });
 
-    if (typeof window !== 'undefined') {
-      await sendWebPushNotification(title, {
-        body,
-        tag: `tbd-trigger-${signal.id}`,
-      });
-    }
+
   } catch (e) {
     console.error('[TBD] Trigger notification error:', e);
   }
@@ -300,12 +245,7 @@ export async function sendExitNotification(
       type: type === 'TP' ? 'SUCCESS' : 'WARNING'
     });
 
-    if (typeof window !== 'undefined') {
-      await sendWebPushNotification(title, {
-        body,
-        tag: `tbd-exit-${signal.id}`,
-      });
-    }
+
   } catch (e) {
     console.error('[TBD] Exit notification error:', e);
   }
@@ -313,4 +253,4 @@ export async function sendExitNotification(
 
 // ─── ESPORTA PER TESTING ───────────────────────────────────────────────────
 
-export { getFirebaseAccessToken, sendFcmMessage, sendWebPushNotification };
+export { getFirebaseAccessToken, sendFcmMessage };
