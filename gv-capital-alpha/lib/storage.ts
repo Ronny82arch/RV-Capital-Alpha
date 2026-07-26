@@ -377,6 +377,10 @@ export async function addAlert(alertInfo: Omit<Alert, 'id' | 'date' | 'read'>): 
   await supabaseAdmin.from('alerts').insert({
     id: a.id, portfolio_id: DEFAULT_PORTFOLIO_ID, title: a.title, message: a.message, date: a.date, type: a.type, read: a.read
   });
+
+  // ✅ FIX: invio push reale
+  const { sendPushToAllSubscriptions } = await import('./push');
+  await sendPushToAllSubscriptions(a.title, a.message, { alertId: a.id, type: a.type });
 }
 
 export async function markAlertAsRead(alertId: string): Promise<void> {
