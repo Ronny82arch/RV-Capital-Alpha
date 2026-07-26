@@ -31,6 +31,7 @@ function mapToPortfolioState(
     totalPnLPercent: 0, // Recalculated dynamically if needed
     targetAnnualReturn: Number(p.target_annual_return || 0.25),
     aiMode: (p.ai_mode === 'DYNAMIC' ? 'DYNAMIC' : 'STRICT'),
+    antigravityTargetLeverage: Number(p.antigravity_target_leverage) || 1.5,
     startDate: p.start_date || new Date().toISOString(),
     aiManagedTags: p.active_assets || [],
     customPortfolios: p.custom_portfolios || [],
@@ -150,6 +151,7 @@ export async function savePortfolio(state: PortfolioState): Promise<void> {
     total_pnl: state.totalPnL,
     target_annual_return: state.targetAnnualReturn,
     ai_mode: state.aiMode || 'STRICT',
+    antigravity_target_leverage: state.antigravityTargetLeverage || 1.5,
     start_date: state.startDate,
     active_assets: state.aiManagedTags || [],
     custom_portfolios: state.customPortfolios || [],
