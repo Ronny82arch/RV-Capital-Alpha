@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllMarketData } from '@/lib/market';
 import { analyzeAsset, findPromisingCandidatesBatch, evaluateCandidatesWithAIBatch } from '@/lib/ai';
 import {
-  getPortfolio, addSignal, updatePositionPrices,
+  getPortfolio, addSignal, updatePositionPrices, recalcPortfolio,
   getCalibrationTable, getCalibrationUpdatedAt,
 } from '@/lib/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
@@ -77,7 +77,11 @@ async function runScan() {
       .filter(md => openPositions.some(p => p.symbol === md.symbol))
       .map(md => ({ positionId: openPositions.find(p => p.symbol === md.symbol)!.id, currentPrice: md.price }));
 
-    if (priceUpdates.length > 0) await updatePositionPrices(priceUpdates);
+    if (priceUpdates.length > 0) {
+      await updatePositionPrices(priceUpdates);
+    } else {
+      await recalcPortfolio();
+    }
 
     // ── Alert SL/TP ──────────────────────────────────────────────────────────
     for (const pos of openPositions) {
