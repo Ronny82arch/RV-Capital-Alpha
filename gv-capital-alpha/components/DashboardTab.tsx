@@ -171,8 +171,8 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '60vh', padding: '20px', gap: '20px' }}>
-        {/* ROW DI CONTROLLO (ALLINEATA A DESTRA E NON SOVRAPPOSTA) */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', maxWidth: '700px', gap: '12px' }}>
+        {/* ROW DI CONTROLLO (ALLINEATA AL CENTRO) */}
+        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', maxWidth: '700px', gap: '12px' }}>
           {onUpdatePortfolios && (
             <>
               <button 
@@ -210,25 +210,6 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
               </button>
             </>
           )}
-          <button 
-            onClick={async () => {
-              if (onToggleCopyTrading) {
-                await onToggleCopyTrading(!p.excludeCopyTrading);
-              }
-            }}
-            style={{ 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              padding: '0 12px', height: '40px', borderRadius: '20px', 
-              background: p.excludeCopyTrading ? 'var(--bg3)' : 'rgba(76, 175, 80, 0.1)', 
-              border: `1px solid ${p.excludeCopyTrading ? 'var(--border)' : 'var(--green)'}`, 
-              color: p.excludeCopyTrading ? 'var(--text2)' : 'var(--green)', 
-              transition: 'all 0.2s', cursor: 'pointer',
-              fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 'bold'
-            }}
-            title="Mostra o nascondi le posizioni dei CopyTrader nel calcolo globale"
-          >
-            COPY TRADING: {p.excludeCopyTrading ? 'ESCLUSO' : 'TUTTI'}
-          </button>
           <button 
             onClick={() => setIsObscured(!isObscured)}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', transition: 'all 0.2s', cursor: 'pointer' }}
