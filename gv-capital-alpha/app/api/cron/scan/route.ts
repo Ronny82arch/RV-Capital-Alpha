@@ -14,8 +14,7 @@ import {
 } from '@/lib/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary, notifyCoreSatelliteDrift } from '@/lib/alerts';
-import { AntigravityEngine } from '@/lib/antigravity-engine';
-import { DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-config';
+import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
 
 export const dynamic = 'force-dynamic';
 
