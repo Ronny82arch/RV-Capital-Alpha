@@ -49,7 +49,7 @@ Regole di Risposta:
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-5', // ✅ FIX: modello corrente, quello ritirato non esiste più dall'ottobre 2025
         max_tokens: 1500,
         system: systemPrompt,
         messages: messages.map((m: any) => ({
