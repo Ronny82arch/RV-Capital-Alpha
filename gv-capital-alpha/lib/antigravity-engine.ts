@@ -1,483 +1,251 @@
 /**
- * ANTIGRAVITY ENGINE — Autonomous Capital Levitation System
+ * ANTIGRAVITY ENGINE v2 — Risk Transfer Allocator
  * 
- * Algoritmo di auto-rebalancing che aumenta/diminuisce il leverage
- * basandosi sulla performance in tempo reale del portafoglio.
- * 
- * Obiettivo: Massimizzare profitti in fase di win, minimizzare drawdown
- * in fase di perdita.
- * 
- * ─────────────────────────────────────────────────────────────────
- * COME FUNZIONA:
- * 
- * 1. FASE DI PROFITTO (+15%+ dai depositi)
- *    → Aumenta leverage 1.0x → 2.5x
- *    → Trasferisce capitale da Core (80%) a TBD (speculativo)
- *    → Rischio controllato: max loss non supera mai il 2%
- * 
- * 2. FASE DI EQUILIBRIO (±15%)
- *    → Mantiene leverage a 1.5x (50% extra)
- *    → Bilanciamento 70% Core / 30% TBD
- * 
- * 3. FASE DI PERDITA (-8%- dai depositi)
- *    → Riduce leverage 1.5x → 1.0x
- *    → Trasferisce capitale da TBD a Core
- *    → Protezione: liquida prima il TBD se drawdown > 5%
- * ─────────────────────────────────────────────────────────────────
+ * Principi:
+ * 1. ZERO leverage finanziario (>1x). Solo spostamento di capitale tra bucket.
+ * 2. Il TBD riceve "boost" di capitale SOLO quando il mercato offre setup 
+ *    di alta qualità (quality score) E il portafoglio non è in drawdown.
+ * 3. Se il TBD perde il risk budget giornaliero → cooldown 48h.
+ * 4. In drawdown >10% tutto va in Core (protezione capitale).
  */
 
-// ─── TYPES ────────────────────────────────────────────────────────────────
+// ─── TIPI ───────────────────────────────────────────────────────────────────
 
 export interface AntigravityConfig {
-  /** Capitale di base (non include leva) */
-  baseCapital: number;                   // es. 5.000€
-  
-  /** Leverage target in condizioni normali */
-  targetLeverage: number;                // es. 1.5x (50% extra)
-  
-  /** Limite massimo assoluto di leverage */
-  maxLeverage: number;                   // es. 2.5x
-  
-  /** Soglia profitto per aumentare la leva */
-  profitTriggerPct: number;              // es. 15% → aumenta
-  
-  /** Soglia perdita per ridurre la leva */
-  lossTriggerPct: number;                // es. -8% → riduce
-  
-  /** Quante volte al giorno rebalance automatico */
-  rebalanceInterval: 'HOURLY' | 'EVERY_4H' | 'DAILY';
-  
-  /** Tolleranza drift tra allocazione reale e target */
-  driftTolerance: number;                // es. 2% (rebalance se > 2% di scarto)
-  
-  /** Max rischio giornaliero assoluto */
-  maxDailyRiskPercent: number;           // es. 2% del capital
+  /** Allocazione base Core (%) */
+  coreBasePct: number;
+  /** Allocazione base Satellite (%) */
+  satelliteBasePct: number;
+  /** Allocazione base TBD (%) */
+  tbdBasePct: number;
+  /** Max allocazione TBD in boost mode (%) */
+  tbdMaxBoostPct: number;
+  /** Soglia drawdown per PROTECT (%) */
+  protectDrawdownPct: number;
+  /** Soglia drawdown per CAUTION (%) */
+  cautionDrawdownPct: number;
+  /** Min quality score per attivare boost TBD (0-100) */
+  minQualityScoreForBoost: number;
+  /** Ore di cooldown dopo che TBD ha bruciato il daily budget */
+  tbdCooldownHours: number;
 }
 
-export interface LeverageState {
-  /** Leva corrente (1.0x = no leva, 2.5x = max) */
-  currentLeverage: number;
-  
-  /** Capitale totale esposto (Core + TBD) */
-  deployedCapital: number;
-  
-  /** Liquidità non investita */
-  availableCapital: number;
-  
-  /** Ultimo rebalance timestamp */
-  lastRebalance: string;
-  
-  /** Scarto % da target */
-  driftFromTarget: number;
-  
-  /** Stato del motore */
-  status: 'NORMAL' | 'PROFIT_MODE' | 'CAUTION' | 'EMERGENCY_STOP';
-}
+export type AntigravityStatus = 
+  | 'NORMAL' 
+  | 'BOOST_TBD' 
+  | 'CAUTION' 
+  | 'PROTECT';
 
-export interface AllocationTarget {
-  coreAssetsPct: number;                 // % portafoglio in Core
-  tbdAssetsPct: number;                  // % portafoglio in TBD speculativo
-  needsRebalance: boolean;
-  estimatedRebalanceAmount: number;      // € da spostare
-}
-
-export interface RebalanceAction {
-  action: 'INCREASE_LEVERAGE' | 'DECREASE_LEVERAGE' | 'HOLD' | 'EMERGENCY_EXIT';
-  newLeverage: number;
+export interface AntigravityState {
+  status: AntigravityStatus;
   coreTargetPct: number;
+  satelliteTargetPct: number;
   tbdTargetPct: number;
+  /** Capitale effettivo da allocare a TBD oggi (€) */
+  tbdCapitalToday: number;
+  /** Motivo dell'ultima decisione */
   reason: string;
-  urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  estimatedPnLImpact: number;            // €
+  /** Se TBD è in cooldown */
+  tbdInCooldown: boolean;
+  /** Quando scade il cooldown (ISO string o null) */
+  cooldownUntil: string | null;
+  /** Drawdown calcolato (%) */
+  currentDrawdownPct: number;
 }
 
-export interface AntigravityMetrics {
-  // Performance
-  totalPnL: number;
-  totalPnLPercent: number;
-  dailyPnL: number;
-  
-  // Rischio
-  maxDrawdown: number;
-  currentDrawdown: number;
-  leverageUtilization: number;           // 0-100%
-  
-  // Rebalance
-  lastRebalanceTime: string;
-  daysUntilNextRebalance: number;
-  drift: number;
-  
-  // Forecast
-  projectedValue30Days: number;
+export interface TbdDailyResult {
+  date: string;           // YYYY-MM-DD
+  realizedPnL: number;    // può essere negativo
+  riskBudget: number;     // es. 100
+  tradesTaken: number;
 }
 
-// ─── CONFIGURAZIONE DEFAULT ───────────────────────────────────────────────
+// ─── CONFIGURAZIONE DEFAULT ─────────────────────────────────────────────────
 
 export const DEFAULT_ANTIGRAVITY_CONFIG: AntigravityConfig = {
-  baseCapital: 5000.00,
-  targetLeverage: 1.5,
-  maxLeverage: 2.5,
-  profitTriggerPct: 15.0,
-  lossTriggerPct: -8.0,
-  rebalanceInterval: 'EVERY_4H',
-  driftTolerance: 2.0,
-  maxDailyRiskPercent: 2.0,
+  coreBasePct: 70,
+  satelliteBasePct: 25,
+  tbdBasePct: 5,
+  tbdMaxBoostPct: 15,
+  protectDrawdownPct: 10.0,
+  cautionDrawdownPct: 5.0,
+  minQualityScoreForBoost: 70,
+  tbdCooldownHours: 48,
 };
 
-// ─── ENGINE ───────────────────────────────────────────────────────────────
+// ─── ENGINE ─────────────────────────────────────────────────────────────────
 
 export class AntigravityEngine {
   private config: AntigravityConfig;
-  private rebalanceHistory: Array<{ timestamp: string; action: string; leverageChange: number }> = [];
 
-  constructor(config: AntigravityConfig = DEFAULT_ANTIGRAVITY_CONFIG) {
-    this.config = config;
+  constructor(config: Partial<AntigravityConfig> = {}) {
+    this.config = { ...DEFAULT_ANTIGRAVITY_CONFIG, ...config };
   }
 
   /**
-   * CALCOLA LO STATO DI LEVA CORRENTE
+   * Calcola lo stato completo di Antigravity.
    * 
-   * @param effectiveCapital - Capitale effettivo incluso P&L
-   * @param deployedCapital - Somma degli asset esposti
-   * @param realizedPnL - P&L realizzato oggi
-   * @returns LeverageState con metriche complete
+   * @param totalPortfolioValue Valore attuale totale
+   * @param peakValue Picco storico (max totalValue mai raggiunto)
+   * @param tbdQualityScore Score medio qualità setup trovati oggi (0-100)
+   * @param tbdCooldownUntil Se c'è un cooldown attivo, timestamp ISO; altrimenti null
    */
-  public calculateLeverageState(
-    effectiveCapital: number,
-    deployedCapital: number,
-    realizedPnL: number,
-    isMacroBearMarket: boolean = false
-  ): LeverageState {
-    const currentLeverage = effectiveCapital > 0
-      ? deployedCapital / effectiveCapital
-      : 1.0;
-    
-    const availableCapital = Math.max(0, effectiveCapital - deployedCapital);
-    const driftFromTarget = ((currentLeverage - this.config.targetLeverage) / this.config.targetLeverage) * 100;
+  public calculateState(
+    totalPortfolioValue: number,
+    peakValue: number,
+    tbdQualityScore: number,
+    tbdCooldownUntil: string | null
+  ): AntigravityState {
+    const drawdown = peakValue > 0 
+      ? ((peakValue - totalPortfolioValue) / peakValue) * 100 
+      : 0;
 
-    // Determina status basato su P&L
-    let status: 'NORMAL' | 'PROFIT_MODE' | 'CAUTION' | 'EMERGENCY_STOP' = 'NORMAL';
-    if (isMacroBearMarket) {
-      status = 'EMERGENCY_STOP';
-    } else if (realizedPnL >= effectiveCapital * (this.config.profitTriggerPct / 100)) {
-      status = 'PROFIT_MODE';
-    } else if (realizedPnL <= -(effectiveCapital * (this.config.maxDailyRiskPercent / 100))) {
-      status = 'EMERGENCY_STOP';
-    } else if (realizedPnL <= -(effectiveCapital * (this.config.lossTriggerPct / 100))) {
-      status = 'CAUTION';
-    }
+    const now = new Date().toISOString();
+    const inCooldown = tbdCooldownUntil ? now < tbdCooldownUntil : false;
 
-    return {
-      currentLeverage: Math.min(this.config.maxLeverage, currentLeverage),
-      deployedCapital,
-      availableCapital,
-      lastRebalance: new Date().toISOString(),
-      driftFromTarget,
-      status,
-    };
-  }
-
-  /**
-   * VALUTA SE AUMENTARE O RIDURRE LA LEVA
-   * 
-   * Logica:
-   * - Profitto significativo → aumenta leva progressivamente
-   * - Perdita moderata → riduce leva step-by-step
-   * - Perdita grave → emergency exit (liquidare tutto il TBD)
-   */
-  public evaluateLeverageAdjustment(
-    currentLeverage: number,
-    currentDrawdown: number,
-    daysSinceLastRebalance: number = 0,
-    isMacroBearMarket: boolean = false // MACRO FILTER
-  ): RebalanceAction {
-    const effectiveDrawdown = currentDrawdown;
-
-    // ✅ EMERGENCY: Drawdown > 5% assoluto (o se siamo in Bear Market e c'è una perdita)
-    if (effectiveDrawdown <= -(this.config.baseCapital * 0.05) || (isMacroBearMarket && effectiveDrawdown < 0)) {
+    // 1. PROTECT: drawdown grave → tutto in Core, TBD spento
+    if (drawdown >= this.config.protectDrawdownPct) {
       return {
-        action: 'EMERGENCY_EXIT',
-        newLeverage: 1.0,
-        coreTargetPct: 100,
+        status: 'PROTECT',
+        coreTargetPct: 95,
+        satelliteTargetPct: 5,
         tbdTargetPct: 0,
-        reason: isMacroBearMarket ? `🚨 BEAR MARKET MACRO ACCERTATO — Blocca leva e proteggi capitale` : `🚨 DRAWDOWN CRITICO ${effectiveDrawdown.toFixed(2)}€ — Liquida TBD immediatamente`,
-        urgency: 'CRITICAL',
-        estimatedPnLImpact: effectiveDrawdown * -0.5, // Evita ulteriori perdite
+        tbdCapitalToday: 0,
+        reason: `🛡️ PROTECT: Drawdown ${drawdown.toFixed(1)}% ≥ ${this.config.protectDrawdownPct}%. TBD congelato, capitale in shelter.`,
+        tbdInCooldown: inCooldown,
+        cooldownUntil: tbdCooldownUntil,
+        currentDrawdownPct: drawdown,
       };
     }
 
-    // ⚠️ CAUTION: Drawdown tra -2% e -5%
-    if (effectiveDrawdown <= -(this.config.baseCapital * (this.config.lossTriggerPct / 100))) {
-      const newLeverage = Math.max(1.0, currentLeverage * 0.85); // Riduce 15%
+    // 2. CAUTION: drawdown moderato → TBD minimo, nessun boost
+    if (drawdown >= this.config.cautionDrawdownPct) {
       return {
-        action: 'DECREASE_LEVERAGE',
-        newLeverage,
-        coreTargetPct: 85,
-        tbdTargetPct: 15,
-        reason: `⚠️ Drawdown ${effectiveDrawdown.toFixed(2)}€ — Riduce leva a ${newLeverage.toFixed(2)}x`,
-        urgency: 'HIGH',
-        estimatedPnLImpact: 0,
+        status: 'CAUTION',
+        coreTargetPct: 80,
+        satelliteTargetPct: 18,
+        tbdTargetPct: 2,
+        tbdCapitalToday: 0, // base troppo piccola per operare oggi
+        reason: `⚠️ CAUTION: Drawdown ${drawdown.toFixed(1)}%. TBD ridotto al minimo, nessun boost.`,
+        tbdInCooldown: inCooldown,
+        cooldownUntil: tbdCooldownUntil,
+        currentDrawdownPct: drawdown,
       };
     }
 
-    // 🟢 PROFIT MODE: Profitto significativo (Bloccato in caso di Bear Market per evitare false ripartenze)
-    if (effectiveDrawdown >= (this.config.baseCapital * (this.config.profitTriggerPct / 100)) && !isMacroBearMarket) {
-      const newLeverage = Math.min(
-        this.config.maxLeverage,
-        currentLeverage * 1.15 // Aumenta 15%
-      );
+    // 3. BOOST TBD: mercato offre setup di qualità, nessun cooldown
+    if (!inCooldown && tbdQualityScore >= this.config.minQualityScoreForBoost) {
+      const boostTbd = this.config.tbdMaxBoostPct;
+      const remaining = 100 - boostTbd;
+      // Il boost prende SOLO dal Satellite, mai dal Core
+      const satPct = Math.max(5, remaining - this.config.coreBasePct);
+      const corePct = 100 - boostTbd - satPct;
+
       return {
-        action: 'INCREASE_LEVERAGE',
-        newLeverage,
-        coreTargetPct: 70 - (newLeverage - 1.0) * 10,
-        tbdTargetPct: 30 + (newLeverage - 1.0) * 10,
-        reason: `✅ Profitto +${effectiveDrawdown.toFixed(2)}€ — Aumenta leva a ${newLeverage.toFixed(2)}x`,
-        urgency: 'LOW',
-        estimatedPnLImpact: effectiveDrawdown * 0.1,
+        status: 'BOOST_TBD',
+        coreTargetPct: corePct,
+        satelliteTargetPct: satPct,
+        tbdTargetPct: boostTbd,
+        tbdCapitalToday: 0, // calcolato dal chiamante in base a totalPortfolioValue * boostTbd/100
+        reason: `🎯 BOOST TBD: Quality score ${tbdQualityScore.toFixed(0)}/100. Capitale TBD aumentato al ${boostTbd}% (prelevato dal Satellite).`,
+        tbdInCooldown: false,
+        cooldownUntil: null,
+        currentDrawdownPct: drawdown,
       };
     }
 
-    // HOLD: Entro range normale
+    // 4. NORMAL
     return {
-      action: 'HOLD',
-      newLeverage: currentLeverage,
-      coreTargetPct: 70,
-      tbdTargetPct: 30,
-      reason: `✓ Leva stabile a ${currentLeverage.toFixed(2)}x — No rebalance necessario`,
-      urgency: 'LOW',
-      estimatedPnLImpact: 0,
+      status: 'NORMAL',
+      coreTargetPct: this.config.coreBasePct,
+      satelliteTargetPct: this.config.satelliteBasePct,
+      tbdTargetPct: this.config.tbdBasePct,
+      tbdCapitalToday: 0,
+      reason: `✅ NORMAL: Drawdown ${drawdown.toFixed(1)}%. Allocazione base. TBD operativo a ${this.config.tbdBasePct}%.`,
+      tbdInCooldown: inCooldown,
+      cooldownUntil: tbdCooldownUntil,
+      currentDrawdownPct: drawdown,
     };
   }
 
   /**
-   * CALCOLA LE ALLOCAZIONI TARGET TRA CORE E TBD
-   * 
-   * A leva più alta, trasferisce più capitale verso TBD speculativo.
-   * La formula mantiene sempre protezione minima nel Core.
+   * Calcola i valori assoluti (€) da allocare per ogni bucket.
    */
-  public calculateAllocationTargets(
+  public calculateAbsoluteAllocation(
     totalPortfolioValue: number,
-    currentLeverage: number,
-    currentCorePct: number,
-    currentTbdPct: number
-  ): AllocationTarget {
-    // Allocazione base: 70% Core, 30% TBD
-    // Con leva > 1.0, le proporzioni cambiano
-    
-    const leverageExcess = Math.max(0, currentLeverage - 1.0);
-    const tbdAdjustment = leverageExcess * 20; // +20% TBD per ogni 1x di leva extra
-    
-    const targetTbdPct = Math.min(50, 30 + tbdAdjustment);
-    const targetCorePct = 100 - targetTbdPct;
-
-    const drift = Math.abs(currentTbdPct - targetTbdPct);
-    const needsRebalance = drift > this.config.driftTolerance;
-
-    const currentTbdValue = (totalPortfolioValue * currentTbdPct) / 100;
-    const targetTbdValue = (totalPortfolioValue * targetTbdPct) / 100;
-    const estimatedRebalanceAmount = Math.abs(targetTbdValue - currentTbdValue);
-
-    return {
-      coreAssetsPct: targetCorePct,
-      tbdAssetsPct: targetTbdPct,
-      needsRebalance,
-      estimatedRebalanceAmount,
-    };
-  }
-
-  /**
-   * STRESS TEST: Simula cosa succede con shock di mercato
-   * 
-   * Utile per verificare se la leva corrente è sostenibile
-   * con una perdita improvvisa del 10-20%.
-   */
-  public stressTestMarketShock(
-    totalPortfolioValue: number,
-    currentLeverage: number,
-    deployedCapital: number, // ✅ FIX: capitale effettivamente esposto in $
-    shockPercent: number = -10
+    state: AntigravityState
   ): {
-    portfolioValueAfterShock: number;
-    remainingCapital: number;
-    canSustain: boolean;
-    leverageAfterShock: number;
+    coreValue: number;
+    satelliteValue: number;
+    tbdValue: number;
   } {
-    const lossAmount = (totalPortfolioValue * shockPercent) / 100;
-    const portfolioAfter = totalPortfolioValue + lossAmount;
-    
-    // Il capitale deployato rimane fisso (nessun rebalance istantaneo)
-    const leverageAfter = deployedCapital / portfolioAfter; // ✅ FIX
-    
-    const remainingCapital = Math.max(0, portfolioAfter - deployedCapital);
-    const canSustain = portfolioAfter > 0 && leverageAfter <= this.config.maxLeverage;
-
     return {
-      portfolioValueAfterShock: portfolioAfter,
-      remainingCapital,
-      canSustain,
-      leverageAfterShock: leverageAfter,
+      coreValue: totalPortfolioValue * (state.coreTargetPct / 100),
+      satelliteValue: totalPortfolioValue * (state.satelliteTargetPct / 100),
+      tbdValue: totalPortfolioValue * (state.tbdTargetPct / 100),
     };
   }
 
   /**
-   * CALCOLA METRICHE DI PERFORMANCE
+   * Valuta se un risultato giornaliero del TBD deve attivare il cooldown.
+   * Ritorna il nuovo timestamp di cooldown (o null se non attivato).
    */
-  public calculateMetrics(
-    baseCapital: number,
-    currentValue: number,
-    dailyPnL: number,
-    maxDrawdownInPeriod: number,
-    lastRebalanceTime: Date,
-    currentLeverage: number
-  ): AntigravityMetrics {
-    const totalPnL = currentValue - baseCapital;
-    const totalPnLPercent = (totalPnL / baseCapital) * 100;
+  public evaluateCooldown(
+    todayResult: TbdDailyResult
+  ): string | null {
+    const budgetLost = todayResult.realizedPnL <= -todayResult.riskBudget;
     
-    const leverageUtilization = (currentLeverage / this.config.maxLeverage) * 100;
-    const projectedValue30Days = currentValue * Math.pow(1 + (dailyPnL / currentValue), 30);
-
-    const now = new Date();
-    const daysUntilNextRebalance = this.config.rebalanceInterval === 'HOURLY'
-      ? 1/24
-      : this.config.rebalanceInterval === 'EVERY_4H'
-        ? 4/24
-        : 1;
-
-    return {
-      totalPnL,
-      totalPnLPercent,
-      dailyPnL,
-      maxDrawdown: maxDrawdownInPeriod,
-      currentDrawdown: dailyPnL,
-      leverageUtilization,
-      lastRebalanceTime: lastRebalanceTime.toISOString(),
-      daysUntilNextRebalance,
-      drift: ((currentLeverage - this.config.targetLeverage) / this.config.targetLeverage) * 100, // ✅ FIX
-      projectedValue30Days,
-    };
+    if (budgetLost) {
+      const until = new Date();
+      until.setHours(until.getHours() + this.config.tbdCooldownHours);
+      return until.toISOString();
+    }
+    
+    return null;
   }
 
   /**
-   * SIMULA REBALANCING AUTOMATICO
-   * 
-   * Ritorna le azioni da eseguire per allineare il portafoglio
-   * alle allocazioni target.
+   * Formatta lo stato per le notifiche/UI.
    */
-  public simulateRebalancing(
-    totalPortfolioValue: number,
-    currentLeverage: number,
-    coreValue: number,
-    tbdValue: number,
-    rebalanceAction: RebalanceAction
-  ): {
-    currentCoreValue: number;
-    currentTbdValue: number;
-    targetCoreValue: number;
-    targetTbdValue: number;
-    amountToCoreFromTbd: number;  // Positivo = trasferisci da TBD a Core
-    estimatedSlippage: number;     // % slippage su trasferimento
+  public formatStatus(state: AntigravityState): {
+    emoji: string;
+    title: string;
+    color: string;
+    description: string;
   } {
-    const currentCorePct = (coreValue / totalPortfolioValue) * 100;
-    const currentTbdPct = (tbdValue / totalPortfolioValue) * 100;
-
-    const targetCoreValue = (totalPortfolioValue * rebalanceAction.coreTargetPct) / 100;
-    const targetTbdValue = (totalPortfolioValue * rebalanceAction.tbdTargetPct) / 100;
-
-    const amountToMove = targetCoreValue - coreValue;
-    // Slippage: 0.5% per ogni € mosso (commissioni + spread)
-    const estimatedSlippage = Math.abs(amountToMove) * 0.005;
-
-    return {
-      currentCoreValue: coreValue,
-      currentTbdValue: tbdValue,
-      targetCoreValue,
-      targetTbdValue,
-      amountToCoreFromTbd: amountToMove,
-      estimatedSlippage,
+    const map: Record<AntigravityStatus, { emoji: string; title: string; color: string }> = {
+      NORMAL:      { emoji: '✅', title: 'Allocazione Normale',       color: '#10b981' },
+      BOOST_TBD:   { emoji: '🎯', title: 'Boost TBD Attivo',          color: '#8b5cf6' },
+      CAUTION:     { emoji: '⚠️', title: 'Modalità Cautelativa',      color: '#f59e0b' },
+      PROTECT:     { emoji: '🛡️', title: 'Protezione Capitale',       color: '#ef4444' },
     };
-  }
 
-  /**
-   * REGISTRA STORICO REBALANCE
-   */
-  public recordRebalance(action: string, leverageChange: number) {
-    this.rebalanceHistory.push({
-      timestamp: new Date().toISOString(),
-      action,
-      leverageChange,
-    });
-
-    // Mantieni solo ultimi 30 giorni
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    this.rebalanceHistory = this.rebalanceHistory.filter(
-      r => new Date(r.timestamp) > thirtyDaysAgo
-    );
-  }
-
-  /**
-   * OTTIENI STORICO
-   */
-  public getRebalanceHistory() {
-    return [...this.rebalanceHistory];
-  }
-
-  /**
-   * RESET ENGINE (es. fine giornata)
-   */
-  public reset() {
-    this.rebalanceHistory = [];
+    const m = map[state.status];
+    return {
+      emoji: m.emoji,
+      title: m.title,
+      color: m.color,
+      description: state.reason,
+    };
   }
 }
 
-// ─── HELPER FUNCTIONS ─────────────────────────────────────────────────────
+// ─── HELPER PERSISTENZA ──────────────────────────────────────────────────────
 
-/**
- * Interpreta il colore dell'urgenza
- */
-export function getUrgencyColor(urgency: string): string {
-  const map: Record<string, string> = {
-    LOW: '#10b981',
-    MEDIUM: '#f59e0b',
-    HIGH: '#ef4444',
-    CRITICAL: '#c4243f',
-  };
-  return map[urgency] || '#64748b';
+export const ANTIGRAVITY_COOLDOWN_KEY = 'antigravity:tbd_cooldown_until';
+
+export async function getTbdCooldownUntil(kvGet: (key: string) => Promise<string | null>): Promise<string | null> {
+  return await kvGet(ANTIGRAVITY_COOLDOWN_KEY);
 }
 
-/**
- * Formatta il messaggio di azione per UI
- */
-export function formatRebalanceAction(action: RebalanceAction): {
-  emoji: string;
-  title: string;
-  description: string;
-  color: string;
-} {
-  const map: Record<string, any> = {
-    INCREASE_LEVERAGE: {
-      emoji: '📈',
-      title: 'Aumenta Leva',
-      description: `Leva ${action.newLeverage.toFixed(2)}x — Transferisci a TBD`,
-      color: '#10b981',
-    },
-    DECREASE_LEVERAGE: {
-      emoji: '📉',
-      title: 'Riduce Leva',
-      description: `Leva ${action.newLeverage.toFixed(2)}x — Proteggi Core`,
-      color: '#f59e0b',
-    },
-    HOLD: {
-      emoji: '⚖️',
-      title: 'Leva Stabile',
-      description: `Leva ${action.newLeverage.toFixed(2)}x — No azione`,
-      color: '#3b82f6',
-    },
-    EMERGENCY_EXIT: {
-      emoji: '🚨',
-      title: 'EMERGENCY EXIT',
-      description: 'Liquidazione immediata TBD — Protezione capitale',
-      color: '#ef4444',
-    },
-  };
-  return map[action.action] || map.HOLD;
+export async function setTbdCooldownUntil(
+  kvSet: (key: string, value: string, exSeconds?: number) => Promise<void>,
+  until: string | null
+): Promise<void> {
+  if (!until) {
+    await kvSet(ANTIGRAVITY_COOLDOWN_KEY, '', 1);
+    return;
+  }
+  const ttlSeconds = Math.ceil((new Date(until).getTime() - Date.now()) / 1000);
+  await kvSet(ANTIGRAVITY_COOLDOWN_KEY, until, Math.max(1, ttlSeconds));
 }

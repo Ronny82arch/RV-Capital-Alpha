@@ -14,7 +14,8 @@ import {
 } from '@/lib/storage';
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary, notifyCoreSatelliteDrift } from '@/lib/alerts';
-import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
+import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG, getTbdCooldownUntil } from '@/lib/antigravity-engine';
+import { kvGet } from '@/lib/tbd-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +68,9 @@ async function runScan() {
     const marketData = await fetchAllMarketData();
     const calibrationTable = await getCalibrationTable();
     const calibrationUpdatedAt = await getCalibrationUpdatedAt();
+    
+    const peakValue = Math.max(portfolio.totalValue, ...(portfolio.performanceHistory?.map(p => p.totalValue) || []));
+    const cooldown = await getTbdCooldownUntil(kvGet);
 
     if (!calibrationTable) {
       console.warn('[scan] Nessuna tabella di calibrazione: le probabilità usano il prior neutro 50%. Attendi che /api/cron/calibrate giri almeno una volta.');
@@ -107,14 +111,9 @@ async function runScan() {
         
         if (Math.abs(corePct - userTarget) > 5) {
           const engine = new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG);
-          const leverageState = engine.calculateLeverageState(
-            portfolio.totalValue,
-            openPositions.reduce((sum, p) => sum + p.capitalAllocated, 0),
-            portfolio.totalPnL
-          );
-          const aiRec = engine.calculateAllocationTargets(portfolio.totalValue, leverageState.currentLeverage, 70, 30);
+          const state = engine.calculateState(portfolio.totalValue, peakValue, 0, cooldown);
           
-          await notifyCoreSatelliteDrift(corePct, userTarget, aiRec.coreAssetsPct, aiRec.tbdAssetsPct);
+          await notifyCoreSatelliteDrift(corePct, userTarget, state.coreTargetPct, state.tbdTargetPct);
         }
       }
     }
@@ -133,6 +132,14 @@ async function runScan() {
 
     const aiMode = portfolio.aiMode || 'STRICT';
     
+    // ── Antigravity Engine V2 Check ──────────────────────────────────────────
+    const avgQuality = candidates.length > 0
+      ? candidates.reduce((sum, c) => sum + (c.winProbability || 0), 0) / candidates.length
+      : 0;
+      
+    const engine = new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG);
+    const agState = engine.calculateState(portfolio.totalValue, peakValue, avgQuality, cooldown);
+
     // ── Daily summary Telegram ───────────────────────────────────────────────
     await notifyDailySummary(
       portfolio.totalValue,
@@ -141,6 +148,15 @@ async function runScan() {
       portfolio.targetAnnualReturn,
       openPositions.length
     );
+
+    if (agState.tbdTargetPct === 0) {
+      return NextResponse.json({
+        success: true,
+        message: `Nessun segnale generato. Antigravity Engine V2 ha bloccato il TBD. Stato: ${agState.status}. Motivazione: ${agState.reason}`,
+        agState
+      });
+    }
+
     if (candidates.length === 0) {
       return NextResponse.json({
         success: true,

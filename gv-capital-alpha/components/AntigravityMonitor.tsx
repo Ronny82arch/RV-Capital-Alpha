@@ -1,29 +1,26 @@
 import React, { useState } from 'react';
-import { LeverageState } from '@/lib/antigravity-engine';
+import { AntigravityState, AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
+import { PortfolioState } from '@/types';
 
 interface Props {
-  leverageState: LeverageState | null;
-  rebalanceAction?: any;
+  agState: AntigravityState | null;
+  portfolio: PortfolioState | null;
 }
 
-export default function AntigravityMonitor({ leverageState, rebalanceAction }: Props) {
+export default function AntigravityMonitor({ agState, portfolio }: Props) {
   const [loading, setLoading] = useState(false);
   
-  if (!leverageState) return null;
+  if (!agState || !portfolio) return null;
+
+  const engine = new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG);
+  const formattedStatus = engine.formatStatus(agState);
 
   const handleRebalance = async () => {
     setLoading(true);
     try {
-      const actionPayload = rebalanceAction?.action && rebalanceAction.action !== 'HOLD' 
-        ? rebalanceAction.action 
-        : (leverageState.status === 'PROFIT_MODE' ? 'INCREASE_LEVERAGE' : 'DECREASE_LEVERAGE');
-        
-      const newLeveragePayload = rebalanceAction?.newLeverage || (leverageState.status === 'PROFIT_MODE' ? 2.5 : 1.0);
-
       const res = await fetch('/api/antigravity/rebalance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: actionPayload, newLeverage: newLeveragePayload })
       });
       const data = await res.json();
       if (data.success) {
@@ -38,16 +35,7 @@ export default function AntigravityMonitor({ leverageState, rebalanceAction }: P
     setLoading(false);
   };
 
-  const leverage = leverageState.currentLeverage;
-  const statusColor = leverageState.status === 'PROFIT_MODE'
-    ? '#10b981'
-    : leverageState.status === 'EMERGENCY_STOP'
-      ? '#ef4444'
-      : leverageState.status === 'CAUTION'
-        ? '#f59e0b'
-        : '#3b82f6';
-
-  const needsRebalance = leverageState.status !== 'NORMAL' || (rebalanceAction && rebalanceAction.action !== 'HOLD');
+  const statusColor = formattedStatus.color;
 
   return (
     <div style={{
@@ -60,62 +48,80 @@ export default function AntigravityMonitor({ leverageState, rebalanceAction }: P
       flexDirection: 'column',
       gap: '12px',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ fontSize: '10px', color: 'var(--text3)', fontWeight: 'bold', letterSpacing: '0.1em' }}>
-            ⚖️ ANTIGRAVITY LEVERAGE
+            ⚖️ ANTIGRAVITY ENGINE V2
           </div>
           <div style={{ 
-            fontSize: '24px', 
+            fontSize: '18px', 
             fontWeight: 'bold', 
             color: statusColor,
             fontFamily: 'var(--font-mono)',
-            marginTop: '4px'
+            marginTop: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}>
-            {leverage.toFixed(2)}x
+            {formattedStatus.emoji} {formattedStatus.title}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '6px', maxWidth: '350px', lineHeight: 1.4 }}>
+            {formattedStatus.description}
           </div>
         </div>
 
         <div style={{ textAlign: 'right', fontSize: '11px', color: 'var(--text3)' }}>
           <div>
-            Capitale esposto: <b style={{ color: 'var(--text)' }}>€{leverageState.deployedCapital.toFixed(0)}</b>
-          </div>
-          <div style={{ marginTop: '4px' }}>
-            Liquidità libera: <b style={{ color: 'var(--text)' }}>€{leverageState.availableCapital.toFixed(0)}</b>
-          </div>
-          <div style={{ marginTop: '4px', fontSize: '9px' }}>
-            Drift: <b style={{ color: Math.abs(leverageState.driftFromTarget) > 5 ? '#f59e0b' : '#10b981' }}>
-              {leverageState.driftFromTarget > 0 ? '+' : ''}{leverageState.driftFromTarget.toFixed(1)}%
+            Drawdown: <b style={{ color: agState.currentDrawdownPct > 5 ? '#ef4444' : 'var(--text)' }}>
+              {agState.currentDrawdownPct.toFixed(1)}%
             </b>
           </div>
+          {agState.tbdInCooldown && agState.cooldownUntil && (
+            <div style={{ marginTop: '4px', color: '#f59e0b', fontWeight: 'bold' }}>
+              TBD Cooldown:<br/>{new Date(agState.cooldownUntil).toLocaleString('it-IT')}
+            </div>
+          )}
         </div>
       </div>
       
-      {needsRebalance && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px', width: '100%' }}>
-          <button
-            onClick={handleRebalance}
-            disabled={loading}
-            style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              border: `1px solid ${statusColor}`,
-              background: `${statusColor}22`,
-              color: statusColor,
-              fontWeight: 'bold',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '14px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-              transition: 'all 0.2s',
-              width: '100%',
-              textAlign: 'center'
-            }}
-          >
-            {loading ? 'APPLICAZIONE IN CORSO...' : `APPLICA TARGET: ${rebalanceAction?.newLeverage?.toFixed(2) || '2.00'}x`}
-          </button>
+      {/* Target Allocation Bars */}
+      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.05em' }}>TARGET ALLOCAZIONE RACCOMANDATA:</div>
+        <div style={{ display: 'flex', gap: '2px', height: '12px', borderRadius: '4px', overflow: 'hidden' }}>
+          {agState.coreTargetPct > 0 && <div style={{ width: `${agState.coreTargetPct}%`, background: '#10b981' }} title={`Core: ${agState.coreTargetPct}%`} />}
+          {agState.satelliteTargetPct > 0 && <div style={{ width: `${agState.satelliteTargetPct}%`, background: '#f59e0b' }} title={`Satellite: ${agState.satelliteTargetPct}%`} />}
+          {agState.tbdTargetPct > 0 && <div style={{ width: `${agState.tbdTargetPct}%`, background: '#8b5cf6' }} title={`TBD: ${agState.tbdTargetPct}%`} />}
         </div>
-      )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ color: '#10b981' }}>Core: {agState.coreTargetPct}%</span>
+          <span style={{ color: '#f59e0b' }}>Satellite: {agState.satelliteTargetPct}%</span>
+          <span style={{ color: '#8b5cf6' }}>TBD: {agState.tbdTargetPct}%</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px', width: '100%' }}>
+        <button
+          onClick={handleRebalance}
+          disabled={loading}
+          style={{
+            padding: '12px 16px',
+            borderRadius: '8px',
+            border: `1px solid ${statusColor}`,
+            background: `${statusColor}22`,
+            color: statusColor,
+            fontWeight: 'bold',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '14px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1,
+            transition: 'all 0.2s',
+            width: '100%',
+            textAlign: 'center'
+          }}
+        >
+          {loading ? 'CALCOLO IN CORSO...' : `RICALCOLA ED ESEGUI REBALANCE`}
+        </button>
+      </div>
     </div>
   );
 }

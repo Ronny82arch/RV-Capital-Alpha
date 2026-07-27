@@ -75,24 +75,24 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
   const [tbdData, setTbdData] = useState<{ realizedPnL: number; totalCapital: number } | null>(null);
 
   const antigravityEngine = useMemo(() => new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG), []);
-  const leverageState = useMemo(() => {
-    return antigravityEngine.calculateLeverageState(
+  const agState = useMemo(() => {
+    const peakValue = Math.max(portfolio?.totalValue || 0, ...(portfolio?.performanceHistory?.map(p => p.totalValue) || []));
+    return antigravityEngine.calculateState(
       portfolio?.totalValue ?? 0,
-      portfolio?.positions
-        .filter(p => p.status === 'OPEN')
-        .reduce((sum, p) => sum + p.capitalAllocated, 0) ?? 0,
-      portfolio?.totalPnL ?? 0
+      peakValue,
+      0,
+      null
     );
   }, [portfolio, antigravityEngine]);
 
   useEffect(() => {
-    if (leverageState && leverageState.status !== 'NORMAL') {
+    if (agState && agState.status !== 'NORMAL') {
       fetch('/api/alerts/leverage-warning', {
         method: 'POST',
-        body: JSON.stringify({ status: leverageState.status, drift: leverageState.driftFromTarget }),
+        body: JSON.stringify({ status: agState.status, drift: agState.currentDrawdownPct }),
       }).catch(() => {});
     }
-  }, [leverageState?.status]);
+  }, [agState?.status]);
 
   // Sync to localStorage and database (debounced to avoid spamming while typing)
   useEffect(() => {
@@ -448,12 +448,8 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
         <div style={{ marginTop: '24px', width: '100%', maxWidth: '700px' }}>
           <AntigravityMonitor 
-            leverageState={leverageState} 
-            rebalanceAction={
-              leverageState 
-                ? antigravityEngine.evaluateLeverageAdjustment(leverageState.currentLeverage, Number(portfolio.totalPnL) || 0, 0, false)
-                : undefined
-            } 
+            agState={agState} 
+            portfolio={portfolio} 
           />
         </div>
       </div>
@@ -786,11 +782,10 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             <CoreSatelliteWidget 
               positions={p.positions} 
               userTarget={portfolio?.coreSatelliteTarget ?? 70}
-              engineRecommendation={
-                leverageState 
-                  ? antigravityEngine.calculateAllocationTargets(portfolio?.totalValue ?? 0, leverageState.currentLeverage, 70, 30) 
-                  : null
-              }
+              engineRecommendation={{
+                coreAssetsPct: agState.coreTargetPct,
+                tbdAssetsPct: agState.satelliteTargetPct + agState.tbdTargetPct
+              }}
             />
           </div>
         )}

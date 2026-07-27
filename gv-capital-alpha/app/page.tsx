@@ -12,7 +12,7 @@ import QuontestTab from '@/components/QuontestTab';
 import TradingByDayTab from '@/components/TradingByDayTab';
 import PacSimulatorTab from '@/components/PacSimulatorTab';
 import ChatWidget from '@/components/ChatWidget';
-import { LeverageState, AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
+
 
 export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading' | 'pac';
 
@@ -281,7 +281,10 @@ export default function Home() {
     if (!confirm('⚠️ ATTENZIONE: Questo cancellerà tutti i dati del portafoglio e li risincronizzerà da eToro. Continuare?')) return;
     setSyncing(true);
     try {
-      const res = await fetch('/api/portfolio', { method: 'DELETE' });
+      const res = await fetch('/api/portfolio', { 
+        method: 'DELETE',
+        headers: { 'x-confirm-reset': 'yes-i-am-sure' }
+      });
       const data = await res.json();
       showToast(data.success ? '✅ Reset completato. Dati risincronizzati da eToro.' : 'Errore reset: ' + data.error, data.success);
       await refresh();
