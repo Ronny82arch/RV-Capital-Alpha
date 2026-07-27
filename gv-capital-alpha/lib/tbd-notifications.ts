@@ -189,16 +189,17 @@ export async function sendPreAlertNotification(signal: TbdSignal): Promise<void>
 
 export async function sendCircuitBreakerNotification(
   message: string,
-  reason: 'TARGET' | 'MAX_LOSS'
+  reason: 'BUDGET' | 'STREAK' | 'MAX_TRADES' | 'PROFIT_CAP' | 'NONE'
 ): Promise<void> {
   try {
-    const emoji = reason === 'TARGET' ? '🎯' : '🛑';
+    const isSuccess = reason === 'PROFIT_CAP' || reason === 'MAX_TRADES';
+    const emoji = isSuccess ? '🎯' : '🛑';
     
     // Aggiungi alert interno
     await addAlert({
       title: `${emoji} Capital Alpha — Trading by Day`,
       message: message,
-      type: reason === 'TARGET' ? 'SUCCESS' : 'WARNING'
+      type: isSuccess ? 'SUCCESS' : 'WARNING'
     });
 
 

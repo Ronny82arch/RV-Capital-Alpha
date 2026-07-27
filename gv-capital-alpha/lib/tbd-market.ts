@@ -80,6 +80,17 @@ function detectVolumeSpike(volumes: number[], threshold = 1.3): boolean {
   return volumes[volumes.length - 1] > avg * threshold;
 }
 
+function calcVolumeSigma(volumes: number[], period = 20): number {
+  if (volumes.length < period) return 0;
+  const slice = volumes.slice(-period, -1);
+  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+  if (mean === 0) return 0;
+  const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / slice.length;
+  const std = Math.sqrt(variance) || 1;
+  const currentVol = volumes[volumes.length - 1];
+  return Number(((currentVol - mean) / std).toFixed(2));
+}
+
 function detectBollingerSqueeze(closes: number[], period = 20): boolean {
   if (closes.length < period) return false;
   const slice = slicePeriod(closes, period);
@@ -125,6 +136,7 @@ async function fetchBinanceCandlesH1(symbol: string): Promise<MarketDataSnapshot
       zScoreH1:          Number(calcZScore(closes).toFixed(3)),
       chandeMomentumH1:  Number(calcCMO(closes).toFixed(2)),
       volumeSpike:       detectVolumeSpike(volumes),
+      volumeSigma:       calcVolumeSigma(volumes),
       bollingerSqueeze:  detectBollingerSqueeze(closes),
       assetType:         'CRYPTO',
     };
@@ -174,6 +186,7 @@ async function fetchYahooRESTCandlesH1(symbol: string): Promise<MarketDataSnapsh
       zScoreH1:          Number(calcZScore(closes).toFixed(3)),
       chandeMomentumH1:  Number(calcCMO(closes).toFixed(2)),
       volumeSpike:       detectVolumeSpike(volumes),
+      volumeSigma:       calcVolumeSigma(volumes),
       bollingerSqueeze:  detectBollingerSqueeze(closes),
       assetType:         'STOCK',
     };

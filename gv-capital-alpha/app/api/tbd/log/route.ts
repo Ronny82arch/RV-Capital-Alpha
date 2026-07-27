@@ -22,8 +22,11 @@ export async function GET() {
     ]);
 
     const engine  = new TradingByDayEngine(config);
-    const pnl     = todayLog?.realizedPnL ?? 0;
-    const breaker = engine.evaluateDailyCircuitBreaker(pnl, activeSignals);
+    let logToEvaluate = todayLog;
+    if (!logToEvaluate) {
+        logToEvaluate = engine.createEmptyDayLog(todayKey());
+    }
+    const breaker = engine.evaluateDailyCircuitBreaker(logToEvaluate);
 
     return NextResponse.json({
       success: true,
@@ -49,10 +52,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     let config = await getTbdConfig();
 
-    // Aggiorna config se totalCapital o dailyTarget sono inviati
+    // Aggiorna config se totalCapital o dailyRiskBudget sono inviati
     const configUpdates: any = {};
     if (typeof body.totalCapital === 'number') configUpdates.totalCapital = body.totalCapital;
-    if (typeof body.dailyTarget === 'number') configUpdates.dailyTarget = body.dailyTarget;
+    if (typeof body.dailyRiskBudget === 'number') configUpdates.dailyRiskBudget = body.dailyRiskBudget;
     
     if (Object.keys(configUpdates).length > 0) {
       await saveTbdConfig(configUpdates);
@@ -70,9 +73,6 @@ export async function POST(request: Request) {
         log.startingCash = config.totalCapital;
         log.endingCash = config.totalCapital + log.realizedPnL;
       }
-      if (typeof body.dailyTarget === 'number') {
-        log.targetReached = log.realizedPnL >= config.dailyTarget;
-      }
     }
 
     // Aggiorna manuale P&L (es. operatore chiude un trade su eToro)
@@ -81,12 +81,19 @@ export async function POST(request: Request) {
       log.endingCash    = config.totalCapital + body.realizedPnL;
       log.totalTrades   = body.totalTrades ?? log.totalTrades;
       log.winningTrades = body.winningTrades ?? log.winningTrades;
-      log.targetReached = log.realizedPnL >= config.dailyTarget;
-      log.status        = log.targetReached
-        ? 'COMPLETED_PROFIT'
-        : log.realizedPnL <= -(config.totalCapital * config.maxTotalRiskPercent / 100)
-          ? 'COMPLETED_LOSS'
-          : 'ACTIVE';
+      
+      const breaker = engine.evaluateDailyCircuitBreaker(log);
+      log.targetReached = breaker.reason === 'PROFIT_CAP';
+      
+      if (breaker.reason === 'PROFIT_CAP') {
+          log.status = 'COMPLETED_PROFIT';
+      } else if (breaker.reason === 'BUDGET' || breaker.reason === 'STREAK') {
+          log.status = 'COMPLETED_LOSS';
+      } else if (breaker.reason === 'MAX_TRADES') {
+          log.status = 'COMPLETED_PROFIT'; 
+      } else {
+          log.status = 'ACTIVE';
+      }
     }
 
     await saveTodayLog(log);

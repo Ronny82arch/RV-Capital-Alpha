@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     
     // N2: leggi i segnali attivi PRIMA del circuit breaker
     const existing = await getActiveSignals();
-    const breaker = engine.evaluateDailyCircuitBreaker(pnl, existing);
+    const breaker = engine.evaluateDailyCircuitBreaker(log);
 
     if (breaker.stopTrading) {
       if (breaker.reason !== 'NONE') {
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
 
     // 4. Genera segnali dinamici usando il capitale residuo (così da sfruttare tutta la liquidità)
-    const rawSignals = engine.scanMarketForSpeculation(marketData, remainingCapital);
+    const rawSignals = engine.scanMarketForSpeculation(marketData, remainingCapital, log);
 
     // 5. Filtra asset già in posizione attiva
     const activeCount = existing.length;
