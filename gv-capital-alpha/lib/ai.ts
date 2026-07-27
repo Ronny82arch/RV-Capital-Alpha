@@ -15,6 +15,7 @@ import {
   getDrawdownRiskMultiplier,
 } from './kelly';
 import { lookupCalibratedProbability, CalibrationTable } from './backtest';
+import type { CalibrationData } from './storage';
 import { checkCorrelationAgainstOpenPositions, CorrelationMatrix } from './correlation';
 import { generateId } from './storage';
 
@@ -40,7 +41,7 @@ export interface AnalyzedAsset {
   takeProfit: number;
 }
 
-export function analyzeAsset(market: MarketData, calibration: CalibrationTable | null): AnalyzedAsset | null {
+export function analyzeAsset(market: MarketData, calibration: CalibrationData | null): AnalyzedAsset | null {
   const closes = market.history.map(h => h.close).filter(p => p > 0);
   if (closes.length < 20) return null;
 
@@ -62,7 +63,7 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationTable |
   let technicalScore: number;
 
   if (calibration) {
-    const c = lookupCalibratedProbability(calibration, rsi, momentum, priceVsSMA20, priceVsSMA50);
+    const c = lookupCalibratedProbability(calibration.table, rsi, momentum, priceVsSMA50);
     winProbability = c.winProbability;
     winProbabilityTrusted = c.trusted;
     winProbabilitySampleSize = c.sampleSize;
@@ -233,7 +234,7 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20240620',
+          model: 'claude-sonnet-5',
           max_tokens: 1000,
           system: systemPrompt,
           messages: [{ role: 'user', content: JSON.stringify(candidatesPayload, null, 2) }],

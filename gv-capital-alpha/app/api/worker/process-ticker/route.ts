@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     // ✅ FIX: probabilità reale (calibrazione storica se disponibile, altrimenti fallback neutro dichiarato)
     const calibration = await getCalibrationTable();
     const prob = calibration
-      ? lookupCalibratedProbability(calibration, rsi, momentum, priceVsSMA20, priceVsSMA50)
+      ? lookupCalibratedProbability(calibration.table, rsi, momentum, priceVsSMA50)
       : { ...estimateFallbackWinProbability(rsi, momentum, priceVsSMA20, priceVsSMA50), sampleSize: 0, trusted: false };
 
     // ✅ FIX: SL/TP basati su ATR reale, non finti

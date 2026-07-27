@@ -885,18 +885,23 @@ export async function getPushSubscriptions(): Promise<any[]> {
   }));
 }
 
-import type { CalibrationTable } from './backtest';
+import type { CalibrationTable, AssetClass, HierarchicalStats } from './backtest';
+
+export interface CalibrationData {
+  table: CalibrationTable;
+  classStats: Record<AssetClass, HierarchicalStats>;
+}
 
 import { kvGet, kvSet } from './tbd-storage';
 
-export async function getCalibrationTable(): Promise<CalibrationTable | null> {
+export async function getCalibrationTable(): Promise<CalibrationData | null> {
   const raw = await kvGet('engine:calibration');
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-export async function saveCalibrationTable(table: CalibrationTable): Promise<void> {
-  await kvSet('engine:calibration', JSON.stringify(table), 30 * 24 * 3600);
+export async function saveCalibrationTable(data: CalibrationData): Promise<void> {
+  await kvSet('engine:calibration', JSON.stringify(data), 30 * 24 * 3600);
   await kvSet('engine:calibration_updated_at', new Date().toISOString(), 30 * 24 * 3600);
 }
 

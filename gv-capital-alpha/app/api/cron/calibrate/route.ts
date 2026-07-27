@@ -95,19 +95,19 @@ async function run() {
       });
     }
 
-    const historyBySymbol: Record<string, { date: string; close: number; high?: number; low?: number }[]> = {};
-    for (const md of marketData) historyBySymbol[md.symbol] = md.history;
+    const historyBySymbol: Record<string, { history: { date: string; close: number; high?: number; low?: number }[]; type: 'CRYPTO' | 'STOCK' | 'ETF' }> = {};
+    for (const md of marketData) historyBySymbol[md.symbol] = { history: md.history, type: md.type as 'CRYPTO' | 'STOCK' | 'ETF' };
 
     const table = buildCalibrationTable(historyBySymbol, 120); // ✅ FIX: era 10
     await saveCalibrationTable(table);
 
-    const totalSetups = Object.values(table).reduce((s, e) => s + e.sampleSize, 0);
-    const totalTimeCapped = Object.values(table).reduce((s, e) => s + e.timeCappedCount, 0);
+    const totalSetups = Object.values(table.table).reduce((s, e) => s + e.sampleSize, 0);
+    const totalTimeCapped = Object.values(table.table).reduce((s, e) => s + e.timeCappedCount, 0);
     console.log(`[calibrate] ${totalSetups} setup totali, ${totalTimeCapped} (${((totalTimeCapped/Math.max(1,totalSetups))*100).toFixed(1)}%) risolti al tetto dei ${120}gg invece che via TP/SL reale.`);
 
-    const total   = Object.keys(table).length;
-    const trusted = Object.values(table).filter(e => e.sampleSize >= 30).length;
-    const samples = Object.values(table).reduce((s, e) => s + e.sampleSize, 0);
+    const total   = Object.keys(table.table).length;
+    const trusted = Object.values(table.table).filter(e => e.sampleSize >= 30).length;
+    const samples = Object.values(table.table).reduce((s, e) => s + e.sampleSize, 0);
 
     return NextResponse.json({
       success: true,
