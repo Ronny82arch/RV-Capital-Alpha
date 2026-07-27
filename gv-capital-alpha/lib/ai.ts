@@ -1,18 +1,18 @@
 /**
- * lib/ai.ts — Signal generation engine
- *
- * Modifiche rispetto alla versione precedente:
- * 1. estimateWinProbability() (arbitraria) → lookupCalibratedProbability() (storica)
- * 2. getAggression() (loss-chasing) → getDrawdownRiskMultiplier() (protective)
- * 3. findBestCandidate(): richiede probabilità "trusted" + filtro correlazione
- * 4. EMA vera (via calculateEMA in kelly.ts) al posto della SMA mislabeled
+ * lib/ai.ts — Signal generation engine v2
+ * 
+ * Modifiche:
+ * 1. lookupCalibratedProbability() → richiede confidenceLower >= 52%
+ * 2. getDrawdownRiskMultiplier() → rimosso dal sizing (gestito da Antigravity)
+ * 3. calculateKelly() → NO targetAnnualReturn, NO momentumScore
+ * 4. Modello Claude fisso: claude-3-5-sonnet-20241022
+ * 5. Filtro candidati: usa confidenceLower, non solo winProbability
  */
 
 import { Signal, MarketData, PortfolioState } from '@/types';
 import {
   calculateRSI, calculateSMA, calculateEMA, calculateMomentum, calculateVolatility, calculateATR,
   estimateFallbackWinProbability, calculateKelly, calculatePositionSize,
-  getDrawdownRiskMultiplier,
 } from './kelly';
 import { lookupCalibratedProbability, CalibrationTable } from './backtest';
 import type { CalibrationData } from './storage';
@@ -20,8 +20,10 @@ import { checkCorrelationAgainstOpenPositions, CorrelationMatrix } from './corre
 import { generateId } from './storage';
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
 
 // ─── ANALISI TECNICA ──────────────────────────────────────────────────────────
+
 export interface AnalyzedAsset {
   market: MarketData;
   rsi: number;
@@ -34,6 +36,8 @@ export interface AnalyzedAsset {
   winProbability: number;
   winProbabilityTrusted: boolean;
   winProbabilitySampleSize: number;
+  confidenceLower: number;        // NUOVO: lower bound 90% CI
+  confidenceUpper: number;        // NUOVO: upper bound 90% CI
   trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
   technicalScore: number;
   rewardRiskRatio: number;
@@ -46,19 +50,19 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationData | 
   if (closes.length < 20) return null;
 
   const price = market.price;
-  const rsi      = calculateRSI(closes);
-  const sma20    = calculateSMA(closes, 20);
-  const sma50    = calculateSMA(closes, 50);
-  const ema10    = calculateEMA(closes, 10);
+  const rsi = calculateRSI(closes);
+  const sma20 = calculateSMA(closes, 20);
+  const sma50 = calculateSMA(closes, 50);
+  const ema10 = calculateEMA(closes, 10);
   const ema50ema = calculateEMA(closes, 50);
-  const momentum  = calculateMomentum(closes, 20);
+  const momentum = calculateMomentum(closes, 20);
   const volatility = calculateVolatility(closes, 20);
 
   const priceVsSMA20 = price - sma20;
   const priceVsSMA50 = price - sma50;
 
-  // Probabilità: usa tabella calibrata se disponibile, fallback neutro altrimenti
   let winProbability: number, winProbabilityTrusted: boolean, winProbabilitySampleSize: number;
+  let confidenceLower: number = 0, confidenceUpper: number = 1;
   let trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
   let technicalScore: number;
 
@@ -67,41 +71,45 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationData | 
     winProbability = c.winProbability;
     winProbabilityTrusted = c.trusted;
     winProbabilitySampleSize = c.sampleSize;
+    confidenceLower = c.confidenceLower;
+    confidenceUpper = c.confidenceUpper;
     const fb = estimateFallbackWinProbability(rsi, momentum, priceVsSMA20, priceVsSMA50);
-    trend = fb.trend; technicalScore = fb.score;
+    trend = fb.trend;
+    technicalScore = fb.score;
   } else {
     const fb = estimateFallbackWinProbability(rsi, momentum, priceVsSMA20, priceVsSMA50);
     winProbability = fb.winProbability;
     winProbabilityTrusted = false;
     winProbabilitySampleSize = 0;
-    trend = fb.trend; technicalScore = fb.score;
+    trend = fb.trend;
+    technicalScore = fb.score;
   }
 
-  // SL/TP — ATR Based Risk Management
-  // Lo Stop Loss viene posizionato matematicamente a 2x ATR per uscire dal rumore statistico.
+  // SL/TP ATR-based (identici a produzione)
   const atr = calculateATR(market.history, 14);
   const atrPct = atr / price;
-  
-  // Se l'ATR non è disponibile (pochi dati), usiamo un fallback generico conservativo.
   const slPct = atrPct > 0 ? atrPct * 2.0 : 0.05;
   const tpPct = slPct * 2.0;
   
-  const stopLoss  = parseFloat((price * (1 - slPct)).toFixed(2));
+  const stopLoss = parseFloat((price * (1 - slPct)).toFixed(2));
   const takeProfit = parseFloat((price * (1 + tpPct)).toFixed(2));
 
   return {
     market, rsi, sma20, sma50, ema10, ema50: ema50ema,
     momentum, volatility, winProbability, winProbabilityTrusted,
-    winProbabilitySampleSize, trend, technicalScore,
+    winProbabilitySampleSize, confidenceLower, confidenceUpper,
+    trend, technicalScore,
     rewardRiskRatio: tpPct / slPct, stopLoss, takeProfit,
   };
 }
 
-// ─── SELEZIONE CANDIDATO ──────────────────────────────────────────────────────
+// ─── SELEZIONE CANDIDATI — FILTRO PER CONFIDENCE ─────────────────────────────
+
 export interface CandidatesBatchResult {
   candidates: AnalyzedAsset[];
   skippedForCorrelation: { symbol: string; conflictWith: string; correlation: number }[];
   skippedUntrusted: string[];
+  skippedLowConfidence: string[];  // NUOVO
 }
 
 export function findPromisingCandidatesBatch(
@@ -112,27 +120,42 @@ export function findPromisingCandidatesBatch(
   correlationThreshold = 0.70
 ): CandidatesBatchResult {
   const openPositions = portfolio.positions.filter(p => p.status === 'OPEN');
-  const openSymbols   = openPositions.map(p => p.symbol);
-  const openSet       = new Set(openSymbols);
+  const openSymbols = openPositions.map(p => p.symbol);
+  const openSet = new Set(openSymbols);
 
-  if (openSet.size >= maxPositions) return { candidates: [], skippedForCorrelation: [], skippedUntrusted: [] };
+  if (openSet.size >= maxPositions) return { candidates: [], skippedForCorrelation: [], skippedUntrusted: [], skippedLowConfidence: [] };
 
-  const available  = analyses.filter(a => !openSet.has(a.market.symbol));
+  const available = analyses.filter(a => !openSet.has(a.market.symbol));
   const skippedUntrusted: string[] = [];
+  const skippedLowConfidence: string[] = [];
 
   const aiMode = portfolio.aiMode || 'STRICT';
-  const minWinProb = aiMode === 'STRICT' ? 0.55 : 0.50;
-  const requiresTrusted = aiMode === 'STRICT' ? true : false;
+  
+  // STRICT: richiede trusted + confidenceLower >= 55%
+  // DYNAMIC: accetta confidenceLower >= 50% (ma preferisce trusted)
+  const minConfidence = aiMode === 'STRICT' ? 0.55 : 0.50;
+  const minWinProb = aiMode === 'STRICT' ? 0.55 : 0.52;
 
   const bullish = available.filter(a => {
     if (a.trend !== 'BULLISH') return false;
     
-    // Filtro dinamico in base all'aiMode
-    const isTrusted = requiresTrusted ? a.winProbabilityTrusted : true;
-    if (!isTrusted || a.winProbability <= minWinProb) {
+    // Filtro confidence: il lower bound dell'intervallo deve superare la soglia
+    if (a.confidenceLower < minConfidence) {
+      skippedLowConfidence.push(`${a.market.symbol} (conf: ${(a.confidenceLower * 100).toFixed(1)}%)`);
+      return false;
+    }
+    
+    // Filtro trusted: in STRICT serve anche il flag trusted
+    if (aiMode === 'STRICT' && !a.winProbabilityTrusted) {
       skippedUntrusted.push(a.market.symbol);
       return false;
     }
+    
+    if (a.winProbability <= minWinProb) {
+      skippedUntrusted.push(a.market.symbol);
+      return false;
+    }
+    
     return true;
   });
 
@@ -142,7 +165,12 @@ export function findPromisingCandidatesBatch(
   const skippedForCorrelation: { symbol: string; conflictWith: string; correlation: number }[] = [];
 
   for (const c of bullish) {
-    const check = checkCorrelationAgainstOpenPositions(c.market.symbol, [...openSymbols, ...candidates.map(x => x.market.symbol)], correlationMatrix, correlationThreshold);
+    const check = checkCorrelationAgainstOpenPositions(
+      c.market.symbol, 
+      [...openSymbols, ...candidates.map(x => x.market.symbol)], 
+      correlationMatrix, 
+      correlationThreshold
+    );
     if (!check.blocked) {
       candidates.push(c);
       if (openSet.size + candidates.length >= maxPositions) break;
@@ -151,22 +179,21 @@ export function findPromisingCandidatesBatch(
     }
   }
 
-  return { candidates, skippedForCorrelation, skippedUntrusted };
+  return { candidates, skippedForCorrelation, skippedUntrusted, skippedLowConfidence };
 }
 
-// ─── GENERAZIONE SEGNALE CON AI ───────────────────────────────────────────────
+// ─── GENERAZIONE SEGNALI CON AI — SIZING SENZA TARGET ────────────────────────
+
 export async function evaluateCandidatesWithAIBatch(
   candidates: AnalyzedAsset[],
   portfolio: PortfolioState
 ): Promise<Signal[]> {
   if (candidates.length === 0) return [];
+  
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) { console.error('ANTHROPIC_API_KEY non settato'); return []; }
 
-  const { multiplier: drawdownMultiplier, drawdownPercent } = getDrawdownRiskMultiplier(
-    portfolio.performanceHistory, portfolio.totalValue
-  );
-
+  // NO drawdown multiplier nel sizing: gestito da Antigravity a livello bucket
   const globalTarget = portfolio.targets?.['Tutti'] !== undefined
     ? portfolio.targets['Tutti'] / 100
     : portfolio.targetAnnualReturn;
@@ -182,42 +209,41 @@ export async function evaluateCandidatesWithAIBatch(
     return `- ${pName}: target annuo +${pTarget}%`;
   }).join('\n');
 
-  // Payload per l'AI con dati tecnici di base (il dimensionamento monetario finale viene calcolato in base al portafoglio scelto dall'AI)
-  const candidatesPayload = candidates.map(c => {
-    return {
-      symbol: c.market.symbol,
-      name: c.market.name,
-      price: c.market.price,
-      change24h: c.market.changePercent,
-      technicals: { rsi: c.rsi, momentum: c.momentum, ema10: c.ema10, ema50: c.ema50, trend: c.trend, volatility: c.volatility },
-      quant: {
-        winProbability: c.winProbability,
-        sampleSize: c.winProbabilitySampleSize,
-        stopLoss: c.stopLoss,
-        takeProfit: c.takeProfit,
-        rewardRiskRatio: c.rewardRiskRatio
-      }
-    };
-  });
+  const candidatesPayload = candidates.map(c => ({
+    symbol: c.market.symbol,
+    name: c.market.name,
+    price: c.market.price,
+    change24h: c.market.changePercent,
+    technicals: { rsi: c.rsi, momentum: c.momentum, ema10: c.ema10, ema50: c.ema50, trend: c.trend, volatility: c.volatility },
+    quant: {
+      winProbability: c.winProbability,
+      confidenceInterval: `${(c.confidenceLower * 100).toFixed(0)}%-${(c.confidenceUpper * 100).toFixed(0)}%`,
+      sampleSize: c.winProbabilitySampleSize,
+      stopLoss: c.stopLoss,
+      takeProfit: c.takeProfit,
+      rewardRiskRatio: c.rewardRiskRatio
+    }
+  }));
 
   const systemPrompt = `Sei l'Executive Committee di RV Capital Alpha.
-Portafogli disponibili con rispettivi target annui:
+Portafogli disponibili con rispettivi target annui (descrittivi, non input operativi):
 ${targetsInfo}
 
-Drawdown dal picco globale: ${drawdownPercent.toFixed(1)}% (Moltiplicatore Kelly globale: ${drawdownMultiplier}x).
 Capitale Disponibile: €${portfolio.capitalAvailable.toFixed(0)}.
 Posizioni Aperte: ${portfolio.positions.filter(p => p.status === 'OPEN').length}.
 
-Riceverai un JSON array con i candidati pre-filtrati dal Technical Quant Agent. 
-Devi valutare l'intero array e decidere quali trade approvare.
-Per ciascun trade approvato, DEVI specificare a quale portafoglio assegnarlo (scegliendo ESATTAMENTE tra i nomi dei portafogli disponibili elencati sopra) inserendo il nome esatto nel campo "portfolio".
+Regole di Risposta:
+1. Valuta l'intero array di candidati pre-filtrati dal Technical Quant Agent.
+2. Per ciascun trade approvato, specifica il portafoglio di destinazione.
+3. Il sizing monetario NON è tuo compito: viene calcolato dal motore Kelly puro.
+4. Se un candidato ha confidence interval basso, rifiutalo anche se la mediana è alta.
 
-Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'array):
+Formato RISPOSTA (SOLO JSON array valido):
 [
   {
     "symbol": "TICKER",
-    "portfolio": "NomePortafoglio", // Deve corrispondere ESATTAMENTE a uno dei portafogli disponibili elencati sopra
-    "reasoning": "Breve spiegazione sul perché approvi (max 50 parole)",
+    "portfolio": "NomePortafoglio",
+    "reasoning": "Breve spiegazione (max 50 parole)",
     "strategy": "Nome strategia",
     "urgency": "LOW|MEDIUM|HIGH",
     "confidence": 0-100
@@ -232,9 +258,13 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
     try {
       const res = await fetch(ANTHROPIC_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-api-key': apiKey, 
+          'anthropic-version': '2023-06-01' 
+        },
         body: JSON.stringify({
-          model: 'claude-sonnet-5',
+          model: ANTHROPIC_MODEL,  // ✅ FIX: modello valido
           max_tokens: 1000,
           system: systemPrompt,
           messages: [{ role: 'user', content: JSON.stringify(candidatesPayload, null, 2) }],
@@ -282,20 +312,19 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
 
     const assignedPortfolio = portfoliosList.find(p => p.toLowerCase() === approved.portfolio?.toLowerCase()) || 'Da Assegnare';
     
-    // Leggi il target specifico del portafoglio assegnato dall'AI, altrimenti usa il target globale
-    const pTarget = portfolio.targets?.[assignedPortfolio] !== undefined
-      ? portfolio.targets[assignedPortfolio] / 100
-      : globalTarget;
-
-    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, pTarget, c.momentum * 100);
-    const adjustedFraction = kelly.recommendedFraction * drawdownMultiplier;
+    // ✅ FIX: Kelly puro, niente target, niente drawdown multiplier
+    const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, 0.03);
     
     const { capitalToAllocate, quantity } = calculatePositionSize(
-      portfolio.capitalAvailable, adjustedFraction, c.market.price, c.stopLoss
+      portfolio.capitalAvailable, 
+      kelly.recommendedFraction, 
+      c.market.price, 
+      c.stopLoss,
+      c.market.type === 'CRYPTO'  // ✅ FIX: frazioni per crypto
     );
 
-    if (capitalToAllocate < 100 || quantity < 1) {
-      console.log(`[AI] Segnale approvato per ${c.market.symbol} ma scartato per dimensionamento insufficiente (€${capitalToAllocate}, Qty: ${quantity})`);
+    if (capitalToAllocate < 100 || quantity < (c.market.type === 'CRYPTO' ? 0.001 : 1)) {
+      console.log(`[AI] Segnale ${c.market.symbol} scartato: sizing insufficiente`);
       continue;
     }
 
@@ -315,7 +344,7 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
       takeProfit: c.takeProfit,
       stopLossPercent: slPct,
       takeProfitPercent: tpPct,
-      kellyFraction: adjustedFraction,
+      kellyFraction: kelly.recommendedFraction,
       winProbability: c.winProbability,
       winProbabilitySampleSize: c.winProbabilitySampleSize,
       winProbabilityTrusted: c.winProbabilityTrusted,
@@ -323,7 +352,7 @@ Formato RISPOSTA (SOLO JSON array valido, no markdown o testo extra fuori dall'a
       reasoning: approved.reasoning || 'Approved by Executive Committee',
       strategy: approved.strategy || 'Multi-Agent Selection',
       urgency: (approved.urgency as Signal['urgency']) || 'MEDIUM',
-      technicals: { rsi: c.rsi, momentum: c.momentum, sma20: c.sma20, sma50: c.sma50, trend: c.trend },
+      technicals: { rsi: c.rsi, momentum: c.momentum, sma20: c.sma20, sma50: c.sma50, trend: c.trend } as any,
       createdAt: new Date().toISOString(),
       status: 'PENDING',
       portfolio: assignedPortfolio

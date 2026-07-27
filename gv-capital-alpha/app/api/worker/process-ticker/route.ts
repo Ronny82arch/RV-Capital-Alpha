@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     const rewardRiskRatio = tpPct / slPct;
 
     // ✅ FIX: Kelly reale, non hardcoded 2%
-    const kelly = calculateKelly(prob.winProbability, rewardRiskRatio, volatility, portfolio.targetAnnualReturn);
+    const kelly = calculateKelly(prob.winProbability, rewardRiskRatio, volatility, 0.03);
     if (kelly.recommendedFraction <= 0) {
       return NextResponse.json({ success: true, message: 'Segnale scartato dal risk management (Kelly <= 0)' });
     }

@@ -1,64 +1,65 @@
-// ─── KELLY CRITERION ─────────────────────────────────────────────────────────
+// ─── KELLY CRITERION v2 — Risk-Based Sizing, No Target Chasing ──────────────
+
 export interface KellyResult {
   kellyFraction: number;
-  halfKelly: number;
+  quarterKelly: number;
   expectedValue: number;
   recommendedFraction: number;
 }
 
+/**
+ * Calcola il Fractional Kelly Criterion.
+ * 
+ * @param winProbability Probabilità di successo (0-1)
+ * @param rewardRiskRatio Rapporto avgWin / avgLoss (b)
+ * @param volatility Deviazione standard dei rendimenti giornalieri
+ * @param hardCap Cap assoluto massimo (default 3% Satellite, 1% TBD)
+ */
 export function calculateKelly(
   winProbability: number,
   rewardRiskRatio: number,
   volatility: number = 0,
-  targetAnnualReturn: number = 0.25,
-  momentumScore: number = 0 // Nuova parametrizzazione Momentum
+  hardCap: number = 0.03
 ): KellyResult {
   const p = Math.max(0.01, Math.min(0.99, winProbability));
   const b = Math.max(0.1, rewardRiskRatio);
   const q = 1 - p;
 
+  // Kelly base
   const kellyFraction = (b * p - q) / b;
-  const halfKelly = kellyFraction / 2;
+  const quarterKelly = kellyFraction * 0.25;
+
+  // Expected value del trade
   const expectedValue = b * p - q;
 
-  // Inverse Volatility Scaling (Risk Parity)
+  // Volatility penalty: più volatile = più piccolo
   const BASELINE_VOL = 0.015;
-  const volatilityPenalty = volatility > 0 ? Math.min(1.0, BASELINE_VOL / volatility) : 1.0;
+  const volatilityPenalty = volatility > 0 
+    ? Math.min(1.0, BASELINE_VOL / volatility) 
+    : 1.0;
 
-  // Dynamic Target Adaptation
-  const targetMultiplier = Math.max(0.25, Math.min(1.0, Math.sqrt(targetAnnualReturn)));
-
-  // Fractional Kelly (gamma factor): typically 0.20 - 0.50 to reduce volatility
-  const gamma = 0.20 + (targetMultiplier - 0.25) * (0.30 / 0.75); 
-  
-  // Limite massimo rigido (Cap): 5% di base. Con forte momentum (score > 1), si alza fino al 10% (Kelly Momentum)
-  const baseCap = 0.05;
-  const momentumBoost = Math.max(0, Math.min(0.05, momentumScore * 0.025)); // +2.5% ogni +1 di score
-  const maxCap = baseCap + momentumBoost; 
-
-  const dynamicKelly = kellyFraction * gamma;
-  
-  const recommendedFraction = Math.max(0, Math.min(maxCap, dynamicKelly * volatilityPenalty));
+  // Quarter-Kelly fisso, nessun adattamento al target
+  const recommendedFraction = Math.max(0, Math.min(hardCap, quarterKelly * volatilityPenalty));
 
   return {
     kellyFraction: Math.max(0, kellyFraction),
-    halfKelly: Math.max(0, halfKelly),
+    quarterKelly: Math.max(0, quarterKelly),
     expectedValue,
     recommendedFraction,
   };
 }
 
-// ─── INDICATORI TECNICI ───────────────────────────────────────────────────────
+// ─── INDICATORI TECNICI (invariati, ma EMA corretta) ─────────────────────────
+
 export function calculateRSI(prices: number[], period = 14): number {
   if (prices.length < period + 1) return 50;
   const changes = prices.slice(1).map((p, i) => p - prices[i]);
   const gains = changes.map(c => (c > 0 ? c : 0));
   const losses = changes.map(c => (c < 0 ? -c : 0));
-  // First avgGain/avgLoss as simple moving average
+  
   let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
   let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
   
-  // Wilder's smoothing
   for (let i = period; i < gains.length; i++) {
     avgGain = (avgGain * (period - 1) + gains[i]) / period;
     avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
@@ -92,9 +93,6 @@ export function calculateMomentum(prices: number[], period = 20): number {
 }
 
 export function calculateVolatility(prices: number[], period = 20): number {
-  // ✅ FIX: deviazione standard dei RENDIMENTI giornalieri, non dei livelli di prezzo.
-  // Prima calcolava il coefficiente di variazione dei prezzi grezzi, che confonde
-  // il trend con la volatilità reale.
   if (prices.length < period + 1) return 0;
   const slice = prices.slice(-(period + 1));
   const returns: number[] = [];
@@ -105,7 +103,7 @@ export function calculateVolatility(prices: number[], period = 20): number {
   if (returns.length === 0) return 0;
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
-  return Math.sqrt(variance); // deviazione standard dei rendimenti giornalieri (non annualizzata)
+  return Math.sqrt(variance);
 }
 
 export function calculateATR(
@@ -121,17 +119,12 @@ export function calculateATR(
     const high = current.high ?? current.close;
     const low = current.low ?? current.close;
     
-    const tr = Math.max(
-      high - low,
-      Math.abs(high - prevClose),
-      Math.abs(low - prevClose)
-    );
+    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
     trueRanges.push(tr);
   }
   
   if (trueRanges.length === 0) return 0;
   
-  // Wilder's Smoothing for ATR
   let atr = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
   for (let i = period; i < trueRanges.length; i++) {
     atr = (atr * (period - 1) + trueRanges[i]) / period;
@@ -139,11 +132,8 @@ export function calculateATR(
   return atr;
 }
 
-// ─── WIN PROBABILITY — FALLBACK NEUTRO ───────────────────────────────────────
-// USATO SOLO se la tabella di calibrazione storica (lib/backtest.ts) non è
-// ancora disponibile (primo deploy, prima che /api/cron/calibrate giri).
-// Non genera numeri arbitrari: rimane al 50% (prior neutro, nessun edge assunto).
-// La probabilità reale viene da lookupCalibratedProbability() in lib/backtest.ts.
+// ─── FALLBACK NEUTRO ─────────────────────────────────────────────────────────
+
 export interface TechnicalScore {
   winProbability: number;
   trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
@@ -156,34 +146,44 @@ export function estimateFallbackWinProbability(
   priceVsSMA20: number,
   priceVsSMA50: number
 ): TechnicalScore {
-  // Pure moving average trend definition
   const trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 
     (priceVsSMA20 > 0 && priceVsSMA50 > 0) ? 'BULLISH' : 
     (priceVsSMA20 < 0 && priceVsSMA50 < 0) ? 'BEARISH' : 'NEUTRAL';
 
-  // Maximum Entropy Principle: senza calibrazione storica non assumiamo nessun edge
   return { winProbability: 0.5, trend, score: 0 };
 }
 
-// ─── POSITION SIZING ──────────────────────────────────────────────────────────
+// ─── POSITION SIZING ─────────────────────────────────────────────────────────
+
 export function calculatePositionSize(
   capitalAvailable: number,
   kellyFraction: number,
   price: number,
-  stopLossPrice: number
+  stopLossPrice: number,
+  allowFractional: boolean = false
 ): { capitalToAllocate: number; quantity: number; riskAmount: number } {
-  const capitalToAllocate = Math.floor(capitalAvailable * kellyFraction / 10) * 10;
   if (price === 0) return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
-  const quantity = Math.floor(capitalToAllocate / price);
-  const actualCapital = quantity * price;
+  
+  const capitalToAllocate = Math.floor(capitalAvailable * kellyFraction / 10) * 10;
+  if (capitalToAllocate < 100) {
+    return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
+  }
 
-  // Bug 7: se il capitale effettivo scende sotto il limite minimo, azzera la size invece di gonfiarla
+  let quantity: number;
+  if (allowFractional) {
+    quantity = capitalToAllocate / price;
+  } else {
+    quantity = Math.floor(capitalToAllocate / price);
+  }
+  
+  const actualCapital = quantity * price;
   if (actualCapital < 100) {
     return { capitalToAllocate: 0, quantity: 0, riskAmount: 0 };
   }
 
-  const clampedQty = Math.max(1, quantity);
+  const clampedQty = Math.max(allowFractional ? 0.001 : 1, quantity);
   const riskAmount = clampedQty * Math.abs(price - stopLossPrice);
+  
   return {
     capitalToAllocate: actualCapital,
     quantity: clampedQty,
@@ -191,7 +191,8 @@ export function calculatePositionSize(
   };
 }
 
-// ─── PORTFOLIO MATH ───────────────────────────────────────────────────────────
+// ─── PORTFOLIO MATH (invariato) ──────────────────────────────────────────────
+
 export function calculateDaysToTarget(
   currentPnl: number,
   targetAnnualPnl: number,
@@ -217,18 +218,17 @@ export function isAheadOfTarget(
   return currentPnlPercent >= proRataTarget;
 }
 
-// ─── DRAWDOWN RISK MULTIPLIER (Continuous Anti-Martingale) ───────────────────
-// RIDUCE il Kelly in modo lineare proporzionalmente al drawdown dal picco.
-// Fissa il limite di "Rovina" al 20%. Se drawdown >= 20%, rischio = 0.
+// ─── DRAWDOWN MULTIPLIER — DEPRECATO, mantenuto per compatibilità ────────────
+// Nel nuovo sistema il drawdown è gestito da Antigravity (allocazione bucket),
+// NON dal Kelly sizing. Questa funzione resta per non rompere import esistenti.
+
 export function getDrawdownRiskMultiplier(
   performanceHistory: { date: string; totalValue: number }[],
   currentTotalValue: number
 ): { multiplier: number; drawdownPercent: number } {
   const peak = Math.max(currentTotalValue, ...performanceHistory.map(p => p.totalValue), 1);
   const drawdown = (peak - currentTotalValue) / peak;
-
   const MAX_DRAWDOWN = 0.20;
   const multiplier = Math.max(0, 1 - (drawdown / MAX_DRAWDOWN));
-
   return { multiplier, drawdownPercent: drawdown * 100 };
 }
