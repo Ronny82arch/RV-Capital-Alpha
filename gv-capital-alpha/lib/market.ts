@@ -3,79 +3,69 @@ import { MarketData, WatchlistItem, AssetType } from '@/types';
 const YAHOO_BASE = 'https://query1.finance.yahoo.com';
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
-// ─── WATCHLIST ────────────────────────────────────────────────────────────────
-export const WATCHLIST: WatchlistItem[] = [
-  // Safe ETF base (10)
+// ─── NUOVE ENV VAR ───────────────────────────────────────────────────────────
+const ALPHA_VANTAGE_KEY = process.env.ALPHA_VANTAGE_API_KEY;
+const POLYGON_KEY = process.env.POLYGON_API_KEY;
+
+// ─── WATCHLIST SEPARATE ──────────────────────────────────────────────────────
+
+export const CORE_WATCHLIST: WatchlistItem[] = [
   { symbol: 'VWCE', name: 'Vanguard All-World ETF', type: 'ETF', yahooSymbol: 'VWCE.DE' },
   { symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', yahooSymbol: 'SPY' },
   { symbol: 'QQQ', name: 'Nasdaq 100 ETF', type: 'ETF', yahooSymbol: 'QQQ' },
+  { symbol: 'IWM', name: 'Russell 2000 ETF', type: 'ETF', yahooSymbol: 'IWM' },
   { symbol: 'GLD', name: 'Gold ETF', type: 'ETF', yahooSymbol: 'GLD' },
-  { symbol: 'XDWD', name: 'iShares MSCI World ETF', type: 'ETF', yahooSymbol: 'XDWD.DE' },
-  { symbol: 'EIMI', name: 'iShares MSCI Emerging Markets ETF', type: 'ETF', yahooSymbol: 'EIMI.DE' },
-  { symbol: 'IUSN', name: 'iShares MSCI World Small Cap ETF', type: 'ETF', yahooSymbol: 'IUSN.DE' },
-  { symbol: 'INRG', name: 'iShares Global Clean Energy ETF', type: 'ETF', yahooSymbol: 'INRG.DE' },
-  { symbol: 'USRT', name: 'iShares U.S. REIT ETF', type: 'ETF', yahooSymbol: 'USRT' },
-  { symbol: 'TLT', name: 'iShares 20+ Year Treasury Bond ETF', type: 'ETF', yahooSymbol: 'TLT' },
+  { symbol: 'XLE', name: 'Energy Select Sector', type: 'ETF', yahooSymbol: 'XLE' },
+  { symbol: 'COPX', name: 'Global Copper Miners', type: 'ETF', yahooSymbol: 'COPX' },
+  { symbol: 'TLT', name: 'Treasury 20+ Year', type: 'ETF', yahooSymbol: 'TLT' },
+  { symbol: 'SHY', name: 'Treasury 1-3 Year', type: 'ETF', yahooSymbol: 'SHY' },
+  { symbol: 'LQD', name: 'Inv Grade Corporate', type: 'ETF', yahooSymbol: 'LQD' },
+  { symbol: 'USRT', name: 'iShares U.S. REIT', type: 'ETF', yahooSymbol: 'USRT' },
+  { symbol: 'EIMI', name: 'Emerging Markets', type: 'ETF', yahooSymbol: 'EIMI.DE' },
+];
 
-  // Big Tech & Semiconductors (12)
+export const ALPHA_WATCHLIST: WatchlistItem[] = [
+  // Tech
   { symbol: 'NVDA', name: 'NVIDIA', type: 'STOCK', yahooSymbol: 'NVDA' },
-  { symbol: 'MSFT', name: 'Microsoft', type: 'STOCK', yahooSymbol: 'MSFT' },
   { symbol: 'AAPL', name: 'Apple', type: 'STOCK', yahooSymbol: 'AAPL' },
-  { symbol: 'META', name: 'Meta', type: 'STOCK', yahooSymbol: 'META' },
-  { symbol: 'AMZN', name: 'Amazon', type: 'STOCK', yahooSymbol: 'AMZN' },
+  { symbol: 'MSFT', name: 'Microsoft', type: 'STOCK', yahooSymbol: 'MSFT' },
   { symbol: 'TSLA', name: 'Tesla', type: 'STOCK', yahooSymbol: 'TSLA' },
-  { symbol: 'GOOGL', name: 'Alphabet (Google)', type: 'STOCK', yahooSymbol: 'GOOGL' },
-  { symbol: 'AMD', name: 'Advanced Micro Devices', type: 'STOCK', yahooSymbol: 'AMD' },
-  { symbol: 'AVGO', name: 'Broadcom', type: 'STOCK', yahooSymbol: 'AVGO' },
-  { symbol: 'ASML', name: 'ASML Holding', type: 'STOCK', yahooSymbol: 'ASML' },
-  { symbol: 'NFLX', name: 'Netflix', type: 'STOCK', yahooSymbol: 'NFLX' },
-  { symbol: 'SMCI', name: 'Super Micro Computer', type: 'STOCK', yahooSymbol: 'SMCI' },
-
-  // Finanza (6)
-  { symbol: 'JPM', name: 'JPMorgan Chase', type: 'STOCK', yahooSymbol: 'JPM' },
-  { symbol: 'BAC', name: 'Bank of America', type: 'STOCK', yahooSymbol: 'BAC' },
-  { symbol: 'V', name: 'Visa', type: 'STOCK', yahooSymbol: 'V' },
-  { symbol: 'MA', name: 'Mastercard', type: 'STOCK', yahooSymbol: 'MA' },
-  { symbol: 'GS', name: 'Goldman Sachs', type: 'STOCK', yahooSymbol: 'GS' },
-  { symbol: 'COIN', name: 'Coinbase', type: 'STOCK', yahooSymbol: 'COIN' },
-
-  // Healthcare (6)
-  { symbol: 'LLY', name: 'Eli Lilly', type: 'STOCK', yahooSymbol: 'LLY' },
-  { symbol: 'NVO', name: 'Novo Nordisk', type: 'STOCK', yahooSymbol: 'NVO' },
-  { symbol: 'JNJ', name: 'Johnson & Johnson', type: 'STOCK', yahooSymbol: 'JNJ' },
-  { symbol: 'UNH', name: 'UnitedHealth Group', type: 'STOCK', yahooSymbol: 'UNH' },
-  { symbol: 'MRK', name: 'Merck & Co.', type: 'STOCK', yahooSymbol: 'MRK' },
-  { symbol: 'PFE', name: 'Pfizer', type: 'STOCK', yahooSymbol: 'PFE' },
-
-  // Consumi (6)
-  { symbol: 'MC.PA', name: 'LVMH', type: 'STOCK', yahooSymbol: 'MC.PA' },
-  { symbol: 'NKE', name: 'Nike', type: 'STOCK', yahooSymbol: 'NKE' },
-  { symbol: 'KO', name: 'Coca-Cola', type: 'STOCK', yahooSymbol: 'KO' },
-  { symbol: 'PEP', name: 'PepsiCo', type: 'STOCK', yahooSymbol: 'PEP' },
-  { symbol: 'COST', name: 'Costco', type: 'STOCK', yahooSymbol: 'COST' },
-  { symbol: 'WMT', name: 'Walmart', type: 'STOCK', yahooSymbol: 'WMT' },
-
-  // Industria / Energia (4)
-  { symbol: 'XOM', name: 'ExxonMobil', type: 'STOCK', yahooSymbol: 'XOM' },
-  { symbol: 'CVX', name: 'Chevron', type: 'STOCK', yahooSymbol: 'CVX' },
-  { symbol: 'CAT', name: 'Caterpillar', type: 'STOCK', yahooSymbol: 'CAT' },
-  { symbol: 'GE', name: 'General Electric', type: 'STOCK', yahooSymbol: 'GE' },
-
-  // Difesa / Aerospazio (2)
-  { symbol: 'LMT', name: 'Lockheed Martin', type: 'STOCK', yahooSymbol: 'LMT' },
-  { symbol: 'RTX', name: 'RTX Corporation', type: 'STOCK', yahooSymbol: 'RTX' },
-
-  // Cryptovalute (6)
+  { symbol: 'META', name: 'Meta', type: 'STOCK', yahooSymbol: 'META' },
+  { symbol: 'AMD', name: 'AMD', type: 'STOCK', yahooSymbol: 'AMD' },
+  { symbol: 'TSM', name: 'Taiwan Semiconductor', type: 'STOCK', yahooSymbol: 'TSM' },
+  // Crypto
   { symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', coinId: 'bitcoin' },
   { symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', coinId: 'ethereum' },
   { symbol: 'SOL', name: 'Solana', type: 'CRYPTO', coinId: 'solana' },
   { symbol: 'BNB', name: 'Binance Coin', type: 'CRYPTO', coinId: 'binancecoin' },
-  { symbol: 'ADA', name: 'Cardano', type: 'CRYPTO', coinId: 'cardano' },
-  { symbol: 'XRP', name: 'Ripple', type: 'CRYPTO', coinId: 'ripple' },
+  // Index (per TBD/Satellite)
+  { symbol: 'QQQ', name: 'Nasdaq 100 ETF', type: 'ETF', yahooSymbol: 'QQQ' },
+  { symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF', yahooSymbol: 'SPY' },
+  { symbol: 'IWM', name: 'Russell 2000 ETF', type: 'ETF', yahooSymbol: 'IWM' },
+  // Finance
+  { symbol: 'JPM', name: 'JPMorgan', type: 'STOCK', yahooSymbol: 'JPM' },
+  { symbol: 'COIN', name: 'Coinbase', type: 'STOCK', yahooSymbol: 'COIN' },
+  // Healthcare
+  { symbol: 'LLY', name: 'Eli Lilly', type: 'STOCK', yahooSymbol: 'LLY' },
+  { symbol: 'NVO', name: 'Novo Nordisk', type: 'STOCK', yahooSymbol: 'NVO' },
+  // Consumi / Industria
+  { symbol: 'MC.PA', name: 'LVMH', type: 'STOCK', yahooSymbol: 'MC.PA' },
+  { symbol: 'CAT', name: 'Caterpillar', type: 'STOCK', yahooSymbol: 'CAT' },
+  // Hedging
+  { symbol: 'VIXY', name: 'VIX Short-Term', type: 'ETF', yahooSymbol: 'VIXY' },
+  { symbol: 'SQQQ', name: 'Nasdaq -3x Inverse', type: 'ETF', yahooSymbol: 'SQQQ' },
 ];
-// (Fetch API logic...)
-// (Lines between 25 and 131 remain unchanged)
 
+// Unione per compatibilità legacy
+export const WATCHLIST: WatchlistItem[] = [...CORE_WATCHLIST, ...ALPHA_WATCHLIST];
+
+export function getAlphaWatchlist(): WatchlistItem[] {
+  return ALPHA_WATCHLIST;
+}
+
+export function getCoreWatchlist(): WatchlistItem[] {
+  return CORE_WATCHLIST;
+}
 
 // ─── EXCHANGE RATE CACHE ────────────────────────────────────────────────────────
 let cachedUsdRate = 0.963;
@@ -404,4 +394,81 @@ export async function fetchAllMarketDataForCalibration(extraItems?: WatchlistIte
   return results
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => (r as PromiseFulfilledResult<MarketData>).value);
+}
+
+
+// ─── NUOVI FETCHER ───────────────────────────────────────────────────────────
+
+export async function fetchAlphaVantageHistory(
+  symbol: string
+): Promise<{ date: string; close: number; high: number; low: number }[] | null> {
+  if (!ALPHA_VANTAGE_KEY) return null;
+  try {
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${ALPHA_VANTAGE_KEY}`;
+    const res = await fetch(url, { next: { revalidate: 86400 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const series = data['Time Series (Daily)'];
+    if (!series) return null;
+    return Object.entries(series)
+      .map(([date, values]: [string, any]) => ({
+        date,
+        close: parseFloat(values['5. adjusted close']),
+        high: parseFloat(values['2. high']),
+        low: parseFloat(values['3. low']),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPolygonAggregates(
+  ticker: string,
+  from: string,
+  to: string,
+  multiplier: number = 1,
+  timespan: 'hour' | 'day' = 'hour'
+): Promise<{ date: string; close: number; high: number; low: number; volume: number }[] | null> {
+  if (!POLYGON_KEY) return null;
+  try {
+    const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&apiKey=${POLYGON_KEY}`;
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.results) return null;
+    return data.results.map((r: any) => ({
+      date: new Date(r.t).toISOString(),
+      close: r.c,
+      high: r.h,
+      low: r.l,
+      volume: r.v,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// ─── FRED MACRO DATA ─────────────────────────────────────────────────────────
+
+export async function fetchFredSeries(seriesId: string): Promise<{ date: string; value: number }[] | null> {
+  const key = process.env.FRED_API_KEY;
+  if (!key) return null;
+  try {
+    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&file_type=json&api_key=${key}&sort_order=asc&observation_start=2020-01-01`;
+    const res = await fetch(url, { next: { revalidate: 86400 } });
+    const data = await res.json();
+    if (!data.observations) return null;
+    return data.observations
+      .filter((o: any) => o.value !== '.')
+      .map((o: any) => ({ date: o.date, value: parseFloat(o.value) }));
+  } catch {
+    return null;
+  }
+}
+
+// Helper per leggere VIX attuale
+export async function getCurrentVIX(): Promise<number | null> {
+  const series = await fetchFredSeries('VIXCLS');
+  return series && series.length > 0 ? series[series.length - 1].value : null;
 }

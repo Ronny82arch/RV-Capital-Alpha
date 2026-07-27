@@ -330,8 +330,10 @@ export async function cleanPerformanceHistory(): Promise<void> {
   await savePortfolio(portfolio);
 }
 
-export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> | T): Promise<T> {
-  const MAX_RETRIES = 3;
+export async function mutatePortfolio<T>(
+  fn: (p: PortfolioState) => Promise<T> | T
+): Promise<T> {
+  const MAX_RETRIES = 5;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const portfolio = await getPortfolio();
@@ -339,25 +341,161 @@ export async function mutatePortfolio<T>(fn: (p: PortfolioState) => Promise<T> |
 
     const result = await fn(portfolio);
 
+    // Ricalcola derivati prima di salvare
+    recalcPortfolioState(portfolio);
     portfolio._version = versionAtRead + 1;
     portfolio.updatedAt = new Date().toISOString();
 
-    // P8: rileggi subito prima di scrivere, per rilevare scritture concorrenti
-    const freshCheck = await getPortfolio();
-    const versionNow = freshCheck._version || 0;
+    // SAVE ATOMICO: update solo se _version non è cambiata
+    const { error } = await supabaseAdmin
+      .from('portfolios')
+      .update({
+        capital_base: portfolio.capitalBase,
+        capital_available: portfolio.capitalAvailable,
+        deposited_funds: portfolio.depositedFunds,
+        total_value: portfolio.totalValue,
+        total_pnl: portfolio.totalPnL,
+        target_annual_return: portfolio.targetAnnualReturn,
+        ai_mode: portfolio.aiMode || 'STRICT',
+        antigravity_target_leverage: portfolio.antigravityTargetLeverage || 1.5,
+        start_date: portfolio.startDate,
+        active_assets: portfolio.aiManagedTags || [],
+        custom_portfolios: portfolio.customPortfolios || [],
+        core_satellite_target: portfolio.coreSatelliteTarget,
+        targets: portfolio.targets,
+        _version: portfolio._version,
+        updated_at: portfolio.updatedAt,
+      })
+      .eq('id', DEFAULT_PORTFOLIO_ID)
+      .eq('_version', versionAtRead);
 
-    if (versionNow !== versionAtRead) {
-      // qualcun altro ha scritto tra la nostra lettura e la nostra scrittura
-      console.warn(`[mutatePortfolio] Conflitto versione (attesa ${versionAtRead}, trovata ${versionNow}). Retry ${attempt + 1}/${MAX_RETRIES}`);
-      await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
-      continue; // rilegge da capo e riapplica fn() al nuovo stato
+    if (!error) {
+      // Salva anche le tabelle figlie (non atomiche, ma accettabile)
+      await savePortfolioChildren(portfolio);
+      return result;
     }
 
-    await savePortfolio(portfolio);
-    return result;
+    console.warn(`[mutatePortfolio] Conflitto versione ${versionAtRead}, retry ${attempt + 1}/${MAX_RETRIES}`);
+    await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
   }
 
-  throw new Error('[mutatePortfolio] Impossibile scrivere: conflitti di concorrenza persistenti dopo i retry');
+  throw new Error('[mutatePortfolio] Conflitti persistenti dopo retry');
+}
+
+// Estrae il salvataggio figlie per riutilizzo
+async function savePortfolioChildren(state: PortfolioState): Promise<void> {
+  // Posizioni: delete stale + upsert
+  const { data: existingPositions } = await supabaseAdmin
+    .from('positions')
+    .select('id')
+    .eq('portfolio_id', DEFAULT_PORTFOLIO_ID);
+
+  if (existingPositions) {
+    const currentIds = new Set(state.positions.map(p => p.id));
+    const toDelete = existingPositions
+      .filter((p: any) => !currentIds.has(p.id))
+      .map((p: any) => p.id);
+    if (toDelete.length > 0) {
+      await supabaseAdmin.from('positions').delete().in('id', toDelete);
+    }
+  }
+
+  if (state.positions.length > 0) {
+    const posRows = state.positions.map(p => ({
+      id: p.id,
+      portfolio_id: DEFAULT_PORTFOLIO_ID,
+      signal_id: p.signalId || null,
+      symbol: p.symbol,
+      name: p.name,
+      type: p.type,
+      action: p.action,
+      entry_price: p.entryPrice,
+      quantity: p.quantity,
+      capital_allocated: p.capitalAllocated,
+      stop_loss: p.stopLoss,
+      take_profit: p.takeProfit,
+      entry_date: p.entryDate,
+      status: p.status,
+      close_price: p.closePrice,
+      close_date: p.closeDate,
+      realized_pnl: p.realizedPnl,
+      realized_pnl_percent: p.realizedPnlPercent,
+      current_price: p.currentPrice,
+      unrealized_pnl: p.unrealizedPnl,
+      unrealized_pnl_percent: p.unrealizedPnlPercent,
+      tags: p.tags,
+      custom_portfolio_name: p.portfolio,
+      logo_url: p.logoUrl,
+    }));
+    await supabaseAdmin.from('positions').upsert(posRows);
+  }
+
+  // Signals
+  if (state.signals.length > 0) {
+    const sigRows = state.signals.map(s => ({
+      id: s.id,
+      portfolio_id: DEFAULT_PORTFOLIO_ID,
+      symbol: s.symbol,
+      name: s.name,
+      type: s.type,
+      action: s.action,
+      suggested_price: s.suggestedPrice,
+      quantity: s.quantity,
+      capital_to_allocate: s.capitalToAllocate,
+      stop_loss: s.stopLoss,
+      take_profit: s.takeProfit,
+      stop_loss_percent: s.stopLossPercent,
+      take_profit_percent: s.takeProfitPercent,
+      kelly_fraction: s.kellyFraction,
+      win_probability: s.winProbability,
+      win_probability_sample_size: s.winProbabilitySampleSize,
+      win_probability_trusted: s.winProbabilityTrusted,
+      expected_return: s.expectedReturn,
+      reasoning: s.reasoning,
+      strategy: s.strategy,
+      urgency: s.urgency,
+      technicals: s.technicals,
+      status: s.status,
+      created_at: s.createdAt,
+      approved_at: s.approvedAt,
+      executed_at: s.executedAt,
+      executed_price: s.executedPrice,
+      position_id: s.positionId,
+      custom_portfolio_name: s.portfolio,
+    }));
+    await supabaseAdmin.from('trading_signals').upsert(sigRows);
+  }
+
+  // History (solo se flaggato)
+  if ((state as any)._historyChanged && state.performanceHistory.length > 0) {
+    const histRows: any[] = [];
+    for (const h of state.performanceHistory) {
+      histRows.push({ portfolio_id: DEFAULT_PORTFOLIO_ID, portfolio_tag: 'GLOBAL', date: h.date, total_value: h.totalValue, pnl_percent: h.pnlPercent });
+    }
+    for (const [tag, snapshots] of Object.entries(state.perTagHistory || {})) {
+      for (const h of snapshots) {
+        histRows.push({ portfolio_id: DEFAULT_PORTFOLIO_ID, portfolio_tag: tag, date: h.date, total_value: h.totalValue, pnl_percent: h.pnlPercent });
+      }
+    }
+    if (histRows.length > 0) {
+      await supabaseAdmin.from('performance_history')
+        .upsert(histRows, { onConflict: 'portfolio_id, date, portfolio_tag' });
+    }
+  }
+
+  // Alerts
+  if (state.alerts.length > 0) {
+    const alertRows = state.alerts.map(a => ({
+      id: a.id,
+      portfolio_id: DEFAULT_PORTFOLIO_ID,
+      title: a.title,
+      message: a.message,
+      date: a.date,
+      type: a.type,
+      read: a.read,
+    }));
+    await supabaseAdmin.from('alerts').upsert(alertRows);
+  }
 }
 
 export async function updatePositionPortfolio(positionId: string, portfolioName: string): Promise<void> {
@@ -476,13 +614,16 @@ export async function closePosition(positionId: string, closePrice: number): Pro
 }
 
 export async function deletePosition(positionId: string): Promise<Position | null> {
-  let pos = null;
+  let pos: Position | null = null;
   await mutatePortfolio(p => {
     const idx = p.positions.findIndex(x => x.id === positionId);
     if (idx !== -1) {
       pos = p.positions[idx];
+      if (pos!.status !== 'OPEN') {
+        throw new Error(`Cannot delete position ${positionId}: status is ${pos!.status}. Use close flow instead.`);
+      }
       p.positions.splice(idx, 1);
-      p.capitalAvailable += pos.capitalAllocated;
+      p.capitalAvailable += pos!.capitalAllocated;
     }
   });
   return pos;
@@ -507,67 +648,67 @@ export function sanitizePortfolioPositions(positions: Position[]): Position[] {
   return clean;
 }
 
-export async function recalcPortfolio(portfolio?: PortfolioState & { _historyChanged?: boolean }): Promise<void> {
-  const p = portfolio || await getPortfolio();
-  p.positions = sanitizePortfolioPositions(p.positions);
-  let currentTotalValue = (p.capitalAvailable || 0);
-  
-  const performances: Record<string, { totalValue: number, invested: number, pnl: number, pnlPercent: number }> = {};
-  
-  p.positions.forEach(pos => {
+export function recalcPortfolioState(portfolio: PortfolioState): void {
+  portfolio.positions = sanitizePortfolioPositions(portfolio.positions);
+  let currentTotalValue = portfolio.capitalAvailable || 0;
+
+  const performances: Record<string, { totalValue: number; invested: number; pnl: number; pnlPercent: number }> = {};
+
+  for (const pos of portfolio.positions) {
+    const portName = pos.portfolio || 'Da Assegnare';
+    if (!performances[portName]) {
+      performances[portName] = { totalValue: 0, invested: 0, pnl: 0, pnlPercent: 0 };
+    }
+
     if (pos.status === 'OPEN') {
       const posEquity = (Number(pos.capitalAllocated) || 0) + (Number(pos.unrealizedPnl) || 0);
       currentTotalValue += posEquity;
-      
-      const portName = pos.portfolio || 'Da Assegnare';
-      if (!performances[portName]) {
-        performances[portName] = { totalValue: 0, invested: 0, pnl: 0, pnlPercent: 0 };
-      }
       performances[portName].totalValue += posEquity;
-      performances[portName].invested += (Number(pos.capitalAllocated) || 0);
-      performances[portName].pnl += (Number(pos.unrealizedPnl) || 0);
+      performances[portName].invested += Number(pos.capitalAllocated) || 0;
+      performances[portName].pnl += Number(pos.unrealizedPnl) || 0;
     } else if (pos.status === 'CLOSED') {
-      const portName = pos.portfolio || 'Da Assegnare';
-      if (!performances[portName]) {
-        performances[portName] = { totalValue: 0, invested: 0, pnl: 0, pnlPercent: 0 };
-      }
-      performances[portName].pnl += (Number(pos.realizedPnl) || 0);
-      performances[portName].totalValue += (Number(pos.realizedPnl) || 0);
+      performances[portName].pnl += Number(pos.realizedPnl) || 0;
+      performances[portName].totalValue += Number(pos.realizedPnl) || 0;
     }
-  });
+  }
 
-  Object.keys(performances).forEach(key => {
+  for (const key of Object.keys(performances)) {
     const perf = performances[key];
     perf.pnlPercent = perf.invested > 0 ? (perf.pnl / perf.invested) * 100 : 0;
-  });
-  p.portfolioPerformances = performances;
-
-  if (!p.totalValue || p.totalValue === 0) {
-    p.totalValue = currentTotalValue;
   }
-  const baseForPnL = (p.depositedFunds && p.depositedFunds > 0) ? p.depositedFunds : (p.capitalBase > 0 ? p.capitalBase : 1);
-  p.totalPnL = p.totalValue - baseForPnL;
-  p.totalPnLPercent = computePnLPercent(p.totalPnL, p.capitalBase, p.depositedFunds);
+  portfolio.portfolioPerformances = performances;
 
-  // ✅ FIX: registra uno snapshot giornaliero dello storico, una sola volta al giorno
+  if (!portfolio.totalValue || portfolio.totalValue === 0) {
+    portfolio.totalValue = currentTotalValue;
+  }
+  const baseForPnL = (portfolio.depositedFunds && portfolio.depositedFunds > 0)
+    ? portfolio.depositedFunds
+    : (portfolio.capitalBase > 0 ? portfolio.capitalBase : 1);
+
+  portfolio.totalPnL = portfolio.totalValue - baseForPnL;
+  portfolio.totalPnLPercent = computePnLPercent(portfolio.totalPnL, portfolio.capitalBase, portfolio.depositedFunds);
+
+  // Snapshot giornaliero
   const todayStr = new Date().toISOString().split('T')[0];
-  const alreadyLoggedToday = p.performanceHistory.some(h => h.date.startsWith(todayStr));
-  if (!alreadyLoggedToday) {
-    p.performanceHistory.push({
+  const alreadyLogged = portfolio.performanceHistory.some(h => h.date.startsWith(todayStr));
+  if (!alreadyLogged) {
+    portfolio.performanceHistory.push({
       date: new Date().toISOString(),
-      totalValue: p.totalValue,
-      pnlPercent: p.totalPnLPercent,
+      totalValue: portfolio.totalValue,
+      pnlPercent: portfolio.totalPnLPercent,
     });
-    
-    p.perTagHistory = p.perTagHistory || {};
-    for (const [tag, perf] of Object.entries(p.portfolioPerformances || {})) {
-      if (!p.perTagHistory[tag]) p.perTagHistory[tag] = [];
-      p.perTagHistory[tag].push({ date: new Date().toISOString(), totalValue: perf.totalValue, pnlPercent: perf.pnlPercent });
+    portfolio.perTagHistory = portfolio.perTagHistory || {};
+    for (const [tag, perf] of Object.entries(portfolio.portfolioPerformances || {})) {
+      if (!portfolio.perTagHistory[tag]) portfolio.perTagHistory[tag] = [];
+      portfolio.perTagHistory[tag].push({ date: new Date().toISOString(), totalValue: perf.totalValue, pnlPercent: perf.pnlPercent });
     }
-    
-    (p as any)._historyChanged = true;
+    (portfolio as any)._historyChanged = true;
   }
+}
 
+export async function recalcPortfolio(portfolio?: PortfolioState & { _historyChanged?: boolean }): Promise<void> {
+  const p = portfolio || await getPortfolio();
+  recalcPortfolioState(p);
   if (!portfolio) await savePortfolio(p);
 }
 
@@ -679,23 +820,25 @@ export async function saveMarketData(data: MarketData[]): Promise<void> {
   await supabaseAdmin.from('market_data').upsert(rows);
 }
 
-export async function updatePositionPrices(updates: { positionId: string; currentPrice: number }[]): Promise<void> {
+export async function updatePositionPrices(
+  updates: { positionId: string; currentPrice: number }[]
+): Promise<void> {
   await mutatePortfolio(p => {
     for (const update of updates) {
       const idx = p.positions.findIndex(pos => pos.id === update.positionId);
       if (idx !== -1 && p.positions[idx].status === 'OPEN') {
         const pos = p.positions[idx];
         pos.currentPrice = update.currentPrice;
-        
-        // ✅ FIX: ricalcola P&L non realizzato
-        pos.unrealizedPnl = (update.currentPrice - pos.entryPrice) * pos.quantity;
-        pos.unrealizedPnlPercent = pos.capitalAllocated > 0 
-          ? (pos.unrealizedPnl / pos.capitalAllocated) * 100 
+        pos.unrealizedPnl = pos.action === 'BUY'
+          ? (update.currentPrice - pos.entryPrice) * pos.quantity
+          : (pos.entryPrice - update.currentPrice) * pos.quantity;
+        pos.unrealizedPnlPercent = pos.capitalAllocated > 0
+          ? (pos.unrealizedPnl / pos.capitalAllocated) * 100
           : 0;
       }
     }
+    // recalcPortfolioState viene chiamato automaticamente da mutatePortfolio prima del save
   });
-  await recalcPortfolio(); // ✅ FIX: ricalcola i totali del portfolio
 }
 
 // ─── PAC CONFIG ───────────────────────────────────────────────────────────────
@@ -761,3 +904,53 @@ export async function getCalibrationUpdatedAt(): Promise<string | null> {
   return await kvGet('engine:calibration_updated_at');
 }
 
+
+export async function updatePacBudget(portfolio: string, amount: number): Promise<void> {
+  const config = await getPacConfig();
+  config.portfolioMonthlyBudgets[portfolio] = amount;
+  await savePacConfig(config);
+}
+
+export async function updatePacWeight(portfolio: string, symbol: string, weight: number): Promise<void> {
+  const config = await getPacConfig();
+  if (!config.assetTargetWeights) config.assetTargetWeights = {};
+  if (!config.assetTargetWeights[portfolio]) config.assetTargetWeights[portfolio] = {};
+  config.assetTargetWeights[portfolio][symbol] = weight;
+  await savePacConfig(config);
+}
+
+export async function resetPacWeights(portfolio: string): Promise<void> {
+  const config = await getPacConfig();
+  if (config.assetTargetWeights) delete config.assetTargetWeights[portfolio];
+  await savePacConfig(config);
+}
+
+
+// ─── HELPERS ANTIGRAVITY PERSISTENCE ─────────────────────────────────────────
+
+
+const AG_PEAK_KEY = 'antigravity:portfolio_peak';
+const AG_COOLDOWN_KEY = 'antigravity:tbd_cooldown_until';
+
+export async function getPortfolioPeakValue(): Promise<number> {
+  const raw = await kvGet(AG_PEAK_KEY);
+  return raw ? parseFloat(raw) : 0;
+}
+
+export async function updatePortfolioPeakValue(currentValue: number): Promise<void> {
+  const peak = Math.max(currentValue, await getPortfolioPeakValue());
+  await kvSet(AG_PEAK_KEY, peak.toString(), 365 * 24 * 3600);
+}
+
+export async function getTbdCooldownUntil(): Promise<string | null> {
+  return await kvGet(AG_COOLDOWN_KEY);
+}
+
+export async function setTbdCooldownUntil(until: string | null): Promise<void> {
+  if (!until) {
+    await kvSet(AG_COOLDOWN_KEY, '', 1);
+    return;
+  }
+  const ttl = Math.ceil((new Date(until).getTime() - Date.now()) / 1000);
+  await kvSet(AG_COOLDOWN_KEY, until, Math.max(1, ttl));
+}
