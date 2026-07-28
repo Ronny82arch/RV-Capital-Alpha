@@ -2,14 +2,14 @@
  * lib/correlation.ts — Matrice di correlazione e filtro concentrazione
  *
  * Impedisce di aprire posizioni troppo correlate tra loro.
- * Problema originale: "5 posizioni aperte" non garantisce diversificazione
- * se sono tutte tech USA (QQQ + NVDA + MSFT + META = 1 scommessa, non 4).
- * Usa log-return pearson correlation (standard in quant finance).
+ * Usa log-return Pearson correlation (standard in quant finance).
+ * Fix STRICT: NaN = blocca (dati insufficienti = rischio non calcolabile).
  */
 
 import { MarketData } from '@/types';
 
 // ─── CORRELAZIONE PEARSON SU LOG-RETURN ──────────────────────────────────────
+
 export function pairwiseCorrelation(
   a: { date: string; close: number }[],
   b: { date: string; close: number }[],
@@ -49,19 +49,24 @@ export function buildCorrelationMatrix(marketData: MarketData[], minPoints = 30)
     for (const b of marketData) {
       if (a.symbol === b.symbol) { matrix[a.symbol][b.symbol] = 1; continue; }
       const rho = pairwiseCorrelation(a.history, b.history, minPoints);
-      matrix[a.symbol][b.symbol] = rho ?? NaN; // ✅ FIX: sconosciuto ≠ zero
+      matrix[a.symbol][b.symbol] = rho ?? NaN; // sconosciuto ≠ zero
     }
   }
   return matrix;
 }
 
-// ─── FILTRO CONCENTRAZIONE ────────────────────────────────────────────────────
+// ─── FILTRO CONCENTRAZIONE (v1 — backward compat) ────────────────────────────
+
 export interface CorrelationCheck {
   blocked: boolean;
   conflictWith?: string;
   correlation?: number;
 }
 
+/**
+ * Versione legacy usata da lib/ai.ts (openSymbols string[], threshold number).
+ * NaN in STRICT → warn ma non blocca (cautela ma non stop).
+ */
 export function checkCorrelationAgainstOpenPositions(
   candidateSymbol: string,
   openSymbols: string[],
@@ -77,4 +82,60 @@ export function checkCorrelationAgainstOpenPositions(
     if (Math.abs(rho) > threshold) return { blocked: true, conflictWith: open, correlation: rho };
   }
   return { blocked: false };
+}
+
+// ─── FILTRO CONCENTRAZIONE (v2 — con STRICT NaN block) ───────────────────────
+
+export interface CorrelationCheckResult {
+  allowed: boolean;
+  reason: string;
+  highestRho: number;
+}
+
+/**
+ * Versione v2 con STRICT mode: NaN = blocca (dati insufficienti = rischio ignoto).
+ * Usata dalla satellite-scan route e dai nuovi consumer.
+ */
+export function checkCorrelationStrict(
+  newSymbol: string,
+  openPositions: Array<{ symbol: string }>,
+  matrix: CorrelationMatrix,
+  mode: 'STRICT' | 'NORMAL' = 'STRICT'
+): CorrelationCheckResult {
+  const threshold = mode === 'STRICT' ? 0.70 : 0.85;
+  let highestRho = 0;
+
+  for (const pos of openPositions) {
+    const rho = matrix[newSymbol]?.[pos.symbol] ?? matrix[pos.symbol]?.[newSymbol];
+
+    if (Number.isNaN(rho) || rho === undefined) {
+      if (mode === 'STRICT') {
+        return {
+          allowed: false,
+          reason: `Correlazione con ${pos.symbol} è NaN (dati insufficienti). In STRICT mode il trade è bloccato.`,
+          highestRho: NaN,
+        };
+      }
+      continue;
+    }
+
+    const absRho = Math.abs(rho);
+    if (absRho > highestRho) highestRho = absRho;
+
+    if (absRho > threshold) {
+      return {
+        allowed: false,
+        reason: `Correlazione |ρ| = ${absRho.toFixed(2)} con ${pos.symbol} supera soglia ${threshold}`,
+        highestRho: absRho,
+      };
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: highestRho > 0
+      ? `Correlazione max |ρ| = ${highestRho.toFixed(2)} < ${threshold}`
+      : 'Nessuna posizione aperta o correlazione disponibile',
+    highestRho,
+  };
 }

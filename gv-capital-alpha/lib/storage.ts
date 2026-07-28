@@ -558,7 +558,7 @@ export async function addAlert(alertInfo: Omit<Alert, 'id' | 'date' | 'read'>): 
 
   // ✅ FIX: invio push reale
   const { sendPushToAllSubscriptions } = await import('./push');
-  await sendPushToAllSubscriptions(a.title, a.message, { alertId: a.id, type: a.type });
+  await sendPushToAllSubscriptions({ title: a.title, body: a.message, data: { alertId: a.id, type: a.type } });
 }
 
 export async function markAlertAsRead(alertId: string): Promise<void> {

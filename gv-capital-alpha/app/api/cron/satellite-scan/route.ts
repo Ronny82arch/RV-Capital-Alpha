@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAlphaWatchlist, fetchAllMarketData } from '@/lib/market';
-import { buildCorrelationMatrix, checkCorrelationAgainstOpenPositions } from '@/lib/correlation';
+import { buildCorrelationMatrix, checkCorrelationStrict } from '@/lib/correlation';
 import {
   analyzeAsset,
   findPromisingCandidatesBatch,
@@ -48,10 +48,10 @@ export async function GET(req: NextRequest) {
 
     // Filtra ulteriormente per correlazione con posizioni aperte
     const validCandidates = candidates.filter(c => {
-      const check = checkCorrelationAgainstOpenPositions(
-        c.market.symbol, openSymbols, matrix, 0.70
+      const check = checkCorrelationStrict(
+        c.market.symbol, openPositions, matrix, 'STRICT'
       );
-      return !check.blocked;
+      return check.allowed;
     });
 
     // Genera segnali tramite AI batch
@@ -62,11 +62,11 @@ export async function GET(req: NextRequest) {
         p.signals.push(...signals);
       });
       
-      await sendPushToAllSubscriptions(
-        `🎯 ${signals.length} nuovi segnali Satellite`,
-        `Top: ${signals[0].symbol} (${signals[0].action}) — Win prob: ${(signals[0].winProbability * 100).toFixed(1)}%`,
-        { type: 'satellite_scan', count: String(signals.length) }
-      );
+      await sendPushToAllSubscriptions({
+        title: `🎯 ${signals.length} nuovi segnali Satellite`,
+        body: `Top: ${signals[0].symbol} (${signals[0].action}) — Win prob: ${(signals[0].winProbability * 100).toFixed(1)}%`,
+        data: { type: 'satellite_scan', count: String(signals.length) },
+      });
     }
 
     // Aggiorna prezzi correnti sulle posizioni aperte

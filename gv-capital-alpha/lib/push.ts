@@ -1,5 +1,9 @@
+/**
+ * lib/push.ts — Invio notifiche push + pulizia automatica subscription 410/404
+ */
+
 import webpush from 'web-push';
-import { getPushSubscriptions } from './storage';
+import { supabaseAdmin } from './supabase/client';
 
 let configured = false;
 function ensureConfigured() {
@@ -8,27 +12,69 @@ function ensureConfigured() {
   const priv = process.env.VAPID_PRIVATE_KEY;
   const subject = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
   if (!pub || !priv) {
-    console.warn('[Push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY non configurate — invio push disabilitato');
+    console.warn('[Push] VAPID keys non configurate — push disabilitato');
     return;
   }
   webpush.setVapidDetails(subject, pub, priv);
   configured = true;
 }
 
-export async function sendPushToAllSubscriptions(title: string, body: string, data?: Record<string, string>): Promise<void> {
+export interface PushPayload {
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}
+
+/**
+ * Invia una notifica push a tutte le subscription attive.
+ * Pulisce automaticamente gli endpoint 410/404 (subscription scadute).
+ */
+export async function sendPushToAllSubscriptions(
+  payload: PushPayload
+): Promise<{ sent: number; failed: number; cleaned: number }> {
   ensureConfigured();
-  if (!configured) return;
+  if (!configured) return { sent: 0, failed: 0, cleaned: 0 };
 
-  const subs = await getPushSubscriptions();
-  if (subs.length === 0) return;
+  const { data: subs } = await supabaseAdmin
+    .from('push_subscriptions')
+    .select('*');
 
-  const payload = JSON.stringify({ title, body, data: data || {} });
+  if (!subs || subs.length === 0) return { sent: 0, failed: 0, cleaned: 0 };
 
-  await Promise.all(subs.map(async (sub) => {
+  let sent = 0;
+  let failed = 0;
+  const deadEndpoints: string[] = [];
+
+  for (const sub of subs) {
     try {
-      await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: sub.keys },
+        JSON.stringify(payload)
+      );
+      sent++;
     } catch (err: any) {
-      console.error(`[Push] Invio fallito per ${sub.endpoint.slice(0, 50)}...:`, err?.statusCode || err?.message);
+      failed++;
+      const status = err.statusCode || err.httpStatusCode;
+      // 410 Gone = subscription scaduta | 404 Not Found = endpoint invalido
+      if (status === 410 || status === 404) {
+        deadEndpoints.push(sub.endpoint);
+      }
+      console.error(`[Push] Failed ${sub.endpoint.slice(0, 40)}...`, status || err.message);
     }
-  }));
+  }
+
+  let cleaned = 0;
+  if (deadEndpoints.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .delete()
+      .in('endpoint', deadEndpoints);
+
+    if (!error) {
+      cleaned = deadEndpoints.length;
+      console.log(`[Push] Cleaned ${cleaned} dead subscriptions (410/404)`);
+    }
+  }
+
+  return { sent, failed, cleaned };
 }

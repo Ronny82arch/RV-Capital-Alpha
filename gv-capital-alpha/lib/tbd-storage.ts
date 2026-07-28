@@ -1,16 +1,15 @@
 /**
- * TBD STORAGE — Vercel KV CRUD per Trading by Day
- * Chiavi: tbd:log:YYYY-MM-DD | tbd:signals | tbd:config
- * Completamente isolato dal portafoglio principale.
+ * lib/tbd-storage.ts — Lock atomico Redis NX + helper TBD
+ * Lock via Upstash SET NX EX (atomico, no polling).
  */
 
 import { TradingDayLog, TbdSignal, TradingEngineConfig, DEFAULT_CONFIG } from './trading-by-day';
 
-// ─── KV ADAPTER (stessa infrastruttura di storage.ts) ────────────────────────
+// ─── KV ADAPTER ───────────────────────────────────────────────────────────────
 
 export async function kvGet(key: string): Promise<string | null> {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const res = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
+    const res = await fetch(`${process.env.KV_REST_API_URL}/get/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
       next: { revalidate: 0 },
     });
@@ -24,8 +23,8 @@ export async function kvGet(key: string): Promise<string | null> {
 export async function kvSet(key: string, value: string, exSeconds?: number): Promise<void> {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     const url = exSeconds
-      ? `${process.env.KV_REST_API_URL}/set/${key}?ex=${exSeconds}` // ✅ FIX
-      : `${process.env.KV_REST_API_URL}/set/${key}`;
+      ? `${process.env.KV_REST_API_URL}/set/${encodeURIComponent(key)}?ex=${exSeconds}`
+      : `${process.env.KV_REST_API_URL}/set/${encodeURIComponent(key)}`;
     await fetch(url, {
       method: 'POST',
       headers: {
@@ -35,19 +34,6 @@ export async function kvSet(key: string, value: string, exSeconds?: number): Pro
       body: value,
     });
   }
-}
-
-async function kvKeys(pattern: string): Promise<string[]> {
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const res = await fetch(`${process.env.KV_REST_API_URL}/keys/${pattern}`, {
-      headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
-      next: { revalidate: 0 },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.result ?? [];
-  }
-  return [];
 }
 
 // ─── HELPER DATE ──────────────────────────────────────────────────────────────
@@ -66,7 +52,6 @@ export async function getTodayLog(): Promise<TradingDayLog | null> {
 
 export async function saveTodayLog(log: TradingDayLog): Promise<void> {
   log.updatedAt = new Date().toISOString();
-  // Conserva il log per 90 giorni
   await kvSet(`tbd:log:${log.date}`, JSON.stringify(log), 90 * 24 * 3600);
 }
 
@@ -102,7 +87,6 @@ export async function getActiveSignals(): Promise<TbdSignal[]> {
 }
 
 export async function saveSignals(signals: TbdSignal[]): Promise<void> {
-  // Mantieni al massimo 100 segnali in memoria
   const trimmed = signals.slice(0, 100);
   await kvSet('tbd:signals', JSON.stringify(trimmed));
 }
@@ -133,7 +117,6 @@ export async function updateSignalStatus(
     status,
     ...(realizedPnL !== undefined ? { realizedPnL } : {}),
     ...(isClosing ? { closedAt: new Date().toISOString() } : {}),
-    // ✅ FIX: imposta triggeredAt solo se mancante
     ...(!isClosing && !all[idx].triggeredAt ? { triggeredAt: new Date().toISOString() } : {}),
   };
   await saveSignals(all);
@@ -153,23 +136,59 @@ export async function saveTbdConfig(config: Partial<TradingEngineConfig>): Promi
   await kvSet('tbd:config', JSON.stringify({ ...current, ...config }));
 }
 
-// ─── LOCK ATOMICO PER LOG GIORNALIERO ─────────────────────────────────────────
+// ─── LOCK ATOMICO VIA SET NX EX (Upstash REST) ───────────────────────────────
 
-export async function acquireDayLock(date: string, maxWaitMs = 5000): Promise<boolean> {
-  const lockKey = `tbd:lock:${date}`;
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const isLocked = await kvGet(lockKey);
-    const lockAge = isLocked ? Date.now() - parseInt(isLocked) : Infinity;
-    if (!isLocked || lockAge > 15000) {
-      await kvSet(lockKey, Date.now().toString(), 30); // TTL 30s
-      return true;
-    }
-    await new Promise(r => setTimeout(r, 200));
+const LOCK_PREFIX = 'tbd:lock:';
+const LOCK_TTL_SECONDS = 30;
+
+/**
+ * Acquisisce un lock giornaliero atomico via Upstash SET NX EX.
+ * Ritorna true solo se il lock è stato acquisito (chiave non esisteva).
+ * Nessun polling: opera in O(1) con semantica forte.
+ */
+export async function acquireDayLock(date: string): Promise<boolean> {
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return true; // dev fallback
+
+  const lockKey = `${LOCK_PREFIX}${date}`;
+  const lockValue = Date.now().toString();
+
+  // SET NX EX: atomico, nessuna race condition
+  const url = `${process.env.KV_REST_API_URL}/set/${encodeURIComponent(lockKey)}?nx&ex=${LOCK_TTL_SECONDS}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+        'Content-Type': 'text/plain',
+      },
+      body: lockValue,
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    // Upstash REST: ritorna {"result":"OK"} se SET ha successo, {"result":null} se NX fallisce
+    return data.result !== null && data.result !== undefined;
+  } catch (err) {
+    console.error('[acquireDayLock] Error:', err);
+    return false;
   }
-  return false;
 }
 
+/**
+ * Rilascia esplicitamente il lock (il TTL di 30s lo scade comunque automaticamente).
+ */
 export async function releaseDayLock(date: string): Promise<void> {
-  await kvSet(`tbd:lock:${date}`, '', 1);
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return;
+
+  const lockKey = `${LOCK_PREFIX}${date}`;
+  const url = `${process.env.KV_REST_API_URL}/del/${encodeURIComponent(lockKey)}`;
+  try {
+    await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
+    });
+  } catch (err) {
+    console.error('[releaseDayLock] Error:', err);
+  }
 }
