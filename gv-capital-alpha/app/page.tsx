@@ -400,6 +400,36 @@ export default function Home() {
     }
   };
 
+  const handleTbdScan = async () => {
+    setScanning(true);
+    try {
+      const res = await fetch('/api/tbd/scan', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.message || `TBD Scan completato`, data.success);
+      await refresh();
+    } catch {
+      showToast('Errore TBD scan', false);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleSatelliteScan = async () => {
+    setScanning(true);
+    try {
+      const res = await fetch('/api/cron/satellite-scan', {
+        headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
+      });
+      const data = await res.json();
+      showToast(data.message || `Satellite Scan completato`, data.success);
+      await refresh();
+    } catch {
+      showToast('Errore Satellite scan', false);
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -669,6 +699,7 @@ export default function Home() {
               onScan={handleScan}
               scanning={scanning}
               onUpdateAiMode={handleUpdateAiMode}
+              onSatelliteScan={handleSatelliteScan}
             />
           )}
           {tab === 'positions' && (
@@ -685,7 +716,7 @@ export default function Home() {
 
           {tab === 'market' && <MarketTab market={market} />}
           {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
-          {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} portfolio={portfolio} />}
+          {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} portfolio={portfolio} onTbdScan={handleTbdScan} scanning={scanning} />}
           {tab === 'pac' && <PacSimulatorTab portfolio={portfolio} />}
         </main>
 

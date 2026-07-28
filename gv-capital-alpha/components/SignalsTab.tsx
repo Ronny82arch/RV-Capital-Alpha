@@ -9,9 +9,10 @@ interface Props {
   onScan: () => void;
   scanning: boolean;
   onUpdateAiMode?: (mode: 'STRICT' | 'DYNAMIC') => Promise<boolean>;
+  onSatelliteScan?: () => void;
 }
 
-export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, scanning, onUpdateAiMode }: Props) {
+export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, scanning, onUpdateAiMode, onSatelliteScan }: Props) {
   const signals = portfolio?.signals ?? [];
   const pending = signals.filter(s => s.status === 'PENDING');
   const history = signals.filter(s => s.status !== 'PENDING');
@@ -29,11 +30,30 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <div style={{ 
-          background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '20px', 
-          display: 'flex', padding: '4px', gap: '4px' 
-        }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>SEGNALI ATTIVI</div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {onSatelliteScan && (
+            <button
+              onClick={onSatelliteScan}
+              disabled={scanning}
+              style={{
+                padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border)',
+                fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold',
+                background: scanning ? 'var(--bg2)' : 'linear-gradient(135deg, #00d4aa 0%, #00b48a 100%)',
+                color: scanning ? 'var(--text3)' : '#000000',
+                cursor: scanning ? 'not-allowed' : 'pointer',
+                boxShadow: scanning ? 'none' : '0 0 10px rgba(0, 212, 170, 0.25)',
+                transition: 'all 0.2s'
+              }}
+            >
+              {scanning ? 'SCAN...' : '🔍 SCAN SATELLITE'}
+            </button>
+          )}
+          <div style={{ 
+            background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '20px', 
+            display: 'flex', padding: '4px', gap: '4px' 
+          }}>
           <button 
             onClick={() => handleModeChange('STRICT')}
             style={{
@@ -58,6 +78,7 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
           >
             🌊 DINAMICA (LESS RESTRICTIVE)
           </button>
+        </div>
         </div>
       </div>
 

@@ -157,3 +157,64 @@ export interface PacConfig {
   portfolioMonthlyBudgets: Record<string, number>;
   assetTargetWeights?: Record<string, Record<string, number>>;
 }
+
+// ─── TIPI TBD (nuovi) ───────────────────────────────────────────────────────
+
+export type TbdSignalStatus = 'PRE_ALERT' | 'ACTIVE' | 'TRIGGERED' | 'CLOSED_TP' | 'CLOSED_SL' | 'CANCELLED';
+export type TbdDirection = 'BUY' | 'SELL';
+
+export interface TbdSignal {
+  id: string;
+  asset: string;
+  assetType: 'CRYPTO' | 'STOCK';
+  direction: TbdDirection;
+  timeframe: 'H1' | 'H4';
+  preTriggerPx: number;
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  allocatedSize: number;
+  expectedPnL: number;
+  maxLoss: number;
+  riskReward: number;
+  qualityScore: number;
+  status: TbdSignalStatus;
+  triggeredAt?: string;
+  closedAt?: string;
+  realizedPnL?: number;
+  timestamp: string;
+}
+
+export interface TbdLog {
+  date: string;
+  startingCash: number;
+  endingCash: number;
+  realizedPnL: number;
+  targetReached: boolean;
+  totalTrades: number;
+  winningTrades: number;
+  status: string;
+  signals: TbdSignal[];
+}
+
+// ─── TIPI ANTIGRAVITY (nuovi) ───────────────────────────────────────────────
+
+export type AntigravityStatus = 'NORMAL' | 'BOOST_TBD' | 'CAUTION' | 'PROTECT';
+
+export interface AntigravityState {
+  status: AntigravityStatus;
+  coreTargetPct: number;
+  satelliteTargetPct: number;
+  tbdTargetPct: number;
+  tbdCapitalToday: number;
+  reason: string;
+  tbdInCooldown: boolean;
+  cooldownUntil: string | null;
+  currentDrawdownPct: number;
+}
+
+export interface RiskBudget {
+  maxDrawdownPct: number;
+  maxAllocationPct: number;
+}
+

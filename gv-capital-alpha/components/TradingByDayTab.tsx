@@ -28,6 +28,8 @@ interface Props {
   tbdData?: TbdPageData | null;
   onRefresh?: () => Promise<void>;
   portfolio?: PortfolioState | null;
+  onTbdScan?: () => Promise<void>;
+  scanning?: boolean;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -453,9 +455,10 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
 
 // ─── TAB PRINCIPALE ───────────────────────────────────────────────────────────
 
-export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props) {
+export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdScan, scanning: parentScanning }: Props) {
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [localScanning, setLocalScanning] = useState(false);
+  const scanning = parentScanning !== undefined ? parentScanning : localScanning;
   const [editingCapital, setEditingCapital] = useState(false);
   const [capitalInput, setCapitalInput] = useState("");
   const [editingTarget, setEditingTarget] = useState(false);
@@ -530,7 +533,11 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
   };
 
   const handleScan = async () => {
-    setScanning(true);
+    if (onTbdScan) {
+      await onTbdScan();
+      return;
+    }
+    setLocalScanning(true);
     try {
       const res  = await fetch("/api/tbd/scan", { method: "POST" });
       const json = await res.json();
@@ -548,7 +555,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
     } catch {
       showToast("Errore scanner", false);
     } finally {
-      setScanning(false);
+      setLocalScanning(false);
     }
   };
 

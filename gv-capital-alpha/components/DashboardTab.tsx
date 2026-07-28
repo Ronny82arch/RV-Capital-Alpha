@@ -10,6 +10,7 @@ import AssetIcon from './AssetIcon';
 import PacScenarioWidget from './PacScenarioWidget';
 import AntigravityMonitor from './AntigravityMonitor';
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
+import { ProjectionCard } from './projection-card';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings, Compass, Zap, Users } from 'lucide-react';
 
 interface Props { 
@@ -432,6 +433,32 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
             </div>
           </button>
         </div>
+
+        {/* PROIEZIONI MONTE CARLO (BUCKET PROJECTIONS) */}
+        <div style={{ marginTop: '32px', width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)', textAlign: 'center', marginBottom: '4px' }}>
+            PROIEZIONI MONTE CARLO ANNUALE (P10 / P50 / P90)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+            {customPortfolios.map((name, i) => {
+              const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'];
+              const value = p.portfolioPerformances?.[name]?.totalValue || 
+                            p.positions.filter(pos => pos.portfolio === name && pos.status === 'OPEN')
+                                       .reduce((sum, pos) => sum + (pos.capitalAllocated + (pos.unrealizedPnl || 0)), 0);
+              return (
+                <ProjectionCard
+                  key={name}
+                  name={name}
+                  allocationPct={p.targets?.[name] || 0}
+                  currentValue={value}
+                  projection={p.bucketProjections?.[name]}
+                  color={colors[i % colors.length]}
+                />
+              );
+            })}
+          </div>
+        </div>
+
         <div style={{ marginTop: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           <div style={{ fontSize: '14px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.15em' }}>
             PATRIMONIO COMPLESSIVO
