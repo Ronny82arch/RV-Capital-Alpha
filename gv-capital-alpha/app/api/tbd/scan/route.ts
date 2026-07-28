@@ -1,6 +1,7 @@
 /**
  * POST /api/tbd/scan
- * Avvia lo scanner H1, genera segnali PRE_ALERT e gestisce il circuit breaker.
+ * Hunter Mode: genera segnali PRE_ALERT solo su setup estremi.
+ * Integra Antigravity per capitale TBD giornaliero.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,57 +10,87 @@ import { fetchAllTbdMarketData } from '@/lib/tbd-market';
 import {
   getTodayLog, saveTodayLog, getTbdConfig,
   getActiveSignals, addSignal, updateSignalStatus, todayKey,
-  acquireDayLock, releaseDayLock
+  acquireDayLock, releaseDayLock, kvGet
 } from '@/lib/tbd-storage';
 import { 
   sendPreAlertNotification, sendCircuitBreakerNotification,
   sendSignalTriggeredNotification, sendExitNotification
 } from '@/lib/tbd-notifications';
+import { AntigravityEngine, getTbdCooldownUntil } from '@/lib/antigravity-engine';
+import { getPortfolio, updatePortfolioPeakValue } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  // Auth
   const auth = req.headers.get('authorization');
   const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
   const isDev = process.env.NODE_ENV === 'development';
-  
   const host = req.headers.get('host');
   const referer = req.headers.get('referer');
   const origin = req.headers.get('origin');
-  
   let isSameOrigin = false;
-  if (host) {
-    if (referer) {
-      try {
-        const refUrl = new URL(referer);
-        isSameOrigin = refUrl.host === host;
-      } catch {}
-    }
-    if (!isSameOrigin && origin) {
-      try {
-        const origUrl = new URL(origin);
-        isSameOrigin = origUrl.host === host;
-      } catch {}
-    }
+  if (host && referer) {
+    try { isSameOrigin = new URL(referer).host === host; } catch {}
   }
-
+  if (!isSameOrigin && origin) {
+    try { isSameOrigin = new URL(origin).host === (host ?? ''); } catch {}
+  }
   if (!isCron && !isDev && !isSameOrigin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  try {
-    const config  = await getTbdConfig();
-    const engine  = new TradingByDayEngine(config);
 
-    // 1. Controlla / Inizializza log giornaliero e circuit breaker
+  try {
+    // 1. Stato globale
+    const portfolio = await getPortfolio();
+    await updatePortfolioPeakValue(portfolio.totalValue);
+
+    const config = await getTbdConfig();
+    const engine = new TradingByDayEngine(config);
+
     let log = await getTodayLog();
     if (!log) {
       log = engine.createEmptyDayLog(todayKey());
       await saveTodayLog(log);
     }
-    const pnl     = log.realizedPnL;
-    
-    // N2: leggi i segnali attivi PRIMA del circuit breaker
-    const existing = await getActiveSignals();
+
+    // 2. Antigravity: quanto capitale TBD oggi?
+    const agEngine = new AntigravityEngine();
+    const peakValue = Math.max(
+      portfolio.totalValue,
+      ...(portfolio.performanceHistory || []).map((p: { totalValue: number }) => p.totalValue)
+    );
+    const cooldown = await getTbdCooldownUntil(kvGet);
+
+    // Quality score medio da segnali esistenti (se ci sono)
+    const existingSignals = await getActiveSignals();
+    const avgQuality = existingSignals.length > 0
+      ? existingSignals.reduce((s, sig) => s + (sig.qualityScore || 0), 0) / existingSignals.length
+      : 0;
+
+    const agState = agEngine.calculateState(
+      portfolio.totalValue, peakValue, avgQuality, cooldown
+    );
+
+    // Se PROTECT, TBD è 0 — cortocircuito immediato
+    if (agState.status === 'PROTECT') {
+      return NextResponse.json({
+        success: true,
+        circuitBreaker: true,
+        antigravity: agState.status,
+        message: agState.reason,
+        newSignals: [],
+      });
+    }
+
+    const { tbdValue } = agEngine.calculateAbsoluteAllocation(portfolio.totalValue, agState);
+    // Override config.totalCapital con il capitale effettivo oggi (safety cap: max 3x config base)
+    const effectiveTbdCapital = Math.min(tbdValue, config.totalCapital * 3);
+    engine['config'].totalCapital = effectiveTbdCapital;
+
+    // 3. Circuit breaker giornaliero TBD
+    const pnl = log.realizedPnL;
+    const existing = existingSignals; // già letti sopra
     const breaker = engine.evaluateDailyCircuitBreaker(log);
 
     if (breaker.stopTrading) {
@@ -75,18 +106,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Fetch dati mercato H1
+    // 4. Fetch dati mercato H1
     const marketData = await fetchAllTbdMarketData();
 
-    // 3. Calcola il capitale residuo prima di generare i segnali
-    // existing già letto in alto
+    // 5. Calcola il capitale residuo prima di generare i segnali
     const currentlyCommitted = existing.reduce((sum, s) => sum + (s.allocatedSize || 0), 0);
-    let remainingCapital = Math.max(0, config.totalCapital - currentlyCommitted);
+    let remainingCapital = Math.max(0, effectiveTbdCapital - currentlyCommitted);
 
-    // 4. Genera segnali dinamici usando il capitale residuo (così da sfruttare tutta la liquidità)
+    // 6. Genera segnali dinamici usando il capitale residuo
     const rawSignals = engine.scanMarketForSpeculation(marketData, remainingCapital, log);
 
-    // 5. Filtra asset già in posizione attiva
+    // 7. Filtra asset già in posizione attiva
     const activeCount = existing.length;
     const maxAllowedNew = Math.max(0, config.activeSlots - activeCount);
 
@@ -99,12 +129,11 @@ export async function POST(req: NextRequest) {
     for (const s of rawSignals) {
       if (newSignals.length >= maxAllowedNew) break;
       if (existingAssets.has(`${s.asset}:${s.direction}`)) continue;
+      if (s.allocatedSize <= 0) continue;
 
-      if (s.allocatedSize <= 0) continue; // N4: Filtro segnali con size 0 mancante
-
-      // Se la size del segnale supera la liquidità residua, riduci la size
+      // Se la size supera la liquidità residua, riduci proporzionalmente
       if (s.allocatedSize > remainingCapital) {
-        if (remainingCapital < 100) break; // Non aprire slot sotto i 100€
+        if (remainingCapital < 100) break;
         const ratio = remainingCapital / s.allocatedSize;
         s.allocatedSize = Number(remainingCapital.toFixed(2));
         s.expectedPnL = Number((s.expectedPnL * ratio).toFixed(2));
@@ -115,13 +144,13 @@ export async function POST(req: NextRequest) {
       remainingCapital -= s.allocatedSize;
     }
 
-    // 5. Salva e notifica nuovi segnali (Pre-Alert)
+    // 8. Salva e notifica nuovi segnali (Pre-Alert)
     for (const signal of newSignals) {
       await addSignal(signal);
       await sendPreAlertNotification(signal);
     }
 
-    // 6. Monitora segnali attivi per trigger o uscita SL/TP
+    // 9. Monitora segnali attivi per trigger o uscita SL/TP
     const dateKey = todayKey();
     const hasLock = await acquireDayLock(dateKey);
 
@@ -137,8 +166,8 @@ export async function POST(req: NextRequest) {
           const isBuy = signal.direction === 'BUY';
 
           if (signal.status === 'PRE_ALERT') {
-            const reachedEntry = isBuy 
-              ? currentPrice <= signal.entryPrice 
+            const reachedEntry = isBuy
+              ? currentPrice <= signal.entryPrice
               : currentPrice >= signal.entryPrice;
             if (reachedEntry) {
               await updateSignalStatus(signal.id, 'TRIGGERED');
@@ -146,11 +175,11 @@ export async function POST(req: NextRequest) {
               await sendSignalTriggeredNotification(signal, currentPrice);
             }
           } else if (signal.status === 'TRIGGERED' || signal.status === 'ACTIVE') {
-            const hitTp = isBuy 
-              ? currentPrice >= signal.takeProfit 
+            const hitTp = isBuy
+              ? currentPrice >= signal.takeProfit
               : currentPrice <= signal.takeProfit;
-            const hitSl = isBuy 
-              ? currentPrice <= signal.stopLoss 
+            const hitSl = isBuy
+              ? currentPrice <= signal.stopLoss
               : currentPrice >= signal.stopLoss;
 
             if (hitTp) {
@@ -178,6 +207,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       circuitBreaker: false,
+      antigravity: agState.status,
+      effectiveTbdCapital,
       message: breaker.message,
       scannedAssets: marketData.length,
       newSignals: newSignals.length,

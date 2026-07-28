@@ -348,7 +348,7 @@ Formato RISPOSTA (SOLO JSON array valido):
       winProbability: c.winProbability,
       winProbabilitySampleSize: c.winProbabilitySampleSize,
       winProbabilityTrusted: c.winProbabilityTrusted,
-      expectedReturn: c.winProbability * tpPct - (1 - c.winProbability) * slPct,
+      expectedReturn: kelly.expectedValue, // Kelly EV, non più target-driven
       reasoning: approved.reasoning || 'Approved by Executive Committee',
       strategy: approved.strategy || 'Multi-Agent Selection',
       urgency: (approved.urgency as Signal['urgency']) || 'MEDIUM',

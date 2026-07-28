@@ -47,30 +47,16 @@ function isMirrorPosition(p: any, mirrorPosIds?: Set<number>): boolean {
 
 async function fetchEtoroPnL(): Promise<any> {
   const headers = getHeaders();
-  
-  // Try real account first
-  let url = 'https://public-api.etoro.com/api/v1/trading/info/real/pnl';
-  try {
-    const res = await fetch(url, { headers });
-    if (res.ok) {
-      return await res.json();
-    }
-    const errText = await res.clone().text();
-    console.warn('Real PnL fetch returned status ' + res.status + ', trying demo:', errText);
-  } catch (err: any) {
-    console.warn('Real PnL fetch failed, trying demo:', err.message);
+  const res = await fetch('https://public-api.etoro.com/api/v1/trading/info/real/pnl', { headers });
+  if (res.ok) return await res.json();
+
+  const errText = await res.text();
+  if (process.env.ETORO_ALLOW_DEMO_FALLBACK === 'true') {
+    console.warn(`[eToro] Account reale non raggiungibile (${res.status}), uso DEMO perché ETORO_ALLOW_DEMO_FALLBACK=true`);
+    const demoRes = await fetch('https://public-api.etoro.com/api/v1/trading/info/demo/pnl', { headers });
+    if (demoRes.ok) return { ...(await demoRes.json()), _isDemoFallback: true };
   }
-  
-  // Fallback to demo account
-  url = 'https://public-api.etoro.com/api/v1/trading/info/demo/pnl';
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    const finalErr = await res.text();
-    console.error('Demo PnL fetch also failed:', finalErr);
-    throw new Error('eToro API Error: ' + finalErr);
-  }
-  
-  return await res.json();
+  throw new Error(`eToro API reale non raggiungibile (${res.status}): ${errText}`);
 }
 
 // getUsdToEurRate importata da market.ts

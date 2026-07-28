@@ -669,8 +669,13 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio }: Props
                   +{dailyTarget}€ ✏️
                 </b>
               )}
-              <span>· 4 Cluster Attivi</span>
+              <span>• 4 Cluster Attivi</span>
             </div>
+            {portfolio?.capitalAvailable !== undefined && Number(capitalInput || totalCapital) > portfolio.capitalAvailable && (
+              <div style={{ fontSize: '10px', color: '#ef4444', marginTop: '6px', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.1)', padding: '6px', borderRadius: '4px' }}>
+                ⚠️ Nota: Stai riservando al Trading By Day (€{Number(capitalInput || totalCapital).toLocaleString('it-IT')}) più liquidità di quanta ne hai disponibile globalmente (€{portfolio.capitalAvailable.toLocaleString('it-IT')}).
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button

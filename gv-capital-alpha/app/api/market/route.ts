@@ -19,8 +19,21 @@ export async function GET() {
           added.add(pos.symbol);
           let coinId: string | undefined;
           let yahooSymbol: string | undefined;
+const TICKER_TO_COINGECKO_ID: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', BNB: 'binancecoin',
+  ADA: 'cardano', XRP: 'ripple', DOGE: 'dogecoin', DOT: 'polkadot',
+  MATIC: 'matic-network', AVAX: 'avalanche-2', LINK: 'chainlink',
+  LTC: 'litecoin', UNI: 'uniswap', ATOM: 'cosmos', XLM: 'stellar',
+  ALGO: 'algorand', TRX: 'tron', ETC: 'ethereum-classic', FIL: 'filecoin',
+  APT: 'aptos', ARB: 'arbitrum', OP: 'optimism', NEAR: 'near',
+};
+
           if (pos.type === 'CRYPTO') {
-            coinId = pos.symbol.toLowerCase() === 'bnb' ? 'binancecoin' : pos.symbol.toLowerCase();
+            const ticker = pos.symbol.toUpperCase();
+            coinId = TICKER_TO_COINGECKO_ID[ticker];
+            if (!coinId) {
+              console.warn(`[market] Nessun ID CoinGecko noto per il ticker "${ticker}" — prezzo live non aggiornato per questa posizione, verrà usato l'ultimo prezzo salvato.`);
+            }
           } else {
             yahooSymbol = pos.symbol;
           }
