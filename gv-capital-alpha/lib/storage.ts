@@ -376,8 +376,8 @@ export async function mutatePortfolio<T>(
       .eq('id', DEFAULT_PORTFOLIO_ID)
       .eq('_version', versionAtRead);
 
-    if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache'))) {
-      console.warn('[mutatePortfolio] Colonne extra mancanti nel DB portfolios. Eseguo fallback update.');
+    if (error) {
+      console.warn('[mutatePortfolio] Errore di update. Tento salvataggio fallback senza colonne extra:', error);
       delete updatePayload.core_satellite_target;
       delete updatePayload.targets;
       delete updatePayload.bucket_projections;

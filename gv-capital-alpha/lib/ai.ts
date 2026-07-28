@@ -1,28 +1,148 @@
 /**
- * lib/ai.ts — Signal generation engine v2
- * 
- * Modifiche:
- * 1. lookupCalibratedProbability() → richiede confidenceLower >= 52%
- * 2. getDrawdownRiskMultiplier() → rimosso dal sizing (gestito da Antigravity)
- * 3. calculateKelly() → NO targetAnnualReturn, NO momentumScore
- * 4. Modello Claude fisso: claude-3-5-sonnet-20241022
- * 5. Filtro candidati: usa confidenceLower, non solo winProbability
+ * lib/ai.ts — Generazione segnali Satellite con Conformal Prediction + Online Learning
+ * E pipeline multi-agente legacy (analyzeAsset, findPromisingCandidatesBatch, evaluateCandidatesWithAIBatch).
  */
 
-import { Signal, MarketData, PortfolioState } from '@/types';
-import {
-  calculateRSI, calculateSMA, calculateEMA, calculateMomentum, calculateVolatility, calculateATR,
-  estimateFallbackWinProbability, calculateKelly, calculatePositionSize,
-} from './kelly';
-import { lookupCalibratedProbability, CalibrationTable } from './backtest';
-import type { CalibrationData } from './storage';
-import { checkCorrelationAgainstOpenPositions, CorrelationMatrix } from './correlation';
-import { generateId } from './storage';
+import { PortfolioState, Signal, Position } from './types';
+import { getAlphaWatchlist } from './market';
+import { checkCorrelationStrict, checkCorrelationAgainstOpenPositions, CorrelationMatrix } from './correlation';
+import { calculateKelly, calculateRSI, calculateSMA, calculateEMA, calculateMomentum, calculateVolatility, calculateATR, estimateFallbackWinProbability, calculatePositionSize } from './kelly';
+import { lookupCalibratedProbability, MIN_CONFIDENCE_LOWER, MIN_TRUSTED_SAMPLE_SIZE, deserializeOnlineEntry, getOnlineProbability } from './backtest';
+import { kvGet } from './tbd-storage';
+import { CalibrationData, generateId } from './storage';
+import { MarketData } from './types';
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
 
-// ─── ANALISI TECNICA ──────────────────────────────────────────────────────────
+interface AiInput {
+  marketData: Array<{ symbol: string; price: number; rsi: number; momentum: number; sma50: number; sma20: number; volatility: number; returns: number[] }>;
+  portfolio: PortfolioState;
+  correlationMatrix: any;
+  mode: 'STRICT' | 'NORMAL';
+  calibrationTable?: any;
+}
+
+// ─── GENERATE SIGNALS (CONFORMAL PREDICTION + SATELLITE) ─────────────────────
+
+export async function generateSignals(input: AiInput): Promise<Signal[]> {
+  const { marketData, portfolio, correlationMatrix, mode, calibrationTable } = input;
+  const signals: Signal[] = [];
+  const openPositions = portfolio.positions?.filter(p => p.status === 'OPEN') || [];
+
+  for (const md of marketData) {
+    // 1. Correlazione (con checkCorrelationStrict per supportare il tipo Position[])
+    const corrCheck = checkCorrelationStrict(md.symbol, openPositions, correlationMatrix, mode);
+    if (!corrCheck.allowed) continue;
+
+    // 2. Trend filter
+    const trend = md.price > md.sma50 ? 'BULLISH' : 'BEARISH';
+    const priceVsSMA50 = (md.price - md.sma50) / md.sma50;
+    const priceVsSMA20 = (md.price - md.sma20) / md.sma20;
+
+    // 3. Calibrazione
+    let winProb = 0.5;
+    let sampleSize = 0;
+    let trusted = false;
+    let setupKeyStr = '';
+
+    if (calibrationTable) {
+      const cal = lookupCalibratedProbability(
+        calibrationTable,
+        md.rsi,
+        md.momentum,
+        priceVsSMA50
+      );
+      winProb = cal.winProbability;
+      sampleSize = cal.sampleSize;
+      trusted = cal.trusted;
+      setupKeyStr = cal.setupKey;
+
+      // Online learning override
+      const onlineRaw = await kvGet(`bayesian:${setupKeyStr}`);
+      if (onlineRaw) {
+        const online = deserializeOnlineEntry(onlineRaw);
+        const live = getOnlineProbability(online);
+        if (live.sampleSize >= 10 && live.confidenceLower > 0.55) {
+          winProb = live.winProb;
+          sampleSize = live.sampleSize;
+          trusted = true;
+        }
+      }
+    }
+
+    // 4. Filtro qualità
+    const minWinProb = mode === 'STRICT' ? 0.58 : 0.53;
+    const minSample = mode === 'STRICT' ? MIN_TRUSTED_SAMPLE_SIZE : 15;
+    const minRR = 2.0;
+
+    if (winProb < minWinProb) continue;
+    if (!trusted && mode === 'STRICT') continue;
+    if (sampleSize < minSample) continue;
+
+    // 5. SL/TP basati su ATR
+    const atrPct = md.volatility;
+    const slPct = Math.max(atrPct * 2.0, 0.03);
+    const tpPct = slPct * minRR;
+
+    const direction = trend === 'BULLISH' ? 'BUY' : 'SELL';
+    const entryPrice = md.price;
+    const stopLoss = direction === 'BUY' ? entryPrice * (1 - slPct) : entryPrice * (1 + slPct);
+    const takeProfit = direction === 'BUY' ? entryPrice * (1 + tpPct) : entryPrice * (1 - tpPct);
+
+    // 6. Kelly sizing (quarter-Kelly fisso)
+    const kelly = calculateKelly(winProb, tpPct / slPct, md.volatility);
+    const satelliteCapital = (portfolio.totalValue || 0) * ((portfolio.coreSatelliteTarget || 70) / 100) * 0.25;
+    const capitalToAllocate = Math.min(
+      satelliteCapital * kelly.recommendedFraction,
+      satelliteCapital * 0.03 // max 3% per posizione
+    );
+    if (capitalToAllocate < 200) continue;
+
+    // 7. Costruisci segnale
+    const signal: Signal = {
+      id: `sat-${md.symbol}-${Date.now()}`,
+      symbol: md.symbol,
+      name: md.symbol,
+      type: 'STOCK',
+      action: direction,
+      suggestedPrice: entryPrice,
+      quantity: Math.floor(capitalToAllocate / entryPrice),
+      capitalToAllocate: Number(capitalToAllocate.toFixed(2)),
+      stopLoss: Number(stopLoss.toFixed(4)),
+      takeProfit: Number(takeProfit.toFixed(4)),
+      stopLossPercent: Number((slPct * 100).toFixed(2)),
+      takeProfitPercent: Number((tpPct * 100).toFixed(2)),
+      kellyFraction: kelly.recommendedFraction,
+      winProbability: winProb,
+      winProbabilitySampleSize: sampleSize,
+      winProbabilityTrusted: trusted,
+      expectedReturn: kelly.expectedValue,
+      reasoning: `Setup ${setupKeyStr} | Win rate ${(winProb * 100).toFixed(1)}% (n=${sampleSize}) | Trend ${trend}`,
+      strategy: 'Satellite Alpha',
+      urgency: winProb > 0.65 ? 'HIGH' : 'MEDIUM',
+      technicals: {
+        rsi: md.rsi,
+        momentum: md.momentum,
+        sma20: md.sma20,
+        sma50: md.sma50,
+        trend,
+        correlationMax: corrCheck.highestRho,
+      },
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      portfolio: 'Satellite',
+    };
+
+    signals.push(signal);
+  }
+
+  // Ordina per expected return
+  signals.sort((a, b) => (b.expectedReturn || 0) - (a.expectedReturn || 0));
+  return signals.slice(0, 5); // max 5 segnali per scan
+}
+
+// ─── PIPELINE MULTI-AGENTE LEGACY ────────────────────────────────────────────
 
 export interface AnalyzedAsset {
   market: MarketData;
@@ -36,8 +156,8 @@ export interface AnalyzedAsset {
   winProbability: number;
   winProbabilityTrusted: boolean;
   winProbabilitySampleSize: number;
-  confidenceLower: number;        // NUOVO: lower bound 90% CI
-  confidenceUpper: number;        // NUOVO: upper bound 90% CI
+  confidenceLower: number;
+  confidenceUpper: number;
   trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
   technicalScore: number;
   rewardRiskRatio: number;
@@ -85,7 +205,7 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationData | 
     technicalScore = fb.score;
   }
 
-  // SL/TP ATR-based (identici a produzione)
+  // SL/TP ATR-based
   const atr = calculateATR(market.history, 14);
   const atrPct = atr / price;
   const slPct = atrPct > 0 ? atrPct * 2.0 : 0.05;
@@ -103,13 +223,11 @@ export function analyzeAsset(market: MarketData, calibration: CalibrationData | 
   };
 }
 
-// ─── SELEZIONE CANDIDATI — FILTRO PER CONFIDENCE ─────────────────────────────
-
 export interface CandidatesBatchResult {
   candidates: AnalyzedAsset[];
   skippedForCorrelation: { symbol: string; conflictWith: string; correlation: number }[];
   skippedUntrusted: string[];
-  skippedLowConfidence: string[];  // NUOVO
+  skippedLowConfidence: string[];
 }
 
 export function findPromisingCandidatesBatch(
@@ -131,21 +249,17 @@ export function findPromisingCandidatesBatch(
 
   const aiMode = portfolio.aiMode || 'STRICT';
   
-  // STRICT: richiede trusted + confidenceLower >= 55%
-  // DYNAMIC: accetta confidenceLower >= 50% (ma preferisce trusted)
   const minConfidence = aiMode === 'STRICT' ? 0.55 : 0.50;
   const minWinProb = aiMode === 'STRICT' ? 0.55 : 0.52;
 
   const bullish = available.filter(a => {
     if (a.trend !== 'BULLISH') return false;
     
-    // Filtro confidence: il lower bound dell'intervallo deve superare la soglia
     if (a.confidenceLower < minConfidence) {
       skippedLowConfidence.push(`${a.market.symbol} (conf: ${(a.confidenceLower * 100).toFixed(1)}%)`);
       return false;
     }
     
-    // Filtro trusted: in STRICT serve anche il flag trusted
     if (aiMode === 'STRICT' && !a.winProbabilityTrusted) {
       skippedUntrusted.push(a.market.symbol);
       return false;
@@ -182,8 +296,6 @@ export function findPromisingCandidatesBatch(
   return { candidates, skippedForCorrelation, skippedUntrusted, skippedLowConfidence };
 }
 
-// ─── GENERAZIONE SEGNALI CON AI — SIZING SENZA TARGET ────────────────────────
-
 export async function evaluateCandidatesWithAIBatch(
   candidates: AnalyzedAsset[],
   portfolio: PortfolioState
@@ -193,7 +305,6 @@ export async function evaluateCandidatesWithAIBatch(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) { console.error('ANTHROPIC_API_KEY non settato'); return []; }
 
-  // NO drawdown multiplier nel sizing: gestito da Antigravity a livello bucket
   const globalTarget = portfolio.targets?.['Tutti'] !== undefined
     ? portfolio.targets['Tutti'] / 100
     : portfolio.targetAnnualReturn;
@@ -264,7 +375,7 @@ Formato RISPOSTA (SOLO JSON array valido):
           'anthropic-version': '2023-06-01' 
         },
         body: JSON.stringify({
-          model: ANTHROPIC_MODEL,  // ✅ FIX: modello valido
+          model: ANTHROPIC_MODEL,
           max_tokens: 1000,
           system: systemPrompt,
           messages: [{ role: 'user', content: JSON.stringify(candidatesPayload, null, 2) }],
@@ -312,7 +423,6 @@ Formato RISPOSTA (SOLO JSON array valido):
 
     const assignedPortfolio = portfoliosList.find(p => p.toLowerCase() === approved.portfolio?.toLowerCase()) || 'Da Assegnare';
     
-    // ✅ FIX: Kelly puro, niente target, niente drawdown multiplier
     const kelly = calculateKelly(c.winProbability, c.rewardRiskRatio, c.volatility, 0.03);
     
     const { capitalToAllocate, quantity } = calculatePositionSize(
@@ -320,7 +430,7 @@ Formato RISPOSTA (SOLO JSON array valido):
       kelly.recommendedFraction, 
       c.market.price, 
       c.stopLoss,
-      c.market.type === 'CRYPTO'  // ✅ FIX: frazioni per crypto
+      c.market.type === 'CRYPTO'
     );
 
     if (capitalToAllocate < 100 || quantity < (c.market.type === 'CRYPTO' ? 0.001 : 1)) {
@@ -348,7 +458,7 @@ Formato RISPOSTA (SOLO JSON array valido):
       winProbability: c.winProbability,
       winProbabilitySampleSize: c.winProbabilitySampleSize,
       winProbabilityTrusted: c.winProbabilityTrusted,
-      expectedReturn: kelly.expectedValue, // Kelly EV, non più target-driven
+      expectedReturn: kelly.expectedValue,
       reasoning: approved.reasoning || 'Approved by Executive Committee',
       strategy: approved.strategy || 'Multi-Agent Selection',
       urgency: (approved.urgency as Signal['urgency']) || 'MEDIUM',

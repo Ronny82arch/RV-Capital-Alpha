@@ -12,6 +12,7 @@ export interface Technicals {
   sma20: number;
   sma50: number;
   trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  correlationMax?: number;
 }
 
 export interface Signal {
