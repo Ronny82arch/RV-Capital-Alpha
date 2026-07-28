@@ -20,72 +20,100 @@ export function ProjectionCard({ name, allocationPct, currentValue, projection, 
   const p90pct = projection ? ((projection.p90 / currentValue) - 1) * 100 : 0;
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all hover:shadow-md">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
-          <h3 className="font-semibold text-slate-800 dark:text-slate-100">{name}</h3>
+    <div style={{
+      background: 'var(--bg2)',
+      border: '1px solid var(--border)',
+      borderRadius: '16px',
+      padding: '20px',
+      fontFamily: 'var(--font-mono)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color }} />
+          <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text)', textTransform: 'uppercase' }}>{name}</span>
         </div>
-        <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+        <span style={{ fontSize: '10px', color: 'var(--text3)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: '6px' }}>
           {allocationPct}%
         </span>
       </div>
 
-      <div className="mb-4">
-        <div className="text-2xl font-bold text-slate-900 dark:text-white">
+      <div>
+        <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text)' }}>
           {formatCurrency(currentValue, hideValues)}
         </div>
-        <div className="text-xs text-slate-500 dark:text-slate-400">Valore attuale</div>
+        <div style={{ fontSize: '10px', color: 'var(--text3)' }}>Valore attuale</div>
       </div>
 
       {projection ? (
-        <div className="space-y-4">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
-            <div className="mb-1 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text3)', marginBottom: '4px' }}>
               <span>Proiezione annua (p50)</span>
-              <span className={p50pct >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-rose-600 dark:text-rose-400 font-medium'}>
+              <span style={{ color: p50pct >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 'bold' }}>
                 {formatPercent(p50pct, hideValues)}
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div style={{ height: '6px', background: 'var(--bg3)', borderRadius: '3px', overflow: 'hidden' }}>
               <div
-                className="h-full rounded-full transition-all"
                 style={{
+                  height: '100%',
+                  borderRadius: '3px',
                   width: `${Math.min(100, Math.max(5, (p50pct + 30) / 60 * 100))}%`,
                   backgroundColor: color,
+                  transition: 'width 0.6s ease'
                 }}
               />
             </div>
           </div>
 
-          <div className="flex justify-between text-xs">
-            <div className="text-left">
-              <div className="mb-0.5 text-slate-400 dark:text-slate-500">p10 worst</div>
-              <div className="font-semibold text-rose-600 dark:text-rose-400">{formatPercent(p10pct, hideValues)}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text3)' }}>p10 worst</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--red)' }}>{formatPercent(p10pct, hideValues)}</div>
             </div>
-            <div className="text-center">
-              <div className="mb-0.5 text-slate-400 dark:text-slate-500">mediana</div>
-              <div className="font-semibold text-indigo-600 dark:text-indigo-400">{formatPercent(p50pct, hideValues)}</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text3)' }}>mediana</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--blue)' }}>{formatPercent(p50pct, hideValues)}</div>
             </div>
-            <div className="text-right">
-              <div className="mb-0.5 text-slate-400 dark:text-slate-500">p90 best</div>
-              <div className="font-semibold text-emerald-600 dark:text-emerald-400">{formatPercent(p90pct, hideValues)}</div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '9px', color: 'var(--text3)' }}>p90 best</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--green)' }}>{formatPercent(p90pct, hideValues)}</div>
             </div>
           </div>
 
-          <div className="mt-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            <div className="flex justify-between">
+          <div style={{
+            background: 'var(--bg3)',
+            borderRadius: '8px',
+            padding: '10px',
+            fontSize: '11px',
+            color: 'var(--text2)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Intervallo confidenza:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">[{formatPercent(p10pct, hideValues)}, {formatPercent(p90pct, hideValues)}]</span>
+              <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>[{formatPercent(p10pct, hideValues)}, {formatPercent(p90pct, hideValues)}]</span>
             </div>
-            <div className="flex justify-between mt-1">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Probabilità anno positivo:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">{projection.successRate.toFixed(0)}%</span>
+              <span style={{ fontWeight: 'bold', color: 'var(--text)' }}>{projection.successRate.toFixed(0)}%</span>
             </div>
           </div>
         </div>
       ) : (
-        <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-4 text-center text-xs text-slate-400">
+        <div style={{
+          background: 'var(--bg3)',
+          borderRadius: '8px',
+          padding: '16px',
+          textAlign: 'center',
+          fontSize: '11px',
+          color: 'var(--text3)'
+        }}>
           Calibrazione in corso...
         </div>
       )}

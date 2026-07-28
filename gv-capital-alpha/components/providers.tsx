@@ -57,21 +57,40 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
 export const useApp = () => useContext(AppContext);
 
+export function formatNumber(value: number, decimals: number = 2): string {
+  if (isNaN(value) || value === null || value === undefined) return '0';
+  const fixed = value.toFixed(decimals);
+  const parts = fixed.split('.');
+  let integerPart = parts[0];
+  const isNegative = integerPart.startsWith('-');
+  if (isNegative) {
+    integerPart = integerPart.substring(1);
+  }
+  let formattedInteger = '';
+  let count = 0;
+  for (let i = integerPart.length - 1; i >= 0; i--) {
+    if (count > 0 && count % 3 === 0) {
+      formattedInteger = '.' + formattedInteger;
+    }
+    formattedInteger = integerPart[i] + formattedInteger;
+    count++;
+  }
+  if (isNegative) {
+    formattedInteger = '-' + formattedInteger;
+  }
+  if (decimals > 0 && parts[1]) {
+    return formattedInteger + ',' + parts[1];
+  }
+  return formattedInteger;
+}
+
 export function formatCurrency(value: number, hide: boolean): string {
   if (hide) return '•••• €';
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
+  return formatNumber(value, 2) + ' €';
 }
 
 export function formatPercent(value: number, hide: boolean): string {
   if (hide) return '•••• %';
   const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
-}
-
-export function formatNumber(value: number, decimals: number = 2): string {
-  if (isNaN(value) || value === null || value === undefined) return '0';
-  return new Intl.NumberFormat('it-IT', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(value);
+  return `${sign}${formatNumber(value, 2)}%`;
 }
