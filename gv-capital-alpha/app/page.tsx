@@ -59,8 +59,8 @@ export default function Home() {
       ]);
       if (pRes.status === 'fulfilled') {
         const pData = await pRes.value.json().catch(() => ({}));
-        if (pData.success && pData.portfolio) {
-          setPortfolio(pData.portfolio);
+        if (pData.success && pData.data) {
+          setPortfolio(pData.data);
         } else {
           setError(pData.error || 'Errore caricamento portfolio');
         }
