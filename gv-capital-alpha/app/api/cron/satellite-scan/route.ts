@@ -14,6 +14,7 @@ import {
 } from '@/lib/ai';
 import { getPortfolio, mutatePortfolio } from '@/lib/storage';
 import { sendPushToAllSubscriptions } from '@/lib/push';
+import { projectAllBuckets } from '@/lib/monte-carlo';
 import type { CalibrationData } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -86,12 +87,36 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Aggiorna proiezioni Monte Carlo per bucket (p10/p50/p90)
+    // Eseguito dopo ogni satellite-scan per tenere le proiezioni fresche
+    const coreSatTarget = portfolio.coreSatelliteTarget ?? 70;
+    const satTarget = 100 - coreSatTarget;
+    const bucketInputs = [
+      {
+        name: 'Core',
+        currentValue: portfolio.totalValue * (coreSatTarget / 100),
+        mu: 0.08,   // 8% atteso Core (ETF/blue chip)
+        sigma: 0.15, // 15% vol
+      },
+      {
+        name: 'Satellite',
+        currentValue: portfolio.totalValue * (satTarget / 100),
+        mu: 0.35,   // 35% atteso Satellite (stock picking)
+        sigma: 0.25, // 25% vol
+      },
+    ];
+    const projections = projectAllBuckets(bucketInputs, 1, 10000);
+    await mutatePortfolio(p => {
+      p.bucketProjections = projections;
+    });
+
     return NextResponse.json({
       success: true,
       scannedAssets: watchlist.length,
       candidatesAnalyzed: candidates.length,
       signalsGenerated: signals.length,
       topSignal: signals[0] || null,
+      bucketProjections: projections,
     });
 
   } catch (err: any) {

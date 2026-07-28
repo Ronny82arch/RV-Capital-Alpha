@@ -108,6 +108,11 @@ export interface PortfolioState {
   coreSatelliteTarget?: number; // ✅ Target personalizzato per l'allocazione Core (es. 70 significa 70% Core, 30% Satellite)
   portfolioPerformances?: Record<string, { totalValue: number, invested: number, pnl: number, pnlPercent: number }>;
   _version?: number;
+  /** Proiezioni Monte Carlo per bucket — aggiornate dal cron satellite-scan */
+  bucketProjections?: Record<string, {
+    p10: number; p50: number; p90: number;
+    mean: number; successRate: number; maxDrawdown: number;
+  }>;
 }
 
 
