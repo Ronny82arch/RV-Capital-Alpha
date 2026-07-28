@@ -48,7 +48,7 @@ export interface Signal {
 
 export interface Position {
   id: string;
-  signalId: string;
+  signalId?: string;
   symbol: string;
   name: string;
   type: AssetType;

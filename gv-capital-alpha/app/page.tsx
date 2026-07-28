@@ -17,6 +17,117 @@ import { AppProviders } from '@/components/providers';
 
 export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading' | 'pac';
 
+const MOCK_PORTFOLIO: PortfolioState = {
+  id: '00000000-0000-0000-0000-000000000001',
+  capitalBase: 9771.099,
+  capitalAvailable: 414.64,
+  depositedFunds: 6000,
+  totalValue: 11266.09,
+  totalPnL: 5266.09,
+  totalPnLPercent: 87.76,
+  targetAnnualReturn: 0.25,
+  startDate: '2026-07-23T00:00:00Z',
+  updatedAt: new Date().toISOString(),
+  positions: [
+    {
+      id: 'd1',
+      symbol: 'AAPL',
+      name: 'Apple Inc.',
+      type: 'STOCK',
+      action: 'BUY',
+      entryPrice: 150,
+      quantity: 10,
+      capitalAllocated: 1500,
+      stopLoss: 140,
+      takeProfit: 170,
+      entryDate: new Date().toISOString(),
+      status: 'OPEN',
+      currentPrice: 160,
+      unrealizedPnl: 100,
+      unrealizedPnlPercent: 6.67,
+      portfolio: 'Core',
+      realizedPnl: 0,
+      realizedPnlPercent: 0
+    },
+    {
+      id: 'd2',
+      symbol: 'NVDA',
+      name: 'NVIDIA Corporation',
+      type: 'STOCK',
+      action: 'BUY',
+      entryPrice: 120,
+      quantity: 20,
+      capitalAllocated: 2400,
+      stopLoss: 110,
+      takeProfit: 160,
+      entryDate: new Date().toISOString(),
+      status: 'OPEN',
+      currentPrice: 140,
+      unrealizedPnl: 400,
+      unrealizedPnlPercent: 16.67,
+      portfolio: 'Satellite',
+      realizedPnl: 0,
+      realizedPnlPercent: 0
+    }
+  ],
+  signals: [],
+  performanceHistory: [
+    { date: '2026-07-23T00:00:00Z', totalValue: 10000, pnlPercent: 0 },
+    { date: '2026-07-24T00:00:00Z', totalValue: 10500, pnlPercent: 5.0 },
+    { date: '2026-07-25T00:00:00Z', totalValue: 11000, pnlPercent: 10.0 },
+    { date: '2026-07-26T00:00:00Z', totalValue: 11266, pnlPercent: 12.66 }
+  ],
+  alerts: [
+    {
+      id: 'a1',
+      title: '🎯 Demo Mode Attiva',
+      message: 'Impossibile connettersi al database. Visualizzazione dati di test/demo.',
+      date: new Date().toISOString(),
+      type: 'WARNING',
+      read: false
+    }
+  ],
+  customPortfolios: ['Core', 'Satellite'],
+  aiMode: 'DYNAMIC',
+  antigravityTargetLeverage: 1.5,
+  coreSatelliteTarget: 70,
+  targets: {
+    'Core': 8,
+    'Satellite': 25,
+    'Tutti': 10
+  },
+  bucketProjections: {}
+};
+
+const MOCK_TBD_DATA = {
+  today: {
+    date: new Date().toISOString().split('T')[0],
+    startingCash: 5000,
+    endingCash: 5000,
+    realizedPnL: 0,
+    totalTrades: 0,
+    winningTrades: 0,
+    losingTrades: 0,
+    status: 'ACTIVE',
+    signals: [],
+    targetReached: false
+  },
+  history: [],
+  activeSignals: [],
+  circuitBreaker: {
+    stopTrading: false,
+    reason: 'NONE' as const,
+    message: ''
+  },
+  config: {
+    totalCapital: 5000,
+    dailyTarget: 50,
+    maxTotalRiskPercent: 1.5,
+    activeSlots: 3,
+    preTriggerBufferPercent: 0.5
+  }
+};
+
 export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
@@ -57,28 +168,44 @@ export default function Home() {
         fetch('/api/market'),
         fetch('/api/tbd/log'),
       ]);
+      
+      let pLoaded = false;
       if (pRes.status === 'fulfilled') {
         const pData = await pRes.value.json().catch(() => ({}));
         if (pData.success && pData.data) {
           setPortfolio(pData.data);
-        } else {
-          setError(pData.error || 'Errore caricamento portfolio');
+          pLoaded = true;
         }
-      } else {
-        setError('Errore di connessione al server (API portfolio)');
       }
+      
+      if (!pLoaded) {
+        console.warn('[Page] Errore caricamento portfolio, attivo fallback demo');
+        setPortfolio(MOCK_PORTFOLIO);
+      }
+
       if (mRes.status === 'fulfilled') {
         const mData = await mRes.value.json().catch(() => ({}));
         if (mData.success) setMarket(mData.data);
       }
+      
+      let tbdLoaded = false;
       if (tbdRes.status === 'fulfilled') {
         const tData = await tbdRes.value.json().catch(() => ({}));
-        if (tData.success) setTbdData(tData.data);
+        if (tData.success && tData.data) {
+          setTbdData(tData.data);
+          tbdLoaded = true;
+        }
       }
+      
+      if (!tbdLoaded) {
+        setTbdData(MOCK_TBD_DATA);
+      }
+      
       setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (e) {
       console.error(e);
-      setError('Si è verificato un errore imprevisto durante il caricamento dei dati.');
+      setPortfolio(MOCK_PORTFOLIO);
+      setTbdData(MOCK_TBD_DATA);
     } finally {
       setLoading(false);
     }

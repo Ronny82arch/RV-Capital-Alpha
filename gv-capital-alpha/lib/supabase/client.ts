@@ -61,20 +61,41 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 /**
  * Client Supabase standard per il Frontend. 
  * Rispetta la Row Level Security (RLS). 
- * Se usato server-side, va passata la sessione dell'utente.
  */
-export const supabase = createClient<any>(supabaseUrl, supabaseAnonKey);
+export const supabase = (() => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    return null as any;
+  }
+  try {
+    return createClient<any>(supabaseUrl, supabaseAnonKey);
+  } catch (e) {
+    console.error('[Supabase] Failed to create client:', e);
+    return null as any;
+  }
+})();
 
 /**
  * Client Supabase con privilegi di amministratore (Bypassa RLS).
  * Da usare ESCLUSIVAMENTE nei background workers e API CRON server-side.
  */
-export const supabaseAdmin = createClient<any>(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+export const supabaseAdmin = (() => {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.warn('[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    return null as any;
   }
-});
+  try {
+    return createClient<any>(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+  } catch (e) {
+    console.error('[Supabase] Failed to create admin client:', e);
+    return null as any;
+  }
+})();
 
 /**
  * Crea un client Supabase server-side autenticato per conto di uno specifico utente.
