@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { TbdSignal, TradingDayLog, TbdSignalStatus, calculateLiquidityMetrics, getLiquidityColor, getLiquidityWarningText, DEFAULT_CONFIG } from "@/lib/trading-by-day";
 import { PortfolioState } from "@/types";
+import { formatNumber } from "./providers";
 
 // ─── TIPI LOCALI ──────────────────────────────────────────────────────────────
 
@@ -310,7 +311,7 @@ function TbdPerformanceChart({ history }: { history: TradingDayLog[] }) {
           Andamento Portfolio TBD
         </span>
         <span style={{ fontSize: "12px", fontWeight: 700, fontFamily: "var(--font-mono)", color: isUp ? "var(--green)" : "var(--red)" }}>
-          {isUp ? "+" : ""}{totalReturn.toFixed(2)}€ ({isUp ? "+" : ""}{totalReturnPct.toFixed(1)}%)
+          {isUp ? "+" : ""}{formatNumber(totalReturn, 2)}€ ({isUp ? "+" : ""}{totalReturnPct.toFixed(1)}%)
         </span>
       </div>
 
@@ -359,7 +360,7 @@ function TbdPerformanceChart({ history }: { history: TradingDayLog[] }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#64748b", fontFamily: "var(--font-mono)" }}>
         <span>{chartPoints[0].date}</span>
-        <span>Cash: {chartPoints[chartPoints.length - 1].cash.toFixed(0)}€</span>
+        <span>Cash: {formatNumber(chartPoints[chartPoints.length - 1].cash, 0)}€</span>
         <span>{chartPoints[chartPoints.length - 1].date}</span>
       </div>
     </div>
@@ -432,7 +433,7 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
           return (
             <div
               key={i}
-              title={log ? `${date}: ${log.realizedPnL >= 0 ? "+" : ""}${log.realizedPnL.toFixed(2)}€` : date}
+              title={log ? `${date}: ${log.realizedPnL >= 0 ? "+" : ""}${formatNumber(log.realizedPnL, 2)}€` : date}
               style={{
                 background: bg, border, borderRadius: "6px",
                 padding: "5px 2px", textAlign: "center",
@@ -442,7 +443,7 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
               <div style={{ fontSize: "9px", fontWeight: isToday ? 900 : 600, color: textColor }}>{dayNum}</div>
               {log && (
                 <div style={{ fontSize: "7px", fontWeight: 800, color: textColor, marginTop: "1px" }}>
-                  {log.realizedPnL >= 0 ? "+" : ""}{log.realizedPnL.toFixed(0)}€
+                  {log.realizedPnL >= 0 ? "+" : ""}{formatNumber(log.realizedPnL, 0)}€
                 </div>
               )}
             </div>
@@ -740,7 +741,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginBottom: "6px" }}>
             <span>P&L Oggi: <b style={{ color: pnlColor(pnl), fontFamily: "var(--font-mono, monospace)" }}>
-              {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}€
+              {pnl >= 0 ? "+" : ""}{formatNumber(pnl, 2)}€
             </b></span>
             <span>Target: <b style={{ color: "#10b981" }}>+{dailyTarget}€</b></span>
           </div>
@@ -785,7 +786,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
               <div style={{background:'var(--bg2)',border:'1px solid var(--border)',
               borderRadius:'12px',padding:'16px',marginBottom:'16px',}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px',fontSize:'12px'}}>
-                  <span>Capitale esposto: <b>{liquidity.allocatedTotal.toFixed(2)}€</b></span>
+                  <span>Capitale esposto: <b>{formatNumber(liquidity.allocatedTotal, 2)}€</b></span>
                   <span style={{color:getLiquidityColor(liquidity.warningLevel)}}>
                     {liquidity.utilizationPct.toFixed(1)}% / 100%
                   </span>
@@ -880,7 +881,7 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
               { label: "Capitale",       val: `${totalCapital.toLocaleString()}€`, color: "#e2e8f0" },
               {
                 label: "Guadagno/Perdita",
-                val: `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
+                val: `${pnl >= 0 ? "+" : ""}${formatNumber(pnl, 2)}€`,
                 color: pnlColor(pnl)
               },
             ].map(item => (

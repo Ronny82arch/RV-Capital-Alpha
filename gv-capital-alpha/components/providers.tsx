@@ -67,3 +67,11 @@ export function formatPercent(value: number, hide: boolean): string {
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
 }
+
+export function formatNumber(value: number, decimals: number = 2): string {
+  if (isNaN(value) || value === null || value === undefined) return '0';
+  return new Intl.NumberFormat('it-IT', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
+}

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { PortfolioState, Signal } from '@/types';
+import { formatNumber } from './providers';
 
 interface Props {
   portfolio: PortfolioState | null;
@@ -166,11 +167,11 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
 
       {/* Price grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-        <InfoBox label="PREZZO ORA" value={`€${signal.suggestedPrice.toFixed(2)}`} />
+        <InfoBox label="PREZZO ORA" value={`€${formatNumber(signal.suggestedPrice, 2)}`} />
         <InfoBox label="QUANTITÀ" value={`${signal.quantity}`} />
-        <InfoBox label="CAPITALE" value={`€${signal.capitalToAllocate.toFixed(0)}`} />
-        <InfoBox label="STOP LOSS" value={`€${signal.stopLoss.toFixed(2)}`} sub={`-${signal.stopLossPercent.toFixed(1)}%`} color="var(--red)" />
-        <InfoBox label="TAKE PROFIT" value={`€${signal.takeProfit.toFixed(2)}`} sub={`+${signal.takeProfitPercent.toFixed(1)}%`} color="var(--green)" />
+        <InfoBox label="CAPITALE" value={`€${formatNumber(signal.capitalToAllocate, 0)}`} />
+        <InfoBox label="STOP LOSS" value={`€${formatNumber(signal.stopLoss, 2)}`} sub={`-${signal.stopLossPercent.toFixed(1)}%`} color="var(--red)" />
+        <InfoBox label="TAKE PROFIT" value={`€${formatNumber(signal.takeProfit, 2)}`} sub={`+${signal.takeProfitPercent.toFixed(1)}%`} color="var(--green)" />
         <InfoBox label="WIN PROB." value={`${(signal.winProbability * 100).toFixed(0)}%`} color="var(--blue)" />
       </div>
 
@@ -211,7 +212,7 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
           <input
             type="number"
             step="0.01"
-            placeholder={`es. ${signal.suggestedPrice.toFixed(2)}`}
+            placeholder={`es. ${formatNumber(signal.suggestedPrice, 2)}`}
             value={priceInput}
             onChange={e => setPriceInput(e.target.value)}
             style={{ width: '100%', marginBottom: '12px' }}
@@ -266,7 +267,7 @@ function SignalHistoryRow({ signal }: { signal: Signal }) {
       </div>
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
         {signal.executedPrice && (
-          <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{signal.executedPrice.toFixed(2)}</span>
+          <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{formatNumber(signal.executedPrice, 2)}</span>
         )}
         <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: statusColor, fontWeight: '700' }}>{statusLabel}</span>
       </div>

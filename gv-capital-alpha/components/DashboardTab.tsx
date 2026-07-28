@@ -11,6 +11,7 @@ import PacScenarioWidget from './PacScenarioWidget';
 import AntigravityMonitor from './AntigravityMonitor';
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG } from '@/lib/antigravity-engine';
 import { ProjectionCard } from './projection-card';
+import { formatNumber } from './providers';
 import { Globe, ShieldCheck, Rocket, Baby, Bitcoin, TrendingUp, BarChart3, Briefcase, Eye, EyeOff, Sun, Moon, PieChart, Layers, Scale, FolderPlus, Settings, Compass, Zap, Users } from 'lucide-react';
 
 interface Props { 
@@ -672,7 +673,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         />
         <KpiCard
           label="P&L TOTALE"
-          value={`${(Number(displayPnL) || 0) >= 0 ? '+' : ''}€${(Number(displayPnL) || 0).toFixed(0)}`}
+          value={`${(Number(displayPnL) || 0) >= 0 ? '+' : ''}€${formatNumber(Number(displayPnL) || 0, 0)}`}
           sub={`${(Number(displayPnLPct) || 0) >= 0 ? '+' : ''}${(Number(displayPnLPct) || 0).toFixed(2)}%`}
           color={(Number(displayPnL) || 0) >= 0 ? '#84cc16' : 'var(--red)'}
         />
@@ -873,7 +874,7 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                     {/* P&L BOX */}
                     <div style={{ background: 'var(--bg2)', borderRadius: '10px', padding: '8px 12px', width: '100%', border: '1px solid var(--bg3)' }}>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '700', color: pnlColor }}>
-                        {pnl >= 0 ? '+' : ''}€{pnl.toFixed(0)}
+                        {pnl >= 0 ? '+' : ''}€{formatNumber(pnl, 0)}
                       </div>
                       <div style={{ fontSize: '10px', color: pnlColor, marginTop: '1px' }}>
                         {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
@@ -895,27 +896,27 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
                         <div>
                           <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>ENTRATA</div>
-                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{pos.entryPrice.toFixed(2)}</div>
+                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{formatNumber(pos.entryPrice, 2)}</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>ATTUALE</div>
-                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{currentPrice.toFixed(2)}</div>
+                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{formatNumber(currentPrice, 2)}</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>STOP LOSS</div>
-                          <div style={{ color: 'var(--red)', fontWeight: 'bold' }}>€{pos.stopLoss.toFixed(2)}</div>
+                          <div style={{ color: 'var(--red)', fontWeight: 'bold' }}>€{formatNumber(pos.stopLoss, 2)}</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>TAKE PROFIT</div>
-                          <div style={{ color: 'var(--green)', fontWeight: 'bold' }}>€{pos.takeProfit.toFixed(2)}</div>
+                          <div style={{ color: 'var(--green)', fontWeight: 'bold' }}>€{formatNumber(pos.takeProfit, 2)}</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>ALLOCATO</div>
-                          <div style={{ color: 'var(--text2)' }}>€{allocated.toFixed(0)}</div>
+                          <div style={{ color: 'var(--text2)' }}>€{formatNumber(allocated, 0)}</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--text3)', fontSize: '9px', marginBottom: '2px' }}>VALORE ATT.</div>
-                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{currentVal.toFixed(0)}</div>
+                          <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>€{formatNumber(currentVal, 0)}</div>
                         </div>
                       </div>
                       <div style={{ fontSize: '9px', color: 'var(--text3)', textAlign: 'center', marginTop: '4px' }}>

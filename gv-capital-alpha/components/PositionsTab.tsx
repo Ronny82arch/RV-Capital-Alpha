@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { PortfolioState, Position } from '@/types';
 import AssetIcon from './AssetIcon';
+import { formatNumber } from './providers';
 
 interface Props {
   portfolio: PortfolioState | null;
@@ -149,7 +150,7 @@ function PositionCard({
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: '700', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            {pnl >= 0 ? '+' : ''}€{pnl.toFixed(2)}
+            {pnl >= 0 ? '+' : ''}€{formatNumber(pnl, 2)}
           </div>
           <div style={{ fontSize: '11px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
             {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
@@ -158,10 +159,10 @@ function PositionCard({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
-        <MiniInfo label="ENTRATA" value={`€${pos.entryPrice.toFixed(2)}`} />
-        <MiniInfo label="ATTUALE" value={`€${currentPrice.toFixed(2)}`} />
-        <MiniInfo label="STOP LOSS" value={`€${pos.stopLoss.toFixed(2)}`} sub={`${distToSL.toFixed(1)}%`} color="var(--red)" />
-        <MiniInfo label="TAKE PROFIT" value={`€${pos.takeProfit.toFixed(2)}`} sub={`${distToTP.toFixed(1)}%`} color="var(--green)" />
+        <MiniInfo label="ENTRATA" value={`€${formatNumber(pos.entryPrice, 2)}`} />
+        <MiniInfo label="ATTUALE" value={`€${formatNumber(currentPrice, 2)}`} />
+        <MiniInfo label="STOP LOSS" value={`€${formatNumber(pos.stopLoss, 2)}`} sub={`${distToSL.toFixed(1)}%`} color="var(--red)" />
+        <MiniInfo label="TAKE PROFIT" value={`€${formatNumber(pos.takeProfit, 2)}`} sub={`${distToTP.toFixed(1)}%`} color="var(--green)" />
       </div>
 
       {/* Progress bar between SL and TP */}
@@ -182,7 +183,7 @@ function PositionCard({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ fontSize: '10px', color: 'var(--text3)' }}>
-          Aperta: {new Date(pos.entryDate).toLocaleDateString('it-IT')} · Capitale: €{pos.capitalAllocated.toFixed(0)}
+          Aperta: {new Date(pos.entryDate).toLocaleDateString('it-IT')} · Capitale: €{formatNumber(pos.capitalAllocated, 0)}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
           {onAssignPortfolio && (
@@ -269,13 +270,13 @@ function ClosedPositionRow({ position: pos }: { position: Position }) {
         <div>
           <div style={{ fontFamily: 'var(--font-mono)', fontWeight: '700' }}>{pos.symbol}</div>
           <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
-            {pos.quantity} × €{pos.entryPrice.toFixed(2)} → €{pos.closePrice?.toFixed(2)}
+            {pos.quantity} × €{formatNumber(pos.entryPrice, 2)} → €{pos.closePrice ? formatNumber(pos.closePrice, 2) : '0,00'}
           </div>
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: '700', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-          {pnl >= 0 ? '+' : ''}€{pnl.toFixed(2)}
+          {pnl >= 0 ? '+' : ''}€{formatNumber(pnl, 2)}
         </div>
         <div style={{ fontSize: '10px', color: pnlPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
           {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
