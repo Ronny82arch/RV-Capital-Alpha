@@ -3,8 +3,8 @@ import './globals.css';
 import GlobalNotificationModal from '@/components/GlobalNotificationModal';
 
 export const metadata: Metadata = {
-  title: 'RV Capital Alpha',
-  description: 'Autonomous Portfolio Engine — Target +25% annuo',
+  title: 'Capital Alpha — Risk Budget Framework',
+  description: 'Gestione portafoglio quantitativa con Risk Budgeting',
   manifest: '/manifest.json',
 };
 

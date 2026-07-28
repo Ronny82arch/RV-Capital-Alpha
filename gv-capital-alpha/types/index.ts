@@ -3,6 +3,8 @@ export type SignalAction = 'BUY' | 'SELL';
 export type SignalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED';
 export type Urgency = 'LOW' | 'MEDIUM' | 'HIGH';
 export type PositionStatus = 'OPEN' | 'CLOSED';
+export type AiMode = 'STRICT' | 'DYNAMIC';
+export type AlertType = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS';
 
 export interface Technicals {
   rsi: number;
@@ -27,8 +29,8 @@ export interface Signal {
   takeProfitPercent: number;
   kellyFraction: number;
   winProbability: number;
-  winProbabilitySampleSize: number;   // NEW: n. osservazioni storiche usate
-  winProbabilityTrusted: boolean;     // NEW: true se campione >= 30
+  winProbabilitySampleSize: number;
+  winProbabilityTrusted: boolean;
   expectedReturn: number;
   reasoning: string;
   strategy: string;
@@ -80,41 +82,54 @@ export interface Alert {
   title: string;
   message: string;
   date: string;
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  type: AlertType;
   read: boolean;
 }
 
+export interface CustomPortfolio {
+  name: string;
+  targetAllocationPct: number;
+  currentValue: number;
+  color?: string;
+}
+
+export interface BucketProjection {
+  p10: number;
+  p50: number;
+  p90: number;
+  mean: number;
+  successRate: number;
+  maxDrawdown: number;
+}
+
 export interface PortfolioState {
+  id?: string;
   capitalBase: number;
   capitalAvailable: number;
-  positions: Position[];
-  signals: Signal[];
+  depositedFunds: number;
   totalValue: number;
   totalPnL: number;
   totalPnLPercent: number;
   targetAnnualReturn: number;
+  aiMode?: AiMode;
+  coreSatelliteTarget?: number;
   startDate: string;
+  positions: Position[];
+  signals: Signal[];
+  alerts: Alert[];
   performanceHistory: PerformanceSnapshot[];
   perTagHistory?: Record<string, PerformanceSnapshot[]>;
-  alerts: Alert[];
-  updatedAt: string;
-  aiManagedTags: string[];
-  customPortfolios?: string[];
-  depositedFunds?: number;
-  excludeCopyTrading?: boolean;
+  portfolioPerformances?: Record<string, { totalValue: number; invested: number; pnl: number; pnlPercent: number }>;
+  customPortfolios?: any[]; // Typed as any[] to support string[] in DB and CustomPortfolio[] in new UI
+  aiManagedTags?: string[];
   targets?: Record<string, number>;
-  aiMode?: 'STRICT' | 'DYNAMIC';
+  riskBudgets?: Record<string, { maxDrawdownPct: number; maxAllocationPct: number }>;
+  bucketProjections?: Record<string, BucketProjection>;
   antigravityTargetLeverage?: number;
-  coreSatelliteTarget?: number; // ✅ Target personalizzato per l'allocazione Core (es. 70 significa 70% Core, 30% Satellite)
-  portfolioPerformances?: Record<string, { totalValue: number, invested: number, pnl: number, pnlPercent: number }>;
   _version?: number;
-  /** Proiezioni Monte Carlo per bucket — aggiornate dal cron satellite-scan */
-  bucketProjections?: Record<string, {
-    p10: number; p50: number; p90: number;
-    mean: number; successRate: number; maxDrawdown: number;
-  }>;
+  updatedAt: string;
+  excludeCopyTrading?: boolean;
 }
-
 
 export interface MarketData {
   symbol: string;
@@ -126,7 +141,6 @@ export interface MarketData {
   high24h: number;
   low24h: number;
   volume: number;
-  // high/low inclusi per backtest realistico (stop/target H+L invece di solo close)
   history: { date: string; close: number; high?: number; low?: number }[];
 }
 
@@ -139,10 +153,6 @@ export interface WatchlistItem {
 }
 
 export interface PacConfig {
-  /** Budget mensile in € per ogni portafoglio (chiave = nome portafoglio) */
   portfolioMonthlyBudgets: Record<string, number>;
-  /** Pesi target personalizzati per asset dentro ogni portafoglio.
-   *  Se assente per un asset usa peso uguale (1/N). */
   assetTargetWeights?: Record<string, Record<string, number>>;
 }
-
