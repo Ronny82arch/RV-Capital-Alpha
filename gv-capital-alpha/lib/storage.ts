@@ -53,6 +53,10 @@ function mapToPortfolioState(
     startDate: p.start_date || new Date().toISOString(),
     aiManagedTags: p.active_assets || [],
     customPortfolios: p.custom_portfolios || [],
+    coreSatelliteTarget: p.core_satellite_target != null ? Number(p.core_satellite_target) : undefined,
+    targets: p.targets || {},
+    bucketProjections: p.bucket_projections || {},
+    _version: p._version || 0,
     updatedAt: p.updated_at || new Date().toISOString(),
     
     positions: positions.map(pos => ({
@@ -347,27 +351,44 @@ export async function mutatePortfolio<T>(
     portfolio.updatedAt = new Date().toISOString();
 
     // SAVE ATOMICO: update solo se _version non è cambiata
-    const { error } = await supabaseAdmin
+    const updatePayload: any = {
+      capital_base: portfolio.capitalBase,
+      capital_available: portfolio.capitalAvailable,
+      deposited_funds: portfolio.depositedFunds,
+      total_value: portfolio.totalValue,
+      total_pnl: portfolio.totalPnL,
+      target_annual_return: portfolio.targetAnnualReturn,
+      ai_mode: portfolio.aiMode || 'STRICT',
+      antigravity_target_leverage: portfolio.antigravityTargetLeverage || 1.5,
+      start_date: portfolio.startDate,
+      active_assets: portfolio.aiManagedTags || [],
+      custom_portfolios: portfolio.customPortfolios || [],
+      core_satellite_target: portfolio.coreSatelliteTarget,
+      targets: portfolio.targets,
+      bucket_projections: portfolio.bucketProjections,
+      _version: portfolio._version,
+      updated_at: portfolio.updatedAt,
+    };
+
+    let { error } = await supabaseAdmin
       .from('portfolios')
-      .update({
-        capital_base: portfolio.capitalBase,
-        capital_available: portfolio.capitalAvailable,
-        deposited_funds: portfolio.depositedFunds,
-        total_value: portfolio.totalValue,
-        total_pnl: portfolio.totalPnL,
-        target_annual_return: portfolio.targetAnnualReturn,
-        ai_mode: portfolio.aiMode || 'STRICT',
-        antigravity_target_leverage: portfolio.antigravityTargetLeverage || 1.5,
-        start_date: portfolio.startDate,
-        active_assets: portfolio.aiManagedTags || [],
-        custom_portfolios: portfolio.customPortfolios || [],
-        core_satellite_target: portfolio.coreSatelliteTarget,
-        targets: portfolio.targets,
-        _version: portfolio._version,
-        updated_at: portfolio.updatedAt,
-      })
+      .update(updatePayload)
       .eq('id', DEFAULT_PORTFOLIO_ID)
       .eq('_version', versionAtRead);
+
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache'))) {
+      console.warn('[mutatePortfolio] Colonne extra mancanti nel DB portfolios. Eseguo fallback update.');
+      delete updatePayload.core_satellite_target;
+      delete updatePayload.targets;
+      delete updatePayload.bucket_projections;
+      delete updatePayload._version;
+
+      const retryRes = await supabaseAdmin
+        .from('portfolios')
+        .update(updatePayload)
+        .eq('id', DEFAULT_PORTFOLIO_ID);
+      error = retryRes.error;
+    }
 
     if (!error) {
       // Salva anche le tabelle figlie (non atomiche, ma accettabile)
@@ -375,7 +396,7 @@ export async function mutatePortfolio<T>(
       return result;
     }
 
-    console.warn(`[mutatePortfolio] Conflitto versione ${versionAtRead}, retry ${attempt + 1}/${MAX_RETRIES}`);
+    console.warn(`[mutatePortfolio] Errore di salvataggio (tentativo ${attempt + 1}/${MAX_RETRIES}):`, error);
     await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
   }
 
