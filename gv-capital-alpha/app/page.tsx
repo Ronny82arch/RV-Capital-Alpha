@@ -153,6 +153,7 @@ export default function Home() {
   const [tbdData, setTbdData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -180,12 +181,14 @@ export default function Home() {
         if (pData.success && pData.data) {
           setPortfolio(pData.data);
           pLoaded = true;
+          setIsDemoMode(false);
         }
       }
       
       if (!pLoaded) {
         console.warn('[Page] Errore caricamento portfolio, attivo fallback demo');
         setPortfolio(MOCK_PORTFOLIO);
+        setIsDemoMode(true);
       }
 
       if (mRes.status === 'fulfilled') {
@@ -211,6 +214,7 @@ export default function Home() {
       console.error(e);
       setPortfolio(MOCK_PORTFOLIO);
       setTbdData(MOCK_TBD_DATA);
+      setIsDemoMode(true);
     } finally {
       setLoading(false);
     }
@@ -684,6 +688,12 @@ export default function Home() {
 
   return (
     <AppProviders>
+      {isDemoMode && (
+        <div className="demo-banner">
+          <span>⚠️ Modalità Demo — I dati visualizzati sono simulati. Connetti il database per dati reali.</span>
+          <button onClick={() => window.location.reload()}>🔄 Riprova</button>
+        </div>
+      )}
       <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
         <Header
           portfolio={portfolio}
