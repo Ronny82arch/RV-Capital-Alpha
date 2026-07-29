@@ -62,8 +62,8 @@ export interface Position {
   status: PositionStatus;
   closePrice?: number;
   closeDate?: string;
-  realizedPnl: number;
-  realizedPnlPercent: number;
+  realizedPnl?: number;
+  realizedPnlPercent?: number;
   currentPrice?: number;
   unrealizedPnl: number;
   unrealizedPnlPercent: number;
@@ -127,6 +127,9 @@ export interface PortfolioState {
   riskBudgets?: Record<string, { maxDrawdownPct: number; maxAllocationPct: number }>;
   bucketProjections?: Record<string, BucketProjection>;
   antigravityTargetLeverage?: number;
+  antigravityCooldownUntil?: string | null;
+  antigravityState?: any;
+  tbdRealizedPnL?: number;
   _version?: number;
   updatedAt: string;
   excludeCopyTrading?: boolean;

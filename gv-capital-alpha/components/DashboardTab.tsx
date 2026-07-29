@@ -78,12 +78,15 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
 
   const antigravityEngine = useMemo(() => new AntigravityEngine(DEFAULT_ANTIGRAVITY_CONFIG), []);
   const agState = useMemo(() => {
-    const peakValue = Math.max(portfolio?.totalValue || 0, ...(portfolio?.performanceHistory?.map(p => p.totalValue) || []));
+    const peakValue = Math.max(
+      portfolio?.totalValue || 0,
+      ...(portfolio?.performanceHistory?.map(p => p.totalValue) || [])
+    );
     return antigravityEngine.calculateState(
       portfolio?.totalValue ?? 0,
       peakValue,
-      0,
-      null
+      portfolio?.tbdRealizedPnL ?? 0,
+      portfolio?.antigravityCooldownUntil ?? null
     );
   }, [portfolio, antigravityEngine]);
 
@@ -148,10 +151,14 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
       fetch('/api/alerts/leverage-warning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: agState.status, drift: agState.currentDrawdownPct, portfolioId: portfolio?.id }),
+        body: JSON.stringify({
+          status: agState.status,
+          drift: agState.currentDrawdownPct,
+          portfolioId: portfolio?.id || 'unknown',
+        }),
       }).catch(() => {});
     }
-  }, [agState?.status]);
+  }, [agState?.status, portfolio?.id]);
 
   useEffect(() => {
     if (agState) {

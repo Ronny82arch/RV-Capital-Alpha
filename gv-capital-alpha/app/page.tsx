@@ -28,6 +28,12 @@ const MOCK_PORTFOLIO: PortfolioState = {
   targetAnnualReturn: 0.25,
   startDate: '2026-07-23T00:00:00Z',
   updatedAt: new Date().toISOString(),
+
+  // ── NUOVI CAMPI ANTIGRAVITY ──────────────────────────────────────────────
+  antigravityTargetLeverage: 1.5,
+  antigravityCooldownUntil: null,
+  tbdRealizedPnL: 0,
+
   positions: [
     {
       id: 'd1',
@@ -89,7 +95,6 @@ const MOCK_PORTFOLIO: PortfolioState = {
   ],
   customPortfolios: ['Core', 'Satellite'],
   aiMode: 'DYNAMIC',
-  antigravityTargetLeverage: 1.5,
   coreSatelliteTarget: 70,
   targets: {
     'Core': 8,
@@ -257,7 +262,7 @@ export default function Home() {
           const totalUnrealizedPnL = openPositions.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
           const totalRealizedPnL = updatedPositions
             .filter(pos => pos.status === 'CLOSED')
-            .reduce((sum, pos) => sum + ((pos as any).realizedPnl || 0), 0);
+            .reduce((sum, pos) => sum + (pos.realizedPnl || 0), 0);
 
           const capitalBase = openPositions.reduce((sum, pos) => sum + (pos.capitalAllocated || 0), 0);
 
