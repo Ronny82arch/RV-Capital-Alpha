@@ -59,6 +59,58 @@ button { cursor: pointer; font-family: var(--font-sans); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
 
+/* ChatWidget — stili markdown sicuri */
+.message-bubble.markdown-body p {
+  margin: 0 0 0.5rem 0;
+  line-height: 1.5;
+}
+
+.message-bubble.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.message-bubble.markdown-body ul,
+.message-bubble.markdown-body ol {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+}
+
+.message-bubble.markdown-body li {
+  margin-bottom: 0.15rem;
+}
+
+.message-bubble.markdown-body strong {
+  font-weight: 600;
+  color: var(--green, #00d4aa);
+}
+
+.message-bubble.markdown-body code {
+  background: rgba(0, 212, 170, 0.1);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+}
+
+.message-bubble.markdown-body pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.message-bubble.markdown-body .chat-link {
+  color: var(--green, #00d4aa);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.message-bubble.markdown-body .chat-link:hover {
+  opacity: 0.8;
+}
+
+
 .animate-fade { animation: fadeIn 0.4s ease; }
 .animate-pulse { animation: pulse 2s infinite; }
 .font-mono { font-family: var(--font-mono); }
