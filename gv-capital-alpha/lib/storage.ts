@@ -725,6 +725,32 @@ export function recalcPortfolioState(portfolio: PortfolioState): void {
     }
     (portfolio as any)._historyChanged = true;
   }
+
+  // Calcolo Monte Carlo automatico per ciascun bucket (Core, Satellite, ecc.)
+  try {
+    const { runMonteCarlo } = require('./monte-carlo');
+    const bucketProjections: Record<string, any> = {};
+
+    // Per ogni sotto-portafoglio (Core, Satellite, ecc.)
+    for (const [bucketName, perf] of Object.entries(portfolio.portfolioPerformances || {})) {
+      const val = perf.totalValue > 0 ? perf.totalValue : 1000;
+      // Parametri conservativi/standard per la proiezione
+      const targetPct = portfolio.targets?.[bucketName] ?? (bucketName === 'Core' ? 8 : 25);
+      const mu = targetPct / 100;
+      const sigma = bucketName === 'Core' ? 0.12 : 0.28; // Volatilità Core (12%), Satellite (28%)
+      bucketProjections[bucketName] = runMonteCarlo(val, 0, mu, sigma, 1, undefined, 2000);
+    }
+
+    // Proiezione sul totale
+    if (portfolio.totalValue > 0) {
+      const totalTarget = portfolio.targets?.['Tutti'] ?? 12;
+      bucketProjections['Tutti'] = runMonteCarlo(portfolio.totalValue, 0, totalTarget / 100, 0.18, 1, undefined, 2000);
+    }
+
+    portfolio.bucketProjections = bucketProjections;
+  } catch (err) {
+    console.warn('[storage] Impossibile calcolare proiezioni Monte Carlo:', err);
+  }
 }
 
 export async function recalcPortfolio(portfolio?: PortfolioState & { _historyChanged?: boolean }): Promise<void> {
