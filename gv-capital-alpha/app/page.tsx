@@ -137,7 +137,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
   const portfolioRef = useRef<PortfolioState | null>(null);
-  const lastSignalsCount = useRef<number>(-1);
+  const lastSignalIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     portfolioRef.current = portfolio;
@@ -348,46 +348,60 @@ export default function Home() {
       const activeSignals = tbdData.activeSignals.filter((s: any) =>
         ['PRE_ALERT', 'ACTIVE', 'TRIGGERED'].includes(s.status)
       );
-      
-      if (lastSignalsCount.current === -1) {
-        lastSignalsCount.current = activeSignals.length;
-      } else if (activeSignals.length > lastSignalsCount.current) {
-        const newSignals = activeSignals.slice(lastSignalsCount.current);
-        newSignals.forEach((sig: any) => {
-          try {
-            if (typeof window !== 'undefined' && 'serviceWorker' in navigator && Notification.permission === 'granted') {
-              navigator.serviceWorker.ready.then(reg => {
-                reg.showNotification(`🎯 TBD SEGNALE: ${sig.asset} ${sig.direction}`, {
-                  body: `Entry: ${sig.entryPrice} | SL: ${sig.stopLoss} | TP: ${sig.takeProfit}\nDimensione: ${sig.allocatedSize}€`,
-                  icon: '/apple-touch-icon.png'
-                });
-              }).catch(() => {});
-            }
-          } catch (e) {
-            console.warn('Desktop notification skipped:', e);
-          }
 
-          try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioContextClass) {
-              const audioCtx = new AudioContextClass();
-              const oscillator = audioCtx.createOscillator();
-              const gainNode = audioCtx.createGain();
-              oscillator.connect(gainNode);
-              gainNode.connect(audioCtx.destination);
-              oscillator.type = 'sine';
-              oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-              gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
-              gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
-              oscillator.start();
-              oscillator.stop(audioCtx.currentTime + 0.6);
-            }
-          } catch (e) {
-            console.warn('Audio alert error:', e);
+      // Trova i segnali NUOVI confrontando gli ID
+      const newSignals = activeSignals.filter((signal: any) => {
+        const id = signal.id || `${signal.asset || signal.symbol}-${signal.timestamp || signal.entryPrice}-${signal.direction || signal.action}`;
+        return !lastSignalIds.current.has(id);
+      });
+
+      // Notifica solo i nuovi
+      newSignals.forEach((sig: any) => {
+        const id = sig.id || `${sig.asset || sig.symbol}-${sig.timestamp || sig.entryPrice}-${sig.direction || sig.action}`;
+        lastSignalIds.current.add(id);
+
+        try {
+          if (typeof window !== 'undefined' && 'serviceWorker' in navigator && Notification.permission === 'granted') {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification(`🎯 TBD SEGNALE: ${sig.asset || sig.symbol} ${sig.direction || sig.action}`, {
+                body: `Entry: ${sig.entryPrice} | SL: ${sig.stopLoss} | TP: ${sig.takeProfit}\nDimensione: ${sig.allocatedSize}€`,
+                icon: '/apple-touch-icon.png'
+              });
+            }).catch(() => {});
           }
-        });
-      }
-      lastSignalsCount.current = activeSignals.length;
+        } catch (e) {
+          console.warn('Desktop notification skipped:', e);
+        }
+
+        try {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            const audioCtx = new AudioContextClass();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.6);
+          }
+        } catch (e) {
+          console.warn('Audio alert error:', e);
+        }
+      });
+
+      // Pulizia: rimuovi ID di segnali non più attivi per evitare memory leak
+      const currentIds = new Set(
+        activeSignals.map((s: any) => s.id || `${s.asset || s.symbol}-${s.timestamp || s.entryPrice}-${s.direction || s.action}`)
+      );
+      lastSignalIds.current.forEach(id => {
+        if (!currentIds.has(id)) {
+          lastSignalIds.current.delete(id);
+        }
+      });
     }
   }, [tbdData]);
 
