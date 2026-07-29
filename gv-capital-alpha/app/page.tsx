@@ -422,8 +422,10 @@ export default function Home() {
   const handleSatelliteScan = async () => {
     setScanning(true);
     try {
-      const res = await fetch('/api/cron/satellite-scan', {
-        headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
+      const res = await fetch('/api/satellite-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       showToast(data.message || `Satellite Scan completato`, data.success);
