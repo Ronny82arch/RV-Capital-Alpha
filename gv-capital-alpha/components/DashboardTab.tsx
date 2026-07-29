@@ -143,6 +143,29 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
     }
   }, [selectedTag]);
 
+  useEffect(() => {
+    if (agState && agState.status !== 'NORMAL') {
+      fetch('/api/alerts/leverage-warning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: agState.status, drift: agState.currentDrawdownPct, portfolioId: portfolio?.id }),
+      }).catch(() => {});
+    }
+  }, [agState?.status]);
+
+  useEffect(() => {
+    if (agState) {
+      const drift = Math.abs((portfolio?.coreSatelliteTarget ?? 70) - agState.coreTargetPct);
+      if (drift > 5) {
+        fetch('/api/alerts/leverage-warning', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'COOLDOWN', drift, portfolioId: portfolio?.id }),
+        }).catch(() => {});
+      }
+    }
+  }, [agState?.coreTargetPct, portfolio?.coreSatelliteTarget]);
+
   if (!portfolio) return <div />;
 
   const p = portfolio;
