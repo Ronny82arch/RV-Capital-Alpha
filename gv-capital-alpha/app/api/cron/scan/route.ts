@@ -152,7 +152,7 @@ async function runScan() {
     if (agState.tbdTargetPct === 0) {
       return NextResponse.json({
         success: true,
-        message: `Nessun segnale generato. Antigravity Engine V2 ha bloccato il TBD. Stato: ${agState.status}. Motivazione: ${agState.reason}`,
+        message: `Nessun segnale generato. Antigravity Engine V2 ha bloccato il TBD. Stato: ${agState.status}. Motivazione: ${agState.actionRequired}`,
         agState
       });
     }

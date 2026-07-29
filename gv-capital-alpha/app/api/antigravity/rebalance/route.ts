@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
     await addAlert({
       title: `${formattedStatus.emoji} Rebalance Antigravity: ${formattedStatus.title}`,
-      message: `${state.reason}\n\nNuovi target:\n${actionText}\n\nEsegui manualmente le transazioni su eToro.`,
+      message: `${state.actionRequired}\n\nNuovi target:\n${actionText}\n\nEsegui manualmente le transazioni su eToro.`,
       type: 'INFO',
     });
 

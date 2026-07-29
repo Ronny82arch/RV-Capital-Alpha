@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
       portfolio.totalValue, peakValue, avgQuality, cooldown
     );
     
-    if (agState.status === 'PROTECT') {
+    if (agState.status === 'PROTECTION') {
       return NextResponse.json({
         success: true, circuitBreaker: true, antigravity: agState.status,
-        message: agState.reason, newSignals: [],
+        message: agState.actionRequired, newSignals: [],
       });
     }
 

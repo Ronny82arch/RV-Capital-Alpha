@@ -1,177 +1,164 @@
-/**
- * ANTIGRAVITY ENGINE v2 — Risk Transfer Allocator
- * 
- * Principi:
- * 1. ZERO leverage finanziario (>1x). Solo spostamento di capitale tra bucket.
- * 2. Il TBD riceve "boost" di capitale SOLO quando il mercato offre setup 
- *    di alta qualità (quality score) E il portafoglio non è in drawdown.
- * 3. Se il TBD perde il risk budget giornaliero → cooldown 48h.
- * 4. In drawdown >10% tutto va in Core (protezione capitale).
- */
-
-// ─── TIPI ───────────────────────────────────────────────────────────────────
+// lib/antigravity-engine.ts
+// ─── ANTIGRAVITY ENGINE V2 ───────────────────────────────────────────────────
+// Motore di allocazione tattica adattiva basato su drawdown dinamico.
+// Regola leva, Core/Satellite/TBD e cooldown in base ai massimi storici.
 
 export interface AntigravityConfig {
-  /** Allocazione base Core (%) */
-  coreBasePct: number;
-  /** Allocazione base Satellite (%) */
-  satelliteBasePct: number;
-  /** Allocazione base TBD (%) */
-  tbdBasePct: number;
-  /** Max allocazione TBD in boost mode (%) */
-  tbdMaxBoostPct: number;
-  /** Soglia drawdown per PROTECT (%) */
-  protectDrawdownPct: number;
-  /** Soglia drawdown per CAUTION (%) */
-  cautionDrawdownPct: number;
-  /** Min quality score per attivare boost TBD (0-100) */
-  minQualityScoreForBoost: number;
-  /** Ore di cooldown dopo che TBD ha bruciato il daily budget */
-  tbdCooldownHours: number;
+  maxDrawdownPct: number;       // Soglia drawdown per PROTEZIONE (default 5%)
+  targetLeverage: number;       // Leva normale (1.0 = nessuna leva)
+  expandedLeverage: number;     // Leva massima in espansione (1.5)
+  cooldownHours: number;        // Ore di blocco TBD dopo trigger protezione
+  coreSatelliteDefault: number; // Target Core di default (%)
 }
 
-export type AntigravityStatus = 
-  | 'NORMAL' 
-  | 'BOOST_TBD' 
-  | 'CAUTION' 
-  | 'PROTECT';
-
 export interface AntigravityState {
-  status: AntigravityStatus;
+  status: 'NORMAL' | 'EXPANDED' | 'COOLDOWN' | 'PROTECTION';
+  currentDrawdownPct: number;
+  peakValue: number;
+  currentValue: number;
+  tbdInCooldown: boolean;
+  cooldownUntil: string | null;
   coreTargetPct: number;
   satelliteTargetPct: number;
   tbdTargetPct: number;
-  /** Capitale effettivo da allocare a TBD oggi (€) */
-  tbdCapitalToday: number;
-  /** Motivo dell'ultima decisione */
-  reason: string;
-  /** Se TBD è in cooldown */
-  tbdInCooldown: boolean;
-  /** Quando scade il cooldown (ISO string o null) */
-  cooldownUntil: string | null;
-  /** Drawdown calcolato (%) */
-  currentDrawdownPct: number;
+  actionRequired: string;
+  timestamp: string;
 }
-
-export interface TbdDailyResult {
-  date: string;           // YYYY-MM-DD
-  realizedPnL: number;    // può essere negativo
-  riskBudget: number;     // es. 100
-  tradesTaken: number;
-}
-
-// ─── CONFIGURAZIONE DEFAULT ─────────────────────────────────────────────────
 
 export const DEFAULT_ANTIGRAVITY_CONFIG: AntigravityConfig = {
-  coreBasePct: 70,
-  satelliteBasePct: 25,
-  tbdBasePct: 5,
-  tbdMaxBoostPct: 15,
-  protectDrawdownPct: 10.0,
-  cautionDrawdownPct: 5.0,
-  minQualityScoreForBoost: 70,
-  tbdCooldownHours: 48,
+  maxDrawdownPct: 5.0,
+  targetLeverage: 1.0,
+  expandedLeverage: 1.5,
+  cooldownHours: 24,
+  coreSatelliteDefault: 70,
 };
 
-// ─── ENGINE ─────────────────────────────────────────────────────────────────
-
 export class AntigravityEngine {
-  private config: AntigravityConfig;
+  constructor(private config: AntigravityConfig = DEFAULT_ANTIGRAVITY_CONFIG) {}
 
-  constructor(config: Partial<AntigravityConfig> = {}) {
-    this.config = { ...DEFAULT_ANTIGRAVITY_CONFIG, ...config };
-  }
-
-  /**
-   * Calcola lo stato completo di Antigravity.
-   * 
-   * @param totalPortfolioValue Valore attuale totale
-   * @param peakValue Picco storico (max totalValue mai raggiunto)
-   * @param tbdQualityScore Score medio qualità setup trovati oggi (0-100)
-   * @param tbdCooldownUntil Se c'è un cooldown attivo, timestamp ISO; altrimenti null
-   */
-  public calculateState(
-    totalPortfolioValue: number,
+  calculateState(
+    currentValue: number,
     peakValue: number,
-    tbdQualityScore: number,
-    tbdCooldownUntil: string | null
+    tbdRealizedPnL: number,
+    lastCooldownUntil: string | null
   ): AntigravityState {
-    const drawdown = peakValue > 0 
-      ? ((peakValue - totalPortfolioValue) / peakValue) * 100 
+    const drawdown = peakValue > 0
+      ? ((peakValue - currentValue) / peakValue) * 100
       : 0;
 
-    const now = new Date().toISOString();
-    const inCooldown = tbdCooldownUntil ? now < tbdCooldownUntil : false;
+    const now = new Date();
 
-    // 1. PROTECT: drawdown grave → tutto in Core, TBD spento
-    if (drawdown >= this.config.protectDrawdownPct) {
-      return {
-        status: 'PROTECT',
-        coreTargetPct: 95,
-        satelliteTargetPct: 5,
-        tbdTargetPct: 0,
-        tbdCapitalToday: 0,
-        reason: `🛡️ PROTECT: Drawdown ${drawdown.toFixed(1)}% ≥ ${this.config.protectDrawdownPct}%. TBD congelato, capitale in shelter.`,
-        tbdInCooldown: inCooldown,
-        cooldownUntil: tbdCooldownUntil,
-        currentDrawdownPct: drawdown,
-      };
+    // ── Gestione Cooldown TBD ──────────────────────────────────────────────
+    let tbdInCooldown = false;
+    let cooldownUntil = lastCooldownUntil;
+
+    if (lastCooldownUntil) {
+      const until = new Date(lastCooldownUntil);
+      if (until > now) {
+        tbdInCooldown = true;
+      } else {
+        cooldownUntil = null; // Cooldown scaduto
+      }
     }
 
-    // 2. CAUTION: drawdown moderato → TBD minimo, nessun boost
-    if (drawdown >= this.config.cautionDrawdownPct) {
-      return {
-        status: 'CAUTION',
-        coreTargetPct: 80,
-        satelliteTargetPct: 18,
-        tbdTargetPct: 2,
-        tbdCapitalToday: 0, // base troppo piccola per operare oggi
-        reason: `⚠️ CAUTION: Drawdown ${drawdown.toFixed(1)}%. TBD ridotto al minimo, nessun boost.`,
-        tbdInCooldown: inCooldown,
-        cooldownUntil: tbdCooldownUntil,
-        currentDrawdownPct: drawdown,
-      };
+    // ── Default: stato NORMAL ──────────────────────────────────────────────
+    let status: AntigravityState['status'] = 'NORMAL';
+    let coreTargetPct = this.config.coreSatelliteDefault;
+    let satelliteTargetPct = 100 - coreTargetPct;
+    let tbdTargetPct = 0;
+    let actionRequired = '✅ Allocazione normale. Nessuna azione richiesta.';
+
+    // ── Logica stati (priorità: PROTEZIONE > COOLDOWN > ESPANSIONE) ───────
+
+    // 1. PROTEZIONE — Drawdown critico
+    if (drawdown >= this.config.maxDrawdownPct) {
+      status = 'PROTECTION';
+      coreTargetPct = Math.min(95, coreTargetPct + 15);
+      satelliteTargetPct = Math.max(0, 100 - coreTargetPct);
+      tbdTargetPct = 0;
+      tbdInCooldown = true;
+
+      const cd = new Date(now.getTime() + this.config.cooldownHours * 60 * 60 * 1000);
+      cooldownUntil = cd.toISOString();
+
+      actionRequired = `🛡️ PROTEZIONE ATTIVA — Drawdown ${drawdown.toFixed(1)}%. ` +
+        `Riduci leva a ${this.config.targetLeverage}x, aumenta Core al ${coreTargetPct}%. ` +
+        `TBD bloccato fino a ${cd.toLocaleString('it-IT')}.`;
+    }
+    // 2. COOLDOWN — Drawdown moderato (60% della soglia)
+    else if (drawdown >= this.config.maxDrawdownPct * 0.6) {
+      status = 'COOLDOWN';
+      tbdTargetPct = Math.max(0, satelliteTargetPct - 10);
+      satelliteTargetPct = Math.max(0, satelliteTargetPct - tbdTargetPct);
+
+      actionRequired = `🟡 COOLDOWN — Drawdown ${drawdown.toFixed(1)}%. ` +
+        `Riduci esposizione speculativa. TBD ridotto al ${tbdTargetPct}%.`;
+    }
+    // 3. ESPANSIONE — Nuovi massimi (+2% sopra il peak)
+    else if (currentValue >= peakValue * 1.02 && peakValue > 0) {
+      status = 'EXPANDED';
+      coreTargetPct = Math.max(50, coreTargetPct - 10);
+      satelliteTargetPct = Math.min(40, satelliteTargetPct + 5);
+      tbdTargetPct = 100 - coreTargetPct - satelliteTargetPct;
+
+      actionRequired = `🚀 ESPANSIONE — Nuovi massimi. Leva espansa a ${this.config.expandedLeverage}x. ` +
+        `Aumenta Satellite/TBD. Core ridotto al ${coreTargetPct}%.`;
     }
 
-    // 3. BOOST TBD: mercato offre setup di qualità, nessun cooldown
-    if (!inCooldown && tbdQualityScore >= this.config.minQualityScoreForBoost) {
-      const boostTbd = this.config.tbdMaxBoostPct;
-      const remaining = 100 - boostTbd;
-      // Il boost prende SOLO dal Satellite, mai dal Core
-      const satPct = Math.max(5, remaining - this.config.coreBasePct);
-      const corePct = 100 - boostTbd - satPct;
-
-      return {
-        status: 'BOOST_TBD',
-        coreTargetPct: corePct,
-        satelliteTargetPct: satPct,
-        tbdTargetPct: boostTbd,
-        tbdCapitalToday: 0, // calcolato dal chiamante in base a totalPortfolioValue * boostTbd/100
-        reason: `🎯 BOOST TBD: Quality score ${tbdQualityScore.toFixed(0)}/100. Capitale TBD aumentato al ${boostTbd}% (prelevato dal Satellite).`,
-        tbdInCooldown: false,
-        cooldownUntil: null,
-        currentDrawdownPct: drawdown,
-      };
-    }
-
-    // 4. NORMAL
     return {
-      status: 'NORMAL',
-      coreTargetPct: this.config.coreBasePct,
-      satelliteTargetPct: this.config.satelliteBasePct,
-      tbdTargetPct: this.config.tbdBasePct,
-      tbdCapitalToday: 0,
-      reason: `✅ NORMAL: Drawdown ${drawdown.toFixed(1)}%. Allocazione base. TBD operativo a ${this.config.tbdBasePct}%.`,
-      tbdInCooldown: inCooldown,
-      cooldownUntil: tbdCooldownUntil,
+      status,
       currentDrawdownPct: drawdown,
-    };
+      peakValue,
+      currentValue,
+      tbdInCooldown,
+      cooldownUntil,
+      coreTargetPct,
+      satelliteTargetPct,
+      tbdTargetPct,
+      actionRequired,
+      reason: actionRequired,
+      timestamp: now.toISOString(),
+    } as AntigravityState & { reason: string };
   }
 
-  /**
-   * Calcola i valori assoluti (€) da allocare per ogni bucket.
-   */
-  public calculateAbsoluteAllocation(
+  // ── Formatter per UI ─────────────────────────────────────────────────────
+  formatStatus(state: AntigravityState): {
+    title: string;
+    emoji: string;
+    description: string;
+    color: string;
+  } {
+    const map = {
+      NORMAL: {
+        title: 'Allocazione Normale',
+        emoji: '✅',
+        description: 'Il portafoglio opera entro parametri standard. Core/Satellite bilanciato.',
+        color: '#00d4aa',
+      },
+      EXPANDED: {
+        title: 'Leva Espansa',
+        emoji: '🚀',
+        description: 'Nuovi massimi rilevati. Consentita allocazione aggressiva su Satellite e TBD.',
+        color: '#3b82f6',
+      },
+      COOLDOWN: {
+        title: 'Raffreddamento',
+        emoji: '🟡',
+        description: 'Drawdown in aumento. Riduci progressivamente esposizione speculativa.',
+        color: '#f59e0b',
+      },
+      PROTECTION: {
+        title: 'Protezione Attiva',
+        emoji: '🛡️',
+        description: 'Drawdown critico superato. TBD bloccato, aumenta Core, riduci leva.',
+        color: '#ef4444',
+      },
+    };
+    return map[state.status];
+  }
+
+  // ── Helper allocazione per compatibilità ─────────────────────────────────
+  calculateAbsoluteAllocation(
     totalPortfolioValue: number,
     state: AntigravityState
   ): {
@@ -185,52 +172,9 @@ export class AntigravityEngine {
       tbdValue: totalPortfolioValue * (state.tbdTargetPct / 100),
     };
   }
-
-  /**
-   * Valuta se un risultato giornaliero del TBD deve attivare il cooldown.
-   * Ritorna il nuovo timestamp di cooldown (o null se non attivato).
-   */
-  public evaluateCooldown(
-    todayResult: TbdDailyResult
-  ): string | null {
-    const budgetLost = todayResult.realizedPnL <= -todayResult.riskBudget;
-    
-    if (budgetLost) {
-      const until = new Date();
-      until.setHours(until.getHours() + this.config.tbdCooldownHours);
-      return until.toISOString();
-    }
-    
-    return null;
-  }
-
-  /**
-   * Formatta lo stato per le notifiche/UI.
-   */
-  public formatStatus(state: AntigravityState): {
-    emoji: string;
-    title: string;
-    color: string;
-    description: string;
-  } {
-    const map: Record<AntigravityStatus, { emoji: string; title: string; color: string }> = {
-      NORMAL:      { emoji: '✅', title: 'Allocazione Normale',       color: '#10b981' },
-      BOOST_TBD:   { emoji: '🎯', title: 'Boost TBD Attivo',          color: '#8b5cf6' },
-      CAUTION:     { emoji: '⚠️', title: 'Modalità Cautelativa',      color: '#f59e0b' },
-      PROTECT:     { emoji: '🛡️', title: 'Protezione Capitale',       color: '#ef4444' },
-    };
-
-    const m = map[state.status];
-    return {
-      emoji: m.emoji,
-      title: m.title,
-      color: m.color,
-      description: state.reason,
-    };
-  }
 }
 
-// ─── HELPER PERSISTENZA ──────────────────────────────────────────────────────
+// ─── HELPER PERSISTENZA COOLDOWN ──────────────────────────────────────────────
 
 export const ANTIGRAVITY_COOLDOWN_KEY = 'antigravity:tbd_cooldown_until';
 
