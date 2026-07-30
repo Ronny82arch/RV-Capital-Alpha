@@ -459,7 +459,9 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
 
 // ─── TAB PRINCIPALE ───────────────────────────────────────────────────────────
 
-export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdScan, scanning: parentScanning, tbdPlan, tbdLoading, onGenerateTBD }: Props) {
+export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdScan, scanning: parentScanning, tbdPlan, tbdLoading = false, onGenerateTBD }: Props) {
+  const [executedSignals, setExecutedSignals] = useState<Set<string>>(new Set());
+  const [showExecuted, setShowExecuted] = useState(false);
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
   const [localScanning, setLocalScanning] = useState(false);
   const scanning = parentScanning !== undefined ? parentScanning : localScanning;
@@ -816,6 +818,357 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
               {breaker.reason === "TARGET" ? "TARGET GIORNALIERO RAGGIUNTO" : "MAX LOSS GIORNALIERA RAGGIUNTA"}
             </div>
             <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "3px" }}>{breaker.message}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+           SEZIONE TBD — SEGNALI OPERATIVI (ENGINE V2)
+          ═══════════════════════════════════════════════════════════════ */}
+      <div style={{ marginBottom: '2rem' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1rem',
+        }}>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary, #fff)' }}>
+            🎯 Trading by Day — Segnali Operativi
+          </h3>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {tbdPlan?.summary && (
+              <span style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-muted, #94a3b8)',
+                background: 'rgba(0,0,0,0.2)',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '20px',
+                fontFamily: 'var(--font-mono, monospace)'
+              }}>
+                Gap: {(tbdPlan.summary.gapToTarget * 100).toFixed(3)}% | Target: {(tbdPlan.summary.targetDaily * 100).toFixed(3)}%
+              </span>
+            )}
+            <button
+              onClick={onGenerateTBD}
+              disabled={tbdLoading || tbdPlan?.state?.circuitBreaker === 'CLOSED'}
+              style={{
+                padding: '0.5rem 1rem',
+                background: tbdPlan?.state?.circuitBreaker === 'CLOSED' ? '#374151' : 'linear-gradient(135deg, #00d4aa, #3b82f6)',
+                color: tbdPlan?.state?.circuitBreaker === 'CLOSED' ? '#9ca3af' : '#000',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: tbdPlan?.state?.circuitBreaker === 'CLOSED' ? 'not-allowed' : 'pointer',
+                opacity: tbdLoading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontFamily: 'var(--font-mono, monospace)'
+              }}
+            >
+              {tbdLoading ? '⏳ Analisi...' : '🔄 Genera Segnali'}
+            </button>
+          </div>
+        </div>
+
+        {/* Circuit breaker info */}
+        {tbdPlan?.state?.circuitBreaker === 'CLOSED' && (
+          <div style={{
+            padding: '1rem',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid #ef4444',
+            borderRadius: '10px',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>🛑</span>
+            <div>
+              <div style={{ fontWeight: 700, color: '#ef4444', fontSize: '0.95rem' }}>
+                Circuit Breaker Attivo
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #cbd5e1)', marginTop: '0.2rem' }}>
+                {tbdPlan.state.circuitBreakerReason}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.3rem' }}>
+                Trade oggi: {tbdPlan.summary.tradesToday} | P&L: €{tbdPlan.summary.pnlToday.toFixed(2)} | Rischio residuo: €{tbdPlan.state.remainingRisk.toFixed(0)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Nessun segnale ma circuit aperto */}
+        {tbdPlan?.state?.circuitBreaker === 'OPEN' && tbdPlan.signals?.length === 0 && !tbdLoading && (
+          <div style={{
+            padding: '1.5rem',
+            textAlign: 'center',
+            background: 'rgba(0, 212, 170, 0.05)',
+            borderRadius: '10px',
+            border: '1px dashed var(--border, #334155)',
+          }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>
+            <div style={{ fontWeight: 600, color: 'var(--text-primary, #fff)' }}>
+              Target giornaliero raggiunto o superato
+            </div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.3rem' }}>
+              Return odierno: {(tbdPlan.summary.currentDaily * 100).toFixed(3)}% | Target: {(tbdPlan.summary.targetDaily * 100).toFixed(3)}%
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.5rem' }}>
+              {tbdPlan.state.circuitBreakerReason || 'Nessun gap da colmare. Mercato in attesa.'}
+            </div>
+          </div>
+        )}
+
+        {/* Lista segnali */}
+        {tbdPlan?.signals?.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {tbdPlan.signals.map((signal: any) => {
+              const isExecuted = executedSignals.has(signal.id);
+              return (
+                <div
+                  key={signal.id}
+                  style={{
+                    padding: '1rem',
+                    background: isExecuted
+                      ? 'rgba(0, 212, 170, 0.08)'
+                      : 'rgba(0, 0, 0, 0.2)',
+                    border: `1px solid ${isExecuted ? '#00d4aa' : 'var(--border, #334155)'}`,
+                    borderRadius: '12px',
+                    opacity: isExecuted ? 0.7 : 1,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {/* Header segnale */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '0.75rem',
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          fontSize: '1.2rem',
+                          fontWeight: 700,
+                          color: '#00d4aa',
+                        }}>
+                          🟢 COMPRA {signal.symbol}
+                        </span>
+                        {isExecuted && (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            background: '#00d4aa',
+                            color: '#000',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '4px',
+                            fontWeight: 700,
+                          }}>
+                            ESEGUITO
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #cbd5e1)', marginTop: '0.15rem' }}>
+                        {signal.name}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{
+                        fontSize: '1.1rem',
+                        fontWeight: 700,
+                        color: 'var(--text-primary, #fff)',
+                      }}>
+                        €{signal.capitalAllocated.toFixed(0)}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
+                        {signal.quantity} quote @ €{signal.entryPrice.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metriche */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.5rem',
+                    marginBottom: '0.75rem',
+                    padding: '0.5rem',
+                    background: 'rgba(0,0,0,0.15)',
+                    borderRadius: '8px',
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)' }}>Quontest</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3b82f6' }}>
+                        {signal.quontestScore}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)' }}>Kelly</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f59e0b' }}>
+                        {(signal.kellyFraction * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)' }}>Win%</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#10b981' }}>
+                        {(signal.winProbability * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)' }}>R/R</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#8b5cf6' }}>
+                        {signal.riskRewardRatio.toFixed(1)}:1
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SL / TP / EV */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '0.5rem',
+                    marginBottom: '0.75rem',
+                    fontSize: '0.8rem',
+                  }}>
+                    <div style={{
+                      padding: '0.4rem',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ color: '#ef4444', fontWeight: 600 }}>SL</div>
+                      <div>€{signal.stopLoss.toFixed(2)}</div>
+                    </div>
+                    <div style={{
+                      padding: '0.4rem',
+                      background: 'rgba(0, 212, 170, 0.08)',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ color: '#00d4aa', fontWeight: 600 }}>TP</div>
+                      <div>€{signal.takeProfit.toFixed(2)}</div>
+                    </div>
+                    <div style={{
+                      padding: '0.4rem',
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ color: '#3b82f6', fontWeight: 600 }}>EV</div>
+                      <div>€{signal.expectedValue.toFixed(2)}</div>
+                    </div>
+                  </div>
+
+                  {/* Motivazione */}
+                  <div style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-secondary, #cbd5e1)',
+                    fontStyle: 'italic',
+                    marginBottom: '0.75rem',
+                    padding: '0.5rem',
+                    background: 'rgba(0,0,0,0.1)',
+                    borderRadius: '6px',
+                    lineHeight: 1.4,
+                  }}>
+                    {signal.reason}
+                  </div>
+
+                  {/* Azioni */}
+                  {!isExecuted ? (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => {
+                          setExecutedSignals(prev => new Set(prev).add(signal.id));
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '0.6rem',
+                          background: 'linear-gradient(135deg, #00d4aa, #3b82f6)',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ⚡ ESEGUI ORA
+                      </button>
+                      <button
+                        onClick={() => {
+                          const text = `${signal.action} ${signal.symbol}\n` +
+                            `Quantità: ${signal.quantity}\n` +
+                            `Prezzo: €${signal.entryPrice.toFixed(2)}\n` +
+                            `SL: €${signal.stopLoss.toFixed(2)}\n` +
+                            `TP: €${signal.takeProfit.toFixed(2)}\n` +
+                            `Capitale: €${signal.capitalAllocated.toFixed(0)}\n` +
+                            `Motivo: ${signal.reason}`;
+                          navigator.clipboard.writeText(text);
+                          alert('📋 Segnale copiato negli appunti!');
+                        }}
+                        style={{
+                          padding: '0.6rem 0.8rem',
+                          background: 'transparent',
+                          border: '1px solid var(--border, #334155)',
+                          color: 'var(--text-primary, #fff)',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                        }}
+                        title="Copia per eToro / broker"
+                      >
+                        📋
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '0.5rem',
+                      textAlign: 'center',
+                      color: '#00d4aa',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                    }}>
+                      ✅ Ordine eseguito — in attesa di chiusura SL/TP
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Loading */}
+        {tbdLoading && !tbdPlan && (
+          <div style={{
+            padding: '2rem',
+            textAlign: 'center',
+            color: 'var(--text-muted, #94a3b8)',
+          }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⏳</div>
+            <div>Analisi mercato in corso...</div>
+            <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+              Calcolo gap target, filtro regime, scoring Quontest, sizing Kelly
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Riepilogo trade TBD odierni */}
+      {executedSignals.size > 0 && (
+        <div style={{
+          marginTop: '0.75rem',
+          marginBottom: '1rem',
+          padding: '0.75rem',
+          background: 'rgba(0, 212, 170, 0.05)',
+          borderRadius: '8px',
+          fontSize: '0.85rem',
+        }}>
+          <div style={{ fontWeight: 600, color: '#00d4aa', marginBottom: '0.3rem' }}>
+            📊 Trade TBD eseguiti oggi: {executedSignals.size}
+          </div>
+          <div style={{ color: 'var(--text-muted, #94a3b8)' }}>
+            {Array.from(executedSignals).join(', ')}
           </div>
         </div>
       )}
