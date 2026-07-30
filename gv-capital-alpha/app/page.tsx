@@ -136,8 +136,8 @@ const MOCK_TBD_DATA = {
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
-  const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
-  const portfolioRef = useRef<PortfolioState | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioState | null>(MOCK_PORTFOLIO);
+  const portfolioRef = useRef<PortfolioState | null>(MOCK_PORTFOLIO);
   const lastSignalIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
