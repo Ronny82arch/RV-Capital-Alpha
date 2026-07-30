@@ -46,6 +46,8 @@ export interface Signal {
   portfolio?: string;
   tags?: string[];
   entryPrice?: number;
+  source?: string;
+  riskRewardRatio?: number;
 }
 
 export interface Position {

@@ -15,16 +15,20 @@ interface Props {
 
 export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, scanning, onUpdateAiMode, onSatelliteScan }: Props) {
   const signals = portfolio?.signals ?? [];
-  const [filter, setFilter] = useState<'ALL' | 'AI' | 'ANTIGRAVITY_REBALANCE'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'AI' | 'ANTIGRAVITY_REBALANCE' | 'TBD_ENGINE'>('ALL');
+
+  const isTBD = (s: Signal) => s.source === 'TBD_ENGINE' || s.tags?.includes('TBD_ENGINE') || s.tags?.includes('TBD_GENERATED') || s.portfolio === 'TBD';
 
   const filteredSignals = signals.filter(s => {
-    if (filter === 'AI') return !s.tags?.includes('ANTIGRAVITY_REBALANCE');
+    if (filter === 'AI') return !s.tags?.includes('ANTIGRAVITY_REBALANCE') && !isTBD(s);
     if (filter === 'ANTIGRAVITY_REBALANCE') return s.tags?.includes('ANTIGRAVITY_REBALANCE');
+    if (filter === 'TBD_ENGINE') return isTBD(s);
     return true;
   });
 
   const pending = filteredSignals.filter(s => s.status === 'PENDING');
   const history = filteredSignals.filter(s => s.status !== 'PENDING');
+  const pendingTbdSignals = signals.filter(s => isTBD(s) && s.status === 'PENDING');
   
   const [localAiMode, setLocalAiMode] = useState<'STRICT'|'DYNAMIC'>(portfolio?.aiMode || 'STRICT');
 
@@ -40,7 +44,7 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Filtro Tipo Segnali */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => setFilter('ALL')}
           style={{
@@ -70,6 +74,27 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
           }}
         >
           ⚖️ Rebalance
+        </button>
+        <button
+          onClick={() => setFilter('TBD_ENGINE')}
+          style={{
+            padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+            background: filter === 'TBD_ENGINE' ? 'rgba(0, 212, 170, 0.15)' : 'var(--bg2)',
+            color: filter === 'TBD_ENGINE' ? '#00d4aa' : 'var(--text3)',
+            fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '4px'
+          }}
+        >
+          <span>⚡ TBD Engine</span>
+          {signals.filter(isTBD).length > 0 && (
+            <span style={{
+              background: filter === 'TBD_ENGINE' ? '#00d4aa' : 'var(--text3)',
+              color: filter === 'TBD_ENGINE' ? '#000' : '#fff',
+              borderRadius: '10px', padding: '1px 6px', fontSize: '9px'
+            }}>
+              {signals.filter(isTBD).length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -125,6 +150,72 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
         </div>
       </div>
 
+      {/* Riepilogo Segnali TBD in attesa */}
+      {pendingTbdSignals.length > 0 && filter !== 'TBD_ENGINE' && (
+        <div style={{
+          marginBottom: '0.5rem',
+          padding: '1rem',
+          background: 'rgba(0, 212, 170, 0.05)',
+          border: '1px solid #00d4aa',
+          borderRadius: '12px',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '0.75rem',
+          }}>
+            <div style={{ fontWeight: 700, color: '#00d4aa', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>
+              ⚡ Segnali TBD in attesa ({pendingTbdSignals.length})
+            </div>
+            <button
+              onClick={() => setFilter('TBD_ENGINE')}
+              style={{
+                fontSize: '0.8rem',
+                color: '#00d4aa',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontFamily: 'var(--font-mono)'
+              }}
+            >
+              Mostra solo questi
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {pendingTbdSignals.slice(0, 3).map((s: any) => (
+              <div key={s.id} style={{
+                padding: '0.6rem 0.9rem',
+                background: 'rgba(0,0,0,0.2)',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontFamily: 'var(--font-mono)'
+              }}>
+                <span style={{ fontWeight: 700, color: '#fff' }}>{s.symbol}</span>
+                <span style={{ color: 'var(--text3)' }}>@</span>
+                <span style={{ color: '#00d4aa' }}>€{formatNumber(s.suggestedPrice || s.entryPrice || 0, 2)}</span>
+                {s.kellyFraction !== undefined && (
+                  <span style={{
+                    background: '#00d4aa',
+                    color: '#000',
+                    padding: '0.1rem 0.3rem',
+                    borderRadius: '4px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                  }}>
+                    Kelly {(s.kellyFraction * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {pending.length === 0 && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0, 212, 170, 0.1)', padding: '6px 14px', borderRadius: '20px', border: '1px solid #00d4aa33' }}>
@@ -179,17 +270,45 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
   };
 
   const isRebalance = signal.tags?.includes('ANTIGRAVITY_REBALANCE');
+  const isTBD = signal.source === 'TBD_ENGINE' || signal.tags?.includes('TBD_ENGINE') || signal.tags?.includes('TBD_GENERATED') || signal.portfolio === 'TBD';
+  const isImmediate = signal.tags?.includes('IMMEDIATE') || signal.urgency === 'HIGH';
+  const isHour = signal.tags?.includes('WITHIN_HOUR');
+
   const urgencyColor = signal.urgency === 'HIGH' ? 'var(--red)' : signal.urgency === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)';
   const typeLabel = signal.type === 'CRYPTO' ? '₿' : signal.type === 'ETF' ? 'ETF' : '📈';
 
   return (
     <div className="animate-fade" style={{
       background: 'var(--bg2)',
-      border: isRebalance ? '2px solid var(--green)' : '2px solid #00d4aa44',
+      border: isTBD ? '2px solid #00d4aa' : isRebalance ? '2px solid var(--green)' : '2px solid #00d4aa44',
       borderRadius: '14px', padding: '20px', position: 'relative',
     }}>
-      {/* Urgency & Rebalance Badges */}
-      <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+      {/* Urgency, TBD & Rebalance Badges */}
+      <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+        {isTBD && (
+          <span style={{
+            background: 'linear-gradient(135deg, #00d4aa, #3b82f6)',
+            color: '#000',
+            padding: '3px 10px',
+            borderRadius: '20px',
+            fontSize: '9px',
+            fontWeight: 800,
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.05em'
+          }}>
+            ⚡ TBD ENGINE
+          </span>
+        )}
+        {isImmediate && (
+          <span style={{ background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+            URGENTE
+          </span>
+        )}
+        {isHour && (
+          <span style={{ background: '#f59e0b', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+            1H
+          </span>
+        )}
         {isRebalance && (
           <span style={{
             background: 'var(--green)',
@@ -235,11 +354,11 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
         <InfoBox label="WIN PROB." value={`${((signal.winProbability || 0.5) * 100).toFixed(0)}%`} color="var(--blue)" />
       </div>
 
-      {/* Strategy + Kelly */}
+      {/* Strategy + Kelly + RiskReward */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
         <Tag>{signal.strategy || 'Antigravity Dynamic'}</Tag>
         <Tag>Kelly {((signal.kellyFraction || 0.5) * 100).toFixed(1)}%</Tag>
-        <Tag>R/R {((signal.takeProfitPercent || 10) / (signal.stopLossPercent || 5)).toFixed(1)}:1</Tag>
+        <Tag>R/R {(signal.riskRewardRatio ? signal.riskRewardRatio : ((signal.takeProfitPercent || 10) / (signal.stopLossPercent || 5))).toFixed(1)}:1</Tag>
         {signal.technicals?.rsi && <Tag>RSI {signal.technicals.rsi}</Tag>}
         {signal.technicals?.trend && <Tag>{signal.technicals.trend}</Tag>}
       </div>
@@ -314,6 +433,7 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
 
 function SignalHistoryRow({ signal }: { signal: Signal }) {
   const isApproved = signal.status === 'APPROVED';
+  const isTBD = signal.source === 'TBD_ENGINE' || signal.tags?.includes('TBD_ENGINE') || signal.tags?.includes('TBD_GENERATED') || signal.portfolio === 'TBD';
   return (
     <div style={{
       background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '10px',
@@ -325,6 +445,9 @@ function SignalHistoryRow({ signal }: { signal: Signal }) {
         <span style={{ fontSize: '11px', color: 'var(--text3)', marginLeft: '8px' }}>€{formatNumber(signal.suggestedPrice || signal.entryPrice || 0, 2)}</span>
       </div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {isTBD && (
+          <span style={{ fontSize: '9px', background: '#00d4aa', color: '#000', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>TBD</span>
+        )}
         {signal.tags?.includes('ANTIGRAVITY_REBALANCE') && (
           <span style={{ fontSize: '9px', background: 'var(--green)', color: '#000', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>REBALANCE</span>
         )}
