@@ -31,6 +31,9 @@ interface Props {
   portfolio?: PortfolioState | null;
   onTbdScan?: () => Promise<void>;
   scanning?: boolean;
+  tbdPlan?: any;
+  tbdLoading?: boolean;
+  onGenerateTBD?: () => Promise<void>;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -456,7 +459,7 @@ function PnlCalendar({ history }: { history: TradingDayLog[] }) {
 
 // ─── TAB PRINCIPALE ───────────────────────────────────────────────────────────
 
-export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdScan, scanning: parentScanning }: Props) {
+export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdScan, scanning: parentScanning, tbdPlan, tbdLoading, onGenerateTBD }: Props) {
   const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
   const [localScanning, setLocalScanning] = useState(false);
   const scanning = parentScanning !== undefined ? parentScanning : localScanning;
@@ -534,6 +537,10 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
   };
 
   const handleTbdPlan = async () => {
+    if (onGenerateTBD) {
+      await onGenerateTBD();
+      return;
+    }
     setLocalScanning(true);
     try {
       const res = await fetch("/api/tbd/plan", { method: "POST" });

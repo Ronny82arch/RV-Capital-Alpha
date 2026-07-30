@@ -13,6 +13,7 @@ import TradingByDayTab from '@/components/TradingByDayTab';
 import PacSimulatorTab from '@/components/PacSimulatorTab';
 import ChatWidget from '@/components/ChatWidget';
 import { AppProviders } from '@/components/providers';
+import { TBDEngine, DEFAULT_TBD_CONFIG } from '@/lib/tbd-engine';
 
 
 export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading' | 'pac';
@@ -160,6 +161,60 @@ export default function Home() {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
+  // ─── TBD ENGINE V2 STATE ──────────────────────────────────────────────────
+  const [tbdPlan, setTbdPlan] = useState<any>(null);
+  const [tbdLoading, setTbdLoading] = useState(false);
+
+  const generateLocalTBD = useCallback(() => {
+    const engine = new TBDEngine(DEFAULT_TBD_CONFIG);
+    const peakValue = Math.max(
+      portfolio?.totalValue || 0,
+      ...(portfolio?.performanceHistory?.map((p: any) => p.totalValue) || [])
+    );
+    const drawdown = peakValue > 0 ? ((peakValue - (portfolio?.totalValue || 0)) / peakValue) * 100 : 0;
+    const simulatedDayReturn = 0.0005;
+
+    const plan = engine.buildPlan(
+      portfolio?.totalValue || 10000,
+      simulatedDayReturn,
+      drawdown,
+      0,
+      0,
+      'NORMAL',
+      portfolio?.positions || []
+    );
+    setTbdPlan(plan);
+  }, [portfolio]);
+
+  const fetchTBDPlan = useCallback(async (force = false) => {
+    setTbdLoading(true);
+    try {
+      const response = await fetch('/api/tbd/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolioId: portfolio?.id,
+          force,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'TBD generate failed');
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setTbdPlan(data.plan);
+      }
+    } catch (error) {
+      console.error('TBD generate error:', error);
+      generateLocalTBD();
+    } finally {
+      setTbdLoading(false);
+    }
+  }, [portfolio, generateLocalTBD]);
+
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -304,7 +359,24 @@ export default function Home() {
 
   useEffect(() => {
     refresh();
-  }, []);
+    fetchTBDPlan();
+  }, [refresh, fetchTBDPlan]);
+
+  // Refresh TBD ogni 15 minuti durante giorni lavorativi 9:00-18:00
+  useEffect(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay();
+    const isMarketOpen = day >= 1 && day <= 5 && hour >= 9 && hour < 18;
+
+    if (!isMarketOpen) return;
+
+    const interval = setInterval(() => {
+      fetchTBDPlan();
+    }, 15 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [portfolio?.totalValue, fetchTBDPlan]);
 
   useEffect(() => {
     const interval = setInterval(tickPrices, 3000); // Ticker locale ogni 3 secondi (senza chiamate DB!)
@@ -747,7 +819,18 @@ export default function Home() {
 
           {tab === 'market' && <MarketTab market={market} />}
           {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
-          {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} portfolio={portfolio} onTbdScan={handleTbdScan} scanning={scanning} />}
+          {tab === 'trading' && (
+            <TradingByDayTab
+              tbdData={tbdData}
+              onRefresh={refresh}
+              portfolio={portfolio}
+              onTbdScan={handleTbdScan}
+              scanning={scanning}
+              tbdPlan={tbdPlan}
+              tbdLoading={tbdLoading}
+              onGenerateTBD={() => fetchTBDPlan(true)}
+            />
+          )}
           {tab === 'pac' && <PacSimulatorTab portfolio={portfolio} />}
         </main>
 
