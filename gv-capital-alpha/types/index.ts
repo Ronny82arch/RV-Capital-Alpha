@@ -1,10 +1,32 @@
 export type AssetType = 'ETF' | 'STOCK' | 'CRYPTO';
 export type SignalAction = 'BUY' | 'SELL';
-export type SignalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED';
+export type SignalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED' | 'OPEN' | 'CLOSED' | 'CANCELLED';
 export type Urgency = 'LOW' | 'MEDIUM' | 'HIGH';
 export type PositionStatus = 'OPEN' | 'CLOSED';
 export type AiMode = 'STRICT' | 'DYNAMIC';
 export type AlertType = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS';
+
+// ─── RISK BUDGETING V2 ───────────────────────────────────────────────────────
+
+export interface RiskProfile {
+  maxDrawdownPct: number;      // Quanto può scendere questo bucket (es. 8%)
+  maxVolatility: number;       // Volatilità annualizzata max (es. 10%)
+  maxDailyLoss: number;        // Perdita max giornaliera in € (es. 0 per Core)
+  maxTradesPerDay: number;     // Max trade/giorno (0 per Core)
+  maxLeverage: number;         // Leva max (1.0 = nessuna)
+  kellyCap: number;            // Massima frazione Kelly 0-1 (es. 0.15)
+  minQuontestScore: number;    // Soglia minima score Quontest (es. 70)
+  riskPerTradePct: number;     // % del bucket per singolo trade (es. 0.02)
+}
+
+export interface PortfolioBucket {
+  name: 'CORE' | 'SATELLITE' | 'TBD';
+  riskProfile: RiskProfile;
+  currentValue: number;
+  targetAllocationPct: number;   // % del totale portfolio (70, 25, 5, ecc.)
+  expectedReturn: number;      // CALCOLATO dal motore, NON editato dall'utente
+  realizedReturn: number;      // Ritorno realizzato finora
+}
 
 export interface Technicals {
   rsi: number;
@@ -22,6 +44,7 @@ export interface Signal {
   type: AssetType;
   action: SignalAction;
   suggestedPrice: number;
+  entryPrice?: number;
   quantity: number;
   capitalToAllocate: number;
   stopLoss: number;
@@ -30,14 +53,16 @@ export interface Signal {
   takeProfitPercent: number;
   kellyFraction: number;
   winProbability: number;
-  winProbabilitySampleSize: number;
-  winProbabilityTrusted: boolean;
+  winProbabilitySampleSize?: number;
+  winProbabilityTrusted?: boolean;
   expectedReturn: number;
+  riskRewardRatio?: number;
   reasoning: string;
   strategy: string;
   urgency: Urgency;
   technicals: Technicals;
   createdAt: string;
+  date?: string;
   status: SignalStatus;
   approvedAt?: string;
   executedAt?: string;
@@ -45,9 +70,7 @@ export interface Signal {
   positionId?: string;
   portfolio?: string;
   tags?: string[];
-  entryPrice?: number;
   source?: string;
-  riskRewardRatio?: number;
 }
 
 export interface Position {
@@ -71,15 +94,17 @@ export interface Position {
   currentPrice?: number;
   unrealizedPnl: number;
   unrealizedPnlPercent: number;
+  portfolio?: string;
   tags?: string[];
   logoUrl?: string;
-  portfolio?: string;
 }
 
 export interface PerformanceSnapshot {
   date: string;
   totalValue: number;
   pnlPercent: number;
+  dailyReturn?: number;
+  cumulativeReturn?: number;
 }
 
 export interface Alert {
@@ -115,29 +140,80 @@ export interface PortfolioState {
   totalValue: number;
   totalPnL: number;
   totalPnLPercent: number;
-  targetAnnualReturn: number;
-  aiMode?: AiMode;
-  coreSatelliteTarget?: number;
+  targetAnnualReturn?: number;
   startDate: string;
-  positions: Position[];
-  signals: Signal[];
-  alerts: Alert[];
-  performanceHistory: PerformanceSnapshot[];
-  perTagHistory?: Record<string, PerformanceSnapshot[]>;
-  portfolioPerformances?: Record<string, { totalValue: number; invested: number; pnl: number; pnlPercent: number }>;
-  customPortfolios?: any[]; // Typed as any[] to support string[] in DB and CustomPortfolio[] in new UI
-  aiManagedTags?: string[];
-  targets?: Record<string, number>;
-  riskBudgets?: Record<string, { maxDrawdownPct: number; maxAllocationPct: number }>;
-  bucketProjections?: Record<string, BucketProjection>;
+  updatedAt: string;
+
+  // ── RISK BUDGETING: profili per bucket ───────────────────────────────────
+  buckets?: {
+    CORE: PortfolioBucket;
+    SATELLITE: PortfolioBucket;
+    TBD: PortfolioBucket;
+  };
+
+  // ── ANTIGRAVITY V2 ────────────────────────────────────────────────────────
   antigravityTargetLeverage?: number;
   antigravityCooldownUntil?: string | null;
   antigravityState?: any;
+
+  // ── TBD LINK ─────────────────────────────────────────────────────────────
   tbdRealizedPnL?: number;
-  _version?: number;
-  updatedAt: string;
+
+  // ── POSIZIONI & SEGNALI ─────────────────────────────────────────────────
+  positions: Position[];
+  signals: Signal[];
+  performanceHistory: PerformanceSnapshot[];
+  perTagHistory?: Record<string, PerformanceSnapshot[]>;
+  portfolioPerformances?: Record<string, { totalValue: number; invested: number; pnl: number; pnlPercent: number }>;
+  alerts: Alert[];
+  customPortfolios?: any[];
+  aiManagedTags?: string[];
+  aiMode?: AiMode;
+  coreSatelliteTarget?: number;
   excludeCopyTrading?: boolean;
+  _version?: number;
+
+  // Legacy — mantenuto per compatibilità ma ignorato dai motori nuovi
+  targets?: Record<string, number>;
+  riskBudgets?: Record<string, { maxDrawdownPct: number; maxAllocationPct: number }>;
+  bucketProjections?: any;
 }
+
+// ── DEFAULT RISK PROFILES ─────────────────────────────────────────────────
+export const DEFAULT_RISK_PROFILES = {
+  CORE: {
+    maxDrawdownPct: 8,
+    maxVolatility: 10,
+    maxDailyLoss: 0,
+    maxTradesPerDay: 0,
+    maxLeverage: 1.0,
+    kellyCap: 0.15,
+    minQuontestScore: 70,
+    riskPerTradePct: 0.02,
+  } as RiskProfile,
+
+  SATELLITE: {
+    maxDrawdownPct: 15,
+    maxVolatility: 20,
+    maxDailyLoss: 100,
+    maxTradesPerDay: 1,
+    maxLeverage: 1.2,
+    kellyCap: 0.25,
+    minQuontestScore: 60,
+    riskPerTradePct: 0.03,
+  } as RiskProfile,
+
+  TBD: {
+    maxDrawdownPct: 25,
+    maxVolatility: 35,
+    maxDailyLoss: 200,
+    maxTradesPerDay: 3,
+    maxLeverage: 1.5,
+    kellyCap: 0.50,
+    minQuontestScore: 45,
+    riskPerTradePct: 0.05,
+  } as RiskProfile,
+};
 
 export interface MarketData {
   symbol: string;
@@ -224,4 +300,3 @@ export interface RiskBudget {
   maxDrawdownPct: number;
   maxAllocationPct: number;
 }
-

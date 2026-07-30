@@ -145,7 +145,7 @@ async function runScan() {
       portfolio.totalValue,
       portfolio.totalPnL,
       portfolio.totalPnLPercent,
-      portfolio.targetAnnualReturn,
+      portfolio.targetAnnualReturn || 0.25,
       openPositions.length
     );
 
