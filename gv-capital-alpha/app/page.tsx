@@ -221,6 +221,8 @@ export default function Home() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const hasRealData = useRef(false);
+
   const refresh = useCallback(async () => {
     try {
       setError(null);
@@ -237,10 +239,11 @@ export default function Home() {
           setPortfolio(pData.data);
           pLoaded = true;
           setIsDemoMode(false);
+          hasRealData.current = true;
         }
       }
       
-      if (!pLoaded) {
+      if (!pLoaded && !hasRealData.current) {
         console.warn('[Page] Errore caricamento portfolio, attivo fallback demo');
         setPortfolio(MOCK_PORTFOLIO);
         setIsDemoMode(true);
@@ -260,16 +263,18 @@ export default function Home() {
         }
       }
       
-      if (!tbdLoaded) {
+      if (!tbdLoaded && !hasRealData.current) {
         setTbdData(MOCK_TBD_DATA);
       }
       
       setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (e) {
       console.error(e);
-      setPortfolio(MOCK_PORTFOLIO);
-      setTbdData(MOCK_TBD_DATA);
-      setIsDemoMode(true);
+      if (!hasRealData.current) {
+        setPortfolio(MOCK_PORTFOLIO);
+        setTbdData(MOCK_TBD_DATA);
+        setIsDemoMode(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -357,10 +362,14 @@ export default function Home() {
     }
   }, []);
 
+  // Mount unico iniziale
   useEffect(() => {
     refresh();
-    fetchTBDPlan();
-  }, [refresh, fetchTBDPlan]);
+    const timer = setTimeout(() => {
+      fetchTBDPlan();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []); // Esegui una sola volta al mount
 
   // Refresh TBD ogni 15 minuti durante giorni lavorativi 9:00-18:00
   useEffect(() => {
@@ -376,12 +385,12 @@ export default function Home() {
     }, 15 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [portfolio?.totalValue, fetchTBDPlan]);
+  }, [fetchTBDPlan]);
 
   useEffect(() => {
     const interval = setInterval(tickPrices, 3000); // Ticker locale ogni 3 secondi (senza chiamate DB!)
     return () => clearInterval(interval);
-  }, []);
+  }, [tickPrices]);
 
 
 
