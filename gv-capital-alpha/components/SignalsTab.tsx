@@ -15,8 +15,16 @@ interface Props {
 
 export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, scanning, onUpdateAiMode, onSatelliteScan }: Props) {
   const signals = portfolio?.signals ?? [];
-  const pending = signals.filter(s => s.status === 'PENDING');
-  const history = signals.filter(s => s.status !== 'PENDING');
+  const [filter, setFilter] = useState<'ALL' | 'AI' | 'ANTIGRAVITY_REBALANCE'>('ALL');
+
+  const filteredSignals = signals.filter(s => {
+    if (filter === 'AI') return !s.tags?.includes('ANTIGRAVITY_REBALANCE');
+    if (filter === 'ANTIGRAVITY_REBALANCE') return s.tags?.includes('ANTIGRAVITY_REBALANCE');
+    return true;
+  });
+
+  const pending = filteredSignals.filter(s => s.status === 'PENDING');
+  const history = filteredSignals.filter(s => s.status !== 'PENDING');
   
   const [localAiMode, setLocalAiMode] = useState<'STRICT'|'DYNAMIC'>(portfolio?.aiMode || 'STRICT');
 
@@ -31,6 +39,40 @@ export default function SignalsTab({ portfolio, onConfirm, onReject, onScan, sca
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Filtro Tipo Segnali */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <button
+          onClick={() => setFilter('ALL')}
+          style={{
+            padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+            background: filter === 'ALL' ? 'var(--blue)' : 'var(--bg2)', color: filter === 'ALL' ? '#fff' : 'var(--text3)',
+            fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', cursor: 'pointer'
+          }}
+        >
+          Tutti ({signals.length})
+        </button>
+        <button
+          onClick={() => setFilter('AI')}
+          style={{
+            padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+            background: filter === 'AI' ? 'var(--blue)' : 'var(--bg2)', color: filter === 'AI' ? '#fff' : 'var(--text3)',
+            fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', cursor: 'pointer'
+          }}
+        >
+          🤖 AI
+        </button>
+        <button
+          onClick={() => setFilter('ANTIGRAVITY_REBALANCE')}
+          style={{
+            padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+            background: filter === 'ANTIGRAVITY_REBALANCE' ? 'var(--green)' : 'var(--bg2)', color: filter === 'ANTIGRAVITY_REBALANCE' ? '#000' : 'var(--text3)',
+            fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 'bold', cursor: 'pointer'
+          }}
+        >
+          ⚖️ Rebalance
+        </button>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '11px', color: 'var(--text3)', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>SEGNALI ATTIVI</div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -136,16 +178,32 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
     setConfirming(false);
   };
 
+  const isRebalance = signal.tags?.includes('ANTIGRAVITY_REBALANCE');
   const urgencyColor = signal.urgency === 'HIGH' ? 'var(--red)' : signal.urgency === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)';
   const typeLabel = signal.type === 'CRYPTO' ? '₿' : signal.type === 'ETF' ? 'ETF' : '📈';
 
   return (
     <div className="animate-fade" style={{
-      background: 'var(--bg2)', border: '2px solid #00d4aa44',
+      background: 'var(--bg2)',
+      border: isRebalance ? '2px solid var(--green)' : '2px solid #00d4aa44',
       borderRadius: '14px', padding: '20px', position: 'relative',
     }}>
-      {/* Urgency badge */}
-      <div style={{ position: 'absolute', top: '14px', right: '14px' }}>
+      {/* Urgency & Rebalance Badges */}
+      <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+        {isRebalance && (
+          <span style={{
+            background: 'var(--green)',
+            color: '#000',
+            padding: '3px 10px',
+            borderRadius: '20px',
+            fontSize: '9px',
+            fontWeight: 800,
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.05em'
+          }}>
+            🤖 REBALANCE
+          </span>
+        )}
         <span style={{
           fontSize: '9px', padding: '3px 10px', borderRadius: '20px',
           background: `${urgencyColor}22`, color: urgencyColor,
@@ -156,7 +214,9 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
       {/* Header */}
       <div style={{ marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--green)', letterSpacing: '0.15em' }}>▶ ACQUISTO</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: signal.action === 'BUY' ? 'var(--green)' : 'var(--red)', letterSpacing: '0.15em' }}>
+            {signal.action === 'BUY' ? '▶ ACQUISTO' : '◀ VENDITA'}
+          </span>
           <span style={{ fontSize: '10px', color: 'var(--text3)' }}>{typeLabel} {signal.type}</span>
         </div>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '20px', fontWeight: '800' }}>
@@ -167,21 +227,21 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
 
       {/* Price grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-        <InfoBox label="PREZZO ORA" value={`€${formatNumber(signal.suggestedPrice, 2)}`} />
-        <InfoBox label="QUANTITÀ" value={`${signal.quantity}`} />
+        <InfoBox label="PREZZO ORA" value={`€${formatNumber(signal.suggestedPrice || signal.entryPrice || 0, 2)}`} />
+        <InfoBox label="QUANTITÀ" value={`${signal.quantity || 0}`} />
         <InfoBox label="CAPITALE" value={`€${formatNumber(signal.capitalToAllocate, 0)}`} />
-        <InfoBox label="STOP LOSS" value={`€${formatNumber(signal.stopLoss, 2)}`} sub={`-${signal.stopLossPercent.toFixed(1)}%`} color="var(--red)" />
-        <InfoBox label="TAKE PROFIT" value={`€${formatNumber(signal.takeProfit, 2)}`} sub={`+${signal.takeProfitPercent.toFixed(1)}%`} color="var(--green)" />
-        <InfoBox label="WIN PROB." value={`${(signal.winProbability * 100).toFixed(0)}%`} color="var(--blue)" />
+        <InfoBox label="STOP LOSS" value={`€${formatNumber(signal.stopLoss, 2)}`} sub={`-${(signal.stopLossPercent || 5).toFixed(1)}%`} color="var(--red)" />
+        <InfoBox label="TAKE PROFIT" value={`€${formatNumber(signal.takeProfit, 2)}`} sub={`+${(signal.takeProfitPercent || 10).toFixed(1)}%`} color="var(--green)" />
+        <InfoBox label="WIN PROB." value={`${((signal.winProbability || 0.5) * 100).toFixed(0)}%`} color="var(--blue)" />
       </div>
 
       {/* Strategy + Kelly */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <Tag>{signal.strategy}</Tag>
-        <Tag>Kelly {(signal.kellyFraction * 100).toFixed(1)}%</Tag>
-        <Tag>R/R {(signal.takeProfitPercent / signal.stopLossPercent).toFixed(1)}:1</Tag>
-        <Tag>RSI {signal.technicals.rsi}</Tag>
-        <Tag>{signal.technicals.trend}</Tag>
+        <Tag>{signal.strategy || 'Antigravity Dynamic'}</Tag>
+        <Tag>Kelly {((signal.kellyFraction || 0.5) * 100).toFixed(1)}%</Tag>
+        <Tag>R/R {((signal.takeProfitPercent || 10) / (signal.stopLossPercent || 5)).toFixed(1)}:1</Tag>
+        {signal.technicals?.rsi && <Tag>RSI {signal.technicals.rsi}</Tag>}
+        {signal.technicals?.trend && <Tag>{signal.technicals.trend}</Tag>}
       </div>
 
       {/* AI reasoning */}
@@ -212,7 +272,7 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
           <input
             type="number"
             step="0.01"
-            placeholder={`es. ${formatNumber(signal.suggestedPrice, 2)}`}
+            placeholder={`es. ${formatNumber(signal.suggestedPrice || signal.entryPrice || 0, 2)}`}
             value={priceInput}
             onChange={e => setPriceInput(e.target.value)}
             style={{ width: '100%', marginBottom: '12px' }}
@@ -253,34 +313,42 @@ function SignalCard({ signal, onConfirm, onReject }: { signal: Signal; onConfirm
 }
 
 function SignalHistoryRow({ signal }: { signal: Signal }) {
-  const statusColor = signal.status === 'EXECUTED' ? 'var(--green)' : signal.status === 'REJECTED' ? 'var(--red)' : 'var(--text3)';
-  const statusLabel = signal.status === 'EXECUTED' ? '✓ ESEGUITO' : signal.status === 'REJECTED' ? '✕ RIFIUTATO' : signal.status;
+  const isApproved = signal.status === 'APPROVED';
   return (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '10px 14px', background: 'var(--bg2)', border: '1px solid var(--border)',
-      borderRadius: '10px', marginBottom: '6px',
+      background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '10px',
+      padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      marginBottom: '8px', opacity: 0.7,
     }}>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700' }}>{signal.symbol}</span>
-        <span style={{ fontSize: '11px', color: 'var(--text3)' }}>{signal.strategy}</span>
+      <div>
+        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '13px' }}>{signal.symbol}</span>
+        <span style={{ fontSize: '11px', color: 'var(--text3)', marginLeft: '8px' }}>€{formatNumber(signal.suggestedPrice || signal.entryPrice || 0, 2)}</span>
       </div>
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-        {signal.executedPrice && (
-          <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text2)' }}>€{formatNumber(signal.executedPrice, 2)}</span>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {signal.tags?.includes('ANTIGRAVITY_REBALANCE') && (
+          <span style={{ fontSize: '9px', background: 'var(--green)', color: '#000', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>REBALANCE</span>
         )}
-        <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: statusColor, fontWeight: '700' }}>{statusLabel}</span>
+        <span style={{
+          fontSize: '10px', padding: '2px 8px', borderRadius: '4px',
+          background: isApproved ? 'var(--green)22' : 'var(--red)22',
+          color: isApproved ? 'var(--green)' : 'var(--red)',
+          fontFamily: 'var(--font-mono)', fontWeight: '700',
+        }}>
+          {isApproved ? '✓ APPROVATO' : '✕ RIFIUTATO'}
+        </span>
       </div>
     </div>
   );
 }
 
-function InfoBox({ label, value, sub, color = 'var(--text)' }: { label: string; value: string; sub?: string; color?: string }) {
+function InfoBox({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div style={{ background: 'var(--bg3)', borderRadius: '8px', padding: '10px' }}>
-      <div style={{ fontSize: '9px', color: 'var(--text3)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>{label}</div>
-      <div style={{ fontSize: '14px', fontWeight: '700', fontFamily: 'var(--font-mono)', color }}>{value}</div>
-      {sub && <div style={{ fontSize: '10px', color, opacity: 0.7 }}>{sub}</div>}
+    <div style={{ background: 'var(--bg3)', borderRadius: '8px', padding: '10px', border: '1px solid var(--border)' }}>
+      <div style={{ fontSize: '9px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'var(--font-mono)', color: color || 'var(--text)' }}>
+        {value}
+        {sub && <span style={{ fontSize: '10px', marginLeft: '4px', fontWeight: '400' }}>({sub})</span>}
+      </div>
     </div>
   );
 }
@@ -288,9 +356,11 @@ function InfoBox({ label, value, sub, color = 'var(--text)' }: { label: string; 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span style={{
-      fontSize: '10px', padding: '3px 10px', borderRadius: '20px',
-      background: 'var(--bg3)', border: '1px solid var(--border)',
-      color: 'var(--text2)', fontFamily: 'var(--font-mono)',
-    }}>{children}</span>
+      fontSize: '10px', padding: '3px 8px', borderRadius: '6px',
+      background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)',
+      fontFamily: 'var(--font-mono)',
+    }}>
+      {children}
+    </span>
   );
 }
