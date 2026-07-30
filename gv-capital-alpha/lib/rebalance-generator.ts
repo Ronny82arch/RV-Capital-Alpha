@@ -98,10 +98,14 @@ export function generateRebalanceActions(
   });
 
   // 2. Target value
+  const corePct = agState.coreTargetPct ?? 70;
+  const satPct = agState.satelliteTargetPct ?? 30;
+  const tbdPct = agState.tbdTargetPct ?? 0;
+
   const target = {
-    CORE: totalValue * (agState.coreTargetPct / 100),
-    SATELLITE: totalValue * (agState.satelliteTargetPct / 100),
-    TBD: totalValue * (agState.tbdTargetPct / 100),
+    CORE: totalValue * (corePct / 100),
+    SATELLITE: totalValue * (satPct / 100),
+    TBD: totalValue * (tbdPct / 100),
   };
 
   // 3. Delta (quanto manca o avanza)
@@ -112,7 +116,7 @@ export function generateRebalanceActions(
   };
 
   const actions: RebalanceAction[] = [];
-  const regime = marketRegime || agState.status;
+  const regime = marketRegime || agState.status || 'NORMAL';
 
   // 4. SELL — surplus (vendi i peggiori per Quontest score)
   (['CORE', 'SATELLITE', 'TBD'] as const).forEach(cat => {
@@ -136,7 +140,7 @@ export function generateRebalanceActions(
             symbol: pos.symbol,
             name: pos.name,
             category: cat,
-            reason: `${cat} in SURPLUS di €${surplus.toFixed(0)}. Vendo ${pos.symbol} (score Quontest: ${pos.quontestScore || 'N/A'}) per allinearmi al target ${agState[`${cat.toLowerCase()}TargetPct`]}%.`,
+            reason: `${cat} in SURPLUS di €${surplus.toFixed(0)}. Vendo ${pos.symbol} (score Quontest: ${pos.quontestScore || 'N/A'}) per allinearmi al target ${(agState as any)[`${cat.toLowerCase()}TargetPct`] || 0}%.`,
             amount: sellAmount,
             quantity: qty,
             price: pos.currentPrice || pos.entryPrice || 0,
@@ -174,7 +178,7 @@ export function generateRebalanceActions(
             symbol: asset.symbol,
             name: asset.name,
             category: cat,
-            reason: `${cat} in DEFICIT di €${deficit.toFixed(0)}. Compro ${asset.symbol} (score Quontest: ${asset.quontestScore}/100, allineamento: ${asset.regimeAlignment}) per raggiungere target ${agState[`${cat.toLowerCase()}TargetPct`]}% — Regime: ${regime}.`,
+            reason: `${cat} in DEFICIT di €${deficit.toFixed(0)}. Compro ${asset.symbol} (score Quontest: ${asset.quontestScore}/100, allineamento: ${asset.regimeAlignment}) per raggiungere target ${(agState as any)[`${cat.toLowerCase()}TargetPct`] || 0}% — Regime: ${regime}.`,
             amount: buyAmount,
             quantity: qty,
             price: asset.price,

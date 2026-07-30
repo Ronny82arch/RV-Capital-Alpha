@@ -161,7 +161,8 @@ export class TBDEngine {
       .filter(a => !(agStatus === 'COOLDOWN' && a.regimeAlignment === 'SPECULATIVE'))
       .sort((a, b) => b.quontestScore - a.quontestScore);
 
-    const existingSymbols = new Set(existingPositions.map(p => p.symbol));
+    // Escludi posizioni aperte solo se il portafoglio ha già quell'asset aperto
+    const existingSymbols = new Set(existingPositions.filter(p => p.status === 'OPEN').map(p => p.symbol));
     candidates = candidates.filter(c => !existingSymbols.has(c.symbol));
 
     const signals: TBDSignal[] = [];
@@ -177,16 +178,17 @@ export class TBDEngine {
       kelly = Math.max(this.config.minKellyFraction, Math.min(this.config.maxKellyFraction, kelly));
 
       const maxRiskPerTrade = portfolioValue * this.config.riskPerTradePct;
-      const capitalAllocated = Math.min(
-        kelly * maxRiskPerTrade,
+      let capitalAllocated = Math.min(
+        kelly * maxRiskPerTrade * 10,
         tbdState.remainingRisk / slots,
         portfolioValue * 0.05
       );
 
-      if (capitalAllocated < 50) continue;
+      if (capitalAllocated < asset.price) {
+        capitalAllocated = asset.price * 2;
+      }
 
-      const quantity = Math.floor(capitalAllocated / asset.price);
-      if (quantity < 1) continue;
+      const quantity = Math.max(1, Math.floor(capitalAllocated / asset.price));
 
       const slDist = asset.price * (asset.volatility24h / 100) * 1.5;
       const tpDist = slDist * rr;

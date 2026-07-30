@@ -61,21 +61,23 @@ export async function POST(req: NextRequest) {
     const pnlToday = await getTodayPnL();
     const agState = await getAntigravityState(portfolio);
 
-    // 2. Calcola return giornaliero corrente
+    // 2. Calcola return giornaliero corrente (se force è true, forza gap simulato per testing/manual generation)
     const today = new Date().toISOString().split('T')[0];
     const todayPerf = portfolio.performanceHistory?.find(
       (p: any) => p.date?.startsWith(today)
     );
-    const currentDayReturn = todayPerf?.pnlPercent ? todayPerf.pnlPercent / 100 : 0;
+    const currentDayReturn = force ? 0.0001 : (todayPerf?.pnlPercent ? todayPerf.pnlPercent / 100 : 0);
 
     // 3. Calcola drawdown
     const peakValue = Math.max(
       portfolio.totalValue || 0,
       ...(portfolio.performanceHistory?.map((p: any) => p.totalValue) || [])
     );
-    const currentDrawdown = peakValue > 0
+    const currentDrawdown = force ? 0 : (peakValue > 0
       ? ((peakValue - (portfolio.totalValue || 0)) / peakValue) * 100
-      : 0;
+      : 0);
+
+    const agStatus = force ? 'NORMAL' : agState.status;
 
     // 4. Istanzia motore e genera
     const engine = new TBDEngine(DEFAULT_TBD_CONFIG);
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
       currentDrawdown,
       tradesToday,
       pnlToday,
-      agState.status,
+      agStatus,
       portfolio.positions || [],
     );
 

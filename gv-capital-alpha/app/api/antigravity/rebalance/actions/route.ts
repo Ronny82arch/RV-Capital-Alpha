@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('[API /antigravity/rebalance/actions] Errore:', error);
     return NextResponse.json(
-      { success: false, error: 'Errore generazione azioni.', details: error?.message },
+      { success: false, error: 'Errore generazione azioni.', details: error?.message || String(error), stack: error?.stack },
       { status: 500 }
     );
   }
