@@ -176,10 +176,6 @@ export default function Home() {
           return {
             ...prev,
             positions: updatedPositions,
-            capitalBase,
-            totalValue,
-            totalPnL,
-            totalPnLPercent
           };
         });
         setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
