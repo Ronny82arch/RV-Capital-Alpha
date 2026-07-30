@@ -142,7 +142,16 @@ export async function getPortfolio(): Promise<PortfolioState> {
   ]);
 
   if (pRes.error || !pRes.data) {
-    console.error('Error fetching portfolio', pRes.error);
+    // PGRST116 = "no rows returned" da .single(): è il caso legittimo di primo
+    // avvio, prima che esista una riga nel DB. Qui è corretto seminare con
+    // defaultPortfolio(). Qualsiasi altro errore (rete, timeout, auth, ecc.)
+    // NON deve restituire dati finti: va rilanciato così l'API risponde
+    // success:false e il frontend mostra l'errore reale invece di numeri fasulli.
+    if (pRes.error && pRes.error.code !== 'PGRST116') {
+      console.error('[getPortfolio] Errore reale nel recupero portfolio, propago:', pRes.error);
+      throw new Error(`Impossibile leggere il portfolio dal database: ${pRes.error.message}`);
+    }
+    console.warn('[getPortfolio] Nessun portfolio trovato nel DB, inizializzo con defaultPortfolio()');
     return defaultPortfolio();
   }
 

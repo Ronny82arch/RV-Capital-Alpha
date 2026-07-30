@@ -13,131 +13,14 @@ import TradingByDayTab from '@/components/TradingByDayTab';
 import PacSimulatorTab from '@/components/PacSimulatorTab';
 import ChatWidget from '@/components/ChatWidget';
 import { AppProviders } from '@/components/providers';
-import { TBDEngine, DEFAULT_TBD_CONFIG } from '@/lib/tbd-engine';
 
 
 export type Tab = 'dashboard' | 'signals' | 'positions' | 'market' | 'quontest' | 'trading' | 'pac';
 
-const MOCK_PORTFOLIO: PortfolioState = {
-  id: '00000000-0000-0000-0000-000000000001',
-  capitalBase: 9771.099,
-  capitalAvailable: 414.64,
-  depositedFunds: 6000,
-  totalValue: 11266.09,
-  totalPnL: 5266.09,
-  totalPnLPercent: 87.76,
-  targetAnnualReturn: 0.25,
-  startDate: '2026-07-23T00:00:00Z',
-  updatedAt: new Date().toISOString(),
-
-  // ── NUOVI CAMPI ANTIGRAVITY ──────────────────────────────────────────────
-  antigravityTargetLeverage: 1.5,
-  antigravityCooldownUntil: null,
-  tbdRealizedPnL: 0,
-
-  positions: [
-    {
-      id: 'd1',
-      symbol: 'AAPL',
-      name: 'Apple Inc.',
-      type: 'STOCK',
-      action: 'BUY',
-      entryPrice: 150,
-      quantity: 10,
-      capitalAllocated: 1500,
-      stopLoss: 140,
-      takeProfit: 170,
-      entryDate: new Date().toISOString(),
-      status: 'OPEN',
-      currentPrice: 160,
-      unrealizedPnl: 100,
-      unrealizedPnlPercent: 6.67,
-      portfolio: 'Core',
-      realizedPnl: 0,
-      realizedPnlPercent: 0
-    },
-    {
-      id: 'd2',
-      symbol: 'NVDA',
-      name: 'NVIDIA Corporation',
-      type: 'STOCK',
-      action: 'BUY',
-      entryPrice: 120,
-      quantity: 20,
-      capitalAllocated: 2400,
-      stopLoss: 110,
-      takeProfit: 160,
-      entryDate: new Date().toISOString(),
-      status: 'OPEN',
-      currentPrice: 140,
-      unrealizedPnl: 400,
-      unrealizedPnlPercent: 16.67,
-      portfolio: 'Satellite',
-      realizedPnl: 0,
-      realizedPnlPercent: 0
-    }
-  ],
-  signals: [],
-  performanceHistory: [
-    { date: '2026-07-23T00:00:00Z', totalValue: 10000, pnlPercent: 0 },
-    { date: '2026-07-24T00:00:00Z', totalValue: 10500, pnlPercent: 5.0 },
-    { date: '2026-07-25T00:00:00Z', totalValue: 11000, pnlPercent: 10.0 },
-    { date: '2026-07-26T00:00:00Z', totalValue: 11266, pnlPercent: 12.66 }
-  ],
-  alerts: [
-    {
-      id: 'a1',
-      title: '🎯 Demo Mode Attiva',
-      message: 'Impossibile connettersi al database. Visualizzazione dati di test/demo.',
-      date: new Date().toISOString(),
-      type: 'WARNING',
-      read: false
-    }
-  ],
-  customPortfolios: ['Core', 'Satellite'],
-  aiMode: 'DYNAMIC',
-  coreSatelliteTarget: 70,
-  targets: {
-    'Core': 8,
-    'Satellite': 25,
-    'Tutti': 10
-  },
-  bucketProjections: {}
-};
-
-const MOCK_TBD_DATA = {
-  today: {
-    date: new Date().toISOString().split('T')[0],
-    startingCash: 5000,
-    endingCash: 5000,
-    realizedPnL: 0,
-    totalTrades: 0,
-    winningTrades: 0,
-    losingTrades: 0,
-    status: 'ACTIVE',
-    signals: [],
-    targetReached: false
-  },
-  history: [],
-  activeSignals: [],
-  circuitBreaker: {
-    stopTrading: false,
-    reason: 'NONE' as const,
-    message: ''
-  },
-  config: {
-    totalCapital: 5000,
-    dailyTarget: 50,
-    maxTotalRiskPercent: 1.5,
-    activeSlots: 3,
-    preTriggerBufferPercent: 0.5
-  }
-};
-
 export default function Home() {
   const [tab, setTab] = useState<Tab>('dashboard');
-  const [portfolio, setPortfolio] = useState<PortfolioState | null>(MOCK_PORTFOLIO);
-  const portfolioRef = useRef<PortfolioState | null>(MOCK_PORTFOLIO);
+  const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
+  const portfolioRef = useRef<PortfolioState | null>(null);
   const lastSignalIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -154,74 +37,17 @@ export default function Home() {
   const [tbdData, setTbdData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDemoMode, setIsDemoMode] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  // ─── TBD ENGINE V2 STATE ──────────────────────────────────────────────────
-  const [tbdPlan, setTbdPlan] = useState<any>(null);
-  const [tbdLoading, setTbdLoading] = useState(false);
-
-  const generateLocalTBD = useCallback(() => {
-    const engine = new TBDEngine(DEFAULT_TBD_CONFIG);
-    const peakValue = Math.max(
-      portfolio?.totalValue || 0,
-      ...(portfolio?.performanceHistory?.map((p: any) => p.totalValue) || [])
-    );
-    const drawdown = peakValue > 0 ? ((peakValue - (portfolio?.totalValue || 0)) / peakValue) * 100 : 0;
-    const simulatedDayReturn = 0.0005;
-
-    const plan = engine.buildPlan(
-      portfolio?.totalValue || 10000,
-      simulatedDayReturn,
-      drawdown,
-      0,
-      0,
-      'NORMAL',
-      portfolio?.positions || []
-    );
-    setTbdPlan(plan);
-  }, [portfolio]);
-
-  const fetchTBDPlan = useCallback(async (force = false) => {
-    setTbdLoading(true);
-    try {
-      const response = await fetch('/api/tbd/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          portfolioId: portfolio?.id,
-          force,
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'TBD generate failed');
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setTbdPlan(data.plan);
-      }
-    } catch (error) {
-      console.error('TBD generate error:', error);
-      generateLocalTBD();
-    } finally {
-      setTbdLoading(false);
-    }
-  }, [portfolio, generateLocalTBD]);
-
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
   };
-
-  const hasRealData = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -238,42 +64,43 @@ export default function Home() {
         if (pData.success && pData.data) {
           setPortfolio(pData.data);
           pLoaded = true;
-          setIsDemoMode(false);
-          hasRealData.current = true;
+        } else if (pData.error) {
+          console.warn('[Page] /api/portfolio ha risposto senza dati validi:', pData.error);
         }
+      } else {
+        console.warn('[Page] /api/portfolio non raggiungibile:', pRes.reason);
       }
-      
-      if (!pLoaded && !hasRealData.current) {
-        console.warn('[Page] Errore caricamento portfolio, attivo fallback demo');
-        setPortfolio(MOCK_PORTFOLIO);
-        setIsDemoMode(true);
+
+      if (!pLoaded) {
+        // Niente fallback finto: se non abbiamo mai caricato un portfolio reale
+        // mostriamo la schermata di errore; se ne avevamo già uno valido lo
+        // lasciamo com'era e segnaliamo solo l'errore di aggiornamento.
+        if (!portfolioRef.current) {
+          setError('Impossibile caricare il portafoglio reale dal database. Verifica la connessione e riprova.');
+        } else {
+          showToast('Aggiornamento portafoglio fallito, mostro gli ultimi dati noti', false);
+        }
       }
 
       if (mRes.status === 'fulfilled') {
         const mData = await mRes.value.json().catch(() => ({}));
         if (mData.success) setMarket(mData.data);
       }
-      
-      let tbdLoaded = false;
+
       if (tbdRes.status === 'fulfilled') {
         const tData = await tbdRes.value.json().catch(() => ({}));
         if (tData.success && tData.data) {
           setTbdData(tData.data);
-          tbdLoaded = true;
         }
       }
-      
-      if (!tbdLoaded && !hasRealData.current) {
-        setTbdData(MOCK_TBD_DATA);
-      }
-      
+
       setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (e) {
       console.error(e);
-      if (!hasRealData.current) {
-        setPortfolio(MOCK_PORTFOLIO);
-        setTbdData(MOCK_TBD_DATA);
-        setIsDemoMode(true);
+      if (!portfolioRef.current) {
+        setError('Errore imprevisto durante il caricamento del portafoglio.');
+      } else {
+        showToast('Errore durante l\'aggiornamento', false);
       }
     } finally {
       setLoading(false);
@@ -362,35 +189,14 @@ export default function Home() {
     }
   }, []);
 
-  // Mount unico iniziale
   useEffect(() => {
     refresh();
-    const timer = setTimeout(() => {
-      fetchTBDPlan();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []); // Esegui una sola volta al mount
-
-  // Refresh TBD ogni 15 minuti durante giorni lavorativi 9:00-18:00
-  useEffect(() => {
-    const now = new Date();
-    const hour = now.getHours();
-    const day = now.getDay();
-    const isMarketOpen = day >= 1 && day <= 5 && hour >= 9 && hour < 18;
-
-    if (!isMarketOpen) return;
-
-    const interval = setInterval(() => {
-      fetchTBDPlan();
-    }, 15 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [fetchTBDPlan]);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(tickPrices, 3000); // Ticker locale ogni 3 secondi (senza chiamate DB!)
     return () => clearInterval(interval);
-  }, [tickPrices]);
+  }, []);
 
 
 
@@ -769,12 +575,6 @@ export default function Home() {
 
   return (
     <AppProviders>
-      {isDemoMode && (
-        <div className="demo-banner">
-          <span>⚠️ Modalità Demo — I dati visualizzati sono simulati. Connetti il database per dati reali.</span>
-          <button onClick={() => window.location.reload()}>🔄 Riprova</button>
-        </div>
-      )}
       <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
         <Header
           portfolio={portfolio}
@@ -828,18 +628,7 @@ export default function Home() {
 
           {tab === 'market' && <MarketTab market={market} />}
           {tab === 'quontest' && <QuontestTab portfolio={portfolio} />}
-          {tab === 'trading' && (
-            <TradingByDayTab
-              tbdData={tbdData}
-              onRefresh={refresh}
-              portfolio={portfolio}
-              onTbdScan={handleTbdScan}
-              scanning={scanning}
-              tbdPlan={tbdPlan}
-              tbdLoading={tbdLoading}
-              onGenerateTBD={() => fetchTBDPlan(true)}
-            />
-          )}
+          {tab === 'trading' && <TradingByDayTab tbdData={tbdData} onRefresh={refresh} portfolio={portfolio} onTbdScan={handleTbdScan} scanning={scanning} />}
           {tab === 'pac' && <PacSimulatorTab portfolio={portfolio} />}
         </main>
 

@@ -7,9 +7,8 @@ export async function GET() {
   try {
     if (process.env.ETORO_API_KEY && process.env.ETORO_USER_KEY) {
       const portfolio = await getPortfolio();
-      const isMock = portfolio.positions.some(p => /^d\d+$/.test(p.id));
-      if (isMock) {
-        console.log('[API portfolio] Dati mock rilevati. Avvio sincronizzazione automatica eToro...');
+      if (portfolio.positions.length === 0) {
+        console.log('[API portfolio] Nessuna posizione nel DB. Avvio sincronizzazione automatica eToro...');
         await syncEtoroPortfolio();
       }
     }
