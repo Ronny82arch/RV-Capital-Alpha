@@ -533,6 +533,28 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
     }
   };
 
+  const handleTbdPlan = async () => {
+    setLocalScanning(true);
+    try {
+      const res = await fetch("/api/tbd/plan", { method: "POST" });
+      const json = await res.json();
+      if (json.success && json.plan) {
+        const count = json.plan.signals.length;
+        const gapPct = (json.plan.summary.gapToTarget * 100).toFixed(3);
+        if (count > 0) {
+          showToast(`🎯 Piano TBD Calcolato: ${count} segnali generati | Gap: ${gapPct}%`, true);
+        } else {
+          showToast(`ℹ️ TBD: ${json.plan.state.circuitBreakerReason || 'Nessun segnale necessario o circuit breaker attivo'}`, true);
+        }
+      }
+      if (onRefresh) await onRefresh();
+    } catch {
+      showToast("Errore durante il calcolo del piano TBD", false);
+    } finally {
+      setLocalScanning(false);
+    }
+  };
+
   const handleScan = async () => {
     if (onTbdScan) {
       await onTbdScan();
@@ -686,6 +708,24 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={handleTbdPlan}
+              disabled={scanning}
+              style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#10b981',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontFamily: 'var(--font-mono, monospace)',
+                fontWeight: 800,
+                cursor: scanning ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              🎯 CALCOLA PIANO TBD
+            </button>
             <button
               onClick={handleScan}
               disabled={scanning}
