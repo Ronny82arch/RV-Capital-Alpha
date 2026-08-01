@@ -626,6 +626,63 @@ export default function DashboardTab({ portfolio, market, setTab, tbdData: exter
         ))}
       </div>
 
+      {/* 🛡️ RISK BUDGETING V2 BUCKETS PANEL */}
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text1)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🛡️ Risk Budgeting V2 (Profilazione per Bucket)
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
+              I ritorni attesi sono calcolati dal sistema in base ai vincoli di rischio definiti per ciascun bucket.
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+          {[
+            {
+              key: 'CORE',
+              name: '🛡️ CORE (Buy & Hold)',
+              color: '#00d4aa',
+              profile: portfolio?.buckets?.CORE?.riskProfile || { maxDrawdownPct: 8, maxVolatility: 10, minQuontestScore: 70, maxLeverage: 1.0 },
+              expectedReturnStr: '6% - 8%'
+            },
+            {
+              key: 'SATELLITE',
+              name: '🚀 SATELLITE (Swing / Trend)',
+              color: '#3b82f6',
+              profile: portfolio?.buckets?.SATELLITE?.riskProfile || { maxDrawdownPct: 15, maxVolatility: 20, minQuontestScore: 60, maxLeverage: 1.2, maxDailyLoss: 100 },
+              expectedReturnStr: '12% - 16%'
+            },
+            {
+              key: 'TBD',
+              name: '⚡ TBD (Intraday & Kelly)',
+              color: '#f59e0b',
+              profile: portfolio?.buckets?.TBD?.riskProfile || { maxDrawdownPct: 25, maxVolatility: 35, minQuontestScore: 45, maxLeverage: 1.5, maxDailyLoss: 200, maxTradesPerDay: 3 },
+              expectedReturnStr: '20% - 30%'
+            }
+          ].map((b) => (
+            <div key={b.key} style={{ background: 'var(--bg3)', border: `1px solid ${b.color}33`, borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: b.color }}>{b.name}</span>
+                <span style={{ fontSize: '10px', background: `${b.color}22`, color: b.color, padding: '2px 6px', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>
+                  Atteso: {b.expectedReturnStr}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px', color: 'var(--text2)', fontFamily: 'var(--font-mono)' }}>
+                <div>Max DD: <b style={{ color: 'var(--text1)' }}>{b.profile.maxDrawdownPct}%</b></div>
+                <div>Volatilità: <b style={{ color: 'var(--text1)' }}>{b.profile.maxVolatility}%</b></div>
+                <div>Min Quontest: <b style={{ color: 'var(--text1)' }}>{b.profile.minQuontestScore}</b></div>
+                <div>Max Leva: <b style={{ color: 'var(--text1)' }}>{b.profile.maxLeverage}x</b></div>
+                {b.profile.maxDailyLoss !== undefined && <div>Max Loss/G: <b style={{ color: '#ef4444' }}>€{b.profile.maxDailyLoss}</b></div>}
+                {b.profile.maxTradesPerDay !== undefined && <div>Max Trades/G: <b style={{ color: '#f59e0b' }}>{b.profile.maxTradesPerDay}</b></div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* TITOLO DEL PORTAFOGLIO */}
       <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

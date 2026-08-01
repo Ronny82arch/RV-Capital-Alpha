@@ -1,4 +1,4 @@
-import { PortfolioState, Signal, Position, PerformanceSnapshot, Alert, MarketData, PacConfig } from '@/types';
+import { PortfolioState, Signal, Position, PerformanceSnapshot, Alert, MarketData, PacConfig, DEFAULT_RISK_PROFILES } from '@/types';
 import { supabaseAdmin } from './supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -40,6 +40,33 @@ function mapToPortfolioState(
     perTagHistory[tag].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
+  const buckets = p.buckets || {
+    CORE: {
+      name: 'CORE',
+      riskProfile: DEFAULT_RISK_PROFILES.CORE,
+      currentValue: 0,
+      targetAllocationPct: 70,
+      expectedReturn: 0.08,
+      realizedReturn: 0
+    },
+    SATELLITE: {
+      name: 'SATELLITE',
+      riskProfile: DEFAULT_RISK_PROFILES.SATELLITE,
+      currentValue: 0,
+      targetAllocationPct: 25,
+      expectedReturn: 0.15,
+      realizedReturn: 0
+    },
+    TBD: {
+      name: 'TBD',
+      riskProfile: DEFAULT_RISK_PROFILES.TBD,
+      currentValue: 0,
+      targetAllocationPct: 5,
+      expectedReturn: 0.25,
+      realizedReturn: 0
+    }
+  };
+
   return {
     capitalBase: Number(p.capital_base || 30000),
     capitalAvailable: Number(p.capital_available || 0),
@@ -55,6 +82,7 @@ function mapToPortfolioState(
     customPortfolios: p.custom_portfolios || [],
     coreSatelliteTarget: p.core_satellite_target != null ? Number(p.core_satellite_target) : undefined,
     targets: p.targets || {},
+    buckets,
     bucketProjections: p.bucket_projections || {},
     _version: p._version || 0,
     updatedAt: p.updated_at || new Date().toISOString(),
@@ -330,6 +358,32 @@ export function defaultPortfolio(): PortfolioState {
     customPortfolios: [],
     updatedAt: dateStr,
     depositedFunds: 6000,
+    buckets: {
+      CORE: {
+        name: 'CORE',
+        riskProfile: DEFAULT_RISK_PROFILES.CORE,
+        currentValue: 21000,
+        targetAllocationPct: 70,
+        expectedReturn: 0.08,
+        realizedReturn: 0
+      },
+      SATELLITE: {
+        name: 'SATELLITE',
+        riskProfile: DEFAULT_RISK_PROFILES.SATELLITE,
+        currentValue: 7500,
+        targetAllocationPct: 25,
+        expectedReturn: 0.15,
+        realizedReturn: 0
+      },
+      TBD: {
+        name: 'TBD',
+        riskProfile: DEFAULT_RISK_PROFILES.TBD,
+        currentValue: 1500,
+        targetAllocationPct: 5,
+        expectedReturn: 0.25,
+        realizedReturn: 0
+      }
+    }
   };
 }
 
