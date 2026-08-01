@@ -639,7 +639,16 @@ export default function TradingByDayTab({ tbdData, onRefresh, portfolio, onTbdSc
             }}>
               ⚡ Trading by Day
             </h2>
-            <div style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748b", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--text-secondary, #cbd5e1)", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "8px", padding: "8px 12px", maxWidth: "600px" }}>
+              💡 <b>Come operare:</b> 
+              <ol style={{ margin: "4px 0 0 14px", padding: 0, lineHeight: "1.4" }}>
+                <li>Fai clic su <b>🎯 CALCOLA PIANO TBD</b> per generare i segnali operativi odierni tarati sul tuo Risk Budget.</li>
+                <li>Usa il pulsante <b>📋 Copia per eToro</b> su ogni carta segnale per copiare parametri, SL e TP.</li>
+                <li>Apri la tua piattaforma (eToro) ed esegui l'ordine mantenendo lo Stop Loss ed il Take Profit calcolati.</li>
+                <li>Dopo l'esecuzione, premi <b>✅ TP</b> o <b>❌ SL</b> sul segnale per registrare il P&L e aggiornare i breaker.</li>
+              </ol>
+            </div>
+            <div style={{ margin: "10px 0 0", fontSize: "11px", color: "#64748b", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: "6px" }}>
               <span>Capitale:</span>
               {editingCapital ? (
                 <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
