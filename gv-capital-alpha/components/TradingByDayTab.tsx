@@ -48,6 +48,8 @@ function pnlColor(pnl: number) {
 function statusColor(status: TbdSignalStatus) {
   const map: Record<TbdSignalStatus, string> = {
     PRE_ALERT:  "#f59e0b",
+    PENDING:    "#f59e0b",
+    APPROVED:   "#38bdf8",
     ACTIVE:     "#3b82f6",
     TRIGGERED:  "#a78bfa",
     CLOSED_TP:  "#10b981",
@@ -237,4 +239,149 @@ function SignalCard({ signal, onClose }: {
   );
 }
 
-// rest of file unchanged (omitted for brevity in this API call)
+// ─── MAIN TAB COMPONENT ─────────────────────────────────────────────────
+
+export default function TradingByDayTab({
+  tbdData,
+  onRefresh,
+  onTbdScan,
+  scanning,
+  tbdPlan,
+  tbdLoading,
+  onGenerateTBD,
+}: Props) {
+  const [closingId, setClosingId] = useState<string | null>(null);
+
+  const activeSignals = tbdData?.activeSignals || [];
+  const circuitBreaker = tbdData?.circuitBreaker;
+  const config = tbdData?.config;
+  const today = tbdData?.today;
+
+  const handleClose = useCallback(async (id: string, status: string, pnl: number) => {
+    setClosingId(id);
+    try {
+      await fetch('/api/tbd/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signalId: id, status, pnl }),
+      });
+      if (onRefresh) await onRefresh();
+    } finally {
+      setClosingId(null);
+    }
+  }, [onRefresh]);
+
+  const todayPnL = useMemo(() => today?.realizedPnL ?? 0, [today]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Circuit breaker banner */}
+      {circuitBreaker?.stopTrading && (
+        <div style={{
+          padding: '14px 16px',
+          borderRadius: '12px',
+          background: 'rgba(239,68,68,0.1)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          color: '#ef4444',
+          fontWeight: 600,
+          fontSize: '13px',
+        }}>
+          ⛔ Trading sospeso ({circuitBreaker.reason}) — {circuitBreaker.message}
+        </div>
+      )}
+
+      {/* Summary bar */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 16px', borderRadius: '12px',
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+      }}>
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>P&L OGGI</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: pnlColor(todayPnL) }}>
+              {todayPnL >= 0 ? '+' : ''}{todayPnL.toFixed(2)}€
+            </div>
+          </div>
+          {config && (
+            <>
+              <div>
+                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>TARGET</div>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>{config.dailyTarget}€</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>SLOT ATTIVI</div>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>{activeSignals.length}/{config.activeSlots}</div>
+              </div>
+            </>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={onTbdScan}
+            disabled={scanning}
+            style={{
+              padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)',
+              background: 'transparent', color: '#e2e8f0', fontWeight: 600, fontSize: '12px',
+              cursor: scanning ? 'not-allowed' : 'pointer', opacity: scanning ? 0.6 : 1,
+            }}
+          >
+            {scanning ? 'Scansione…' : '🔍 Scan mercato'}
+          </button>
+          {onGenerateTBD && (
+            <button
+              onClick={onGenerateTBD}
+              disabled={tbdLoading}
+              style={{
+                padding: '10px 16px', borderRadius: '10px', border: 'none',
+                background: '#3b82f6', color: '#fff', fontWeight: 600, fontSize: '12px',
+                cursor: tbdLoading ? 'not-allowed' : 'pointer', opacity: tbdLoading ? 0.6 : 1,
+              }}
+            >
+              {tbdLoading ? 'Generazione…' : '⚡ Genera piano'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active signals */}
+      <div>
+        <div style={{ fontSize: '11px', color: '#64748b', letterSpacing: '0.15em', fontWeight: 700, marginBottom: '10px' }}>
+          SEGNALI ATTIVI
+        </div>
+        {activeSignals.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#64748b', padding: '30px', fontSize: '13px' }}>
+            Nessun segnale attivo al momento.
+          </div>
+        ) : (
+          activeSignals.map(signal => (
+            <SignalCard key={signal.id} signal={signal} onClose={handleClose} />
+          ))
+        )}
+      </div>
+
+      {/* History */}
+      {tbdData?.history && tbdData.history.length > 0 && (
+        <div>
+          <div style={{ fontSize: '11px', color: '#64748b', letterSpacing: '0.15em', fontWeight: 700, marginBottom: '10px' }}>
+            STORICO GIORNI
+          </div>
+          {tbdData.history.slice(0, 10).map((day, i) => (
+            <div key={i} style={{
+              display: 'flex', justifyContent: 'space-between',
+              padding: '10px 14px', borderRadius: '10px',
+              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+              marginBottom: '6px', fontSize: '12px',
+            }}>
+              <span style={{ color: '#94a3b8' }}>{day.date}</span>
+              <span style={{ fontWeight: 700, color: pnlColor(day.realizedPnL ?? 0) }}>
+                {(day.realizedPnL ?? 0) >= 0 ? '+' : ''}{(day.realizedPnL ?? 0).toFixed(2)}€
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
