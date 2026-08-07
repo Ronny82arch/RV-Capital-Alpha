@@ -15,7 +15,8 @@ import {
 import { buildCorrelationMatrix } from '@/lib/correlation';
 import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDailySummary, notifyCoreSatelliteDrift } from '@/lib/alerts';
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG, getTbdCooldownUntil } from '@/lib/antigravity-engine';
-import { kvGet } from '@/lib/tbd-storage';
+import { kvGet, getTodayLog, saveSignals, getTbdConfig } from '@/lib/tbd-storage';
+import { TBDEngine } from '@/lib/tbd-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,7 +89,7 @@ async function runScan() {
       await recalcPortfolio();
     }
 
-    // ── Alert SL/TP ──────────────────────────────────────────────────────────
+    // ── Alert SL/TP ─────────────────────────────────────────────────────────
     for (const pos of openPositions) {
       const md = marketData.find(m => m.symbol === pos.symbol);
       if (!md) continue;
@@ -132,7 +133,7 @@ async function runScan() {
 
     const aiMode = portfolio.aiMode || 'STRICT';
     
-    // ── Antigravity Engine V2 Check ──────────────────────────────────────────
+    // ── Antigravity Engine V2 Check ─────────────────────────────────────────
     const avgQuality = candidates.length > 0
       ? candidates.reduce((sum, c) => sum + (c.winProbability || 0), 0) / candidates.length
       : 0;
@@ -148,6 +149,39 @@ async function runScan() {
       portfolio.targetAnnualReturn || 0.25,
       openPositions.length
     );
+
+    // ── Genera segnali Trading-by-Day automatici e salvali in KV (usati dalla UI)
+    try {
+      const tbdConfig = await getTbdConfig();
+      const tbdEngine = new TBDEngine(tbdConfig);
+      const todayLog = await getTodayLog();
+      const tradesToday = todayLog?.totalTrades ?? 0;
+      const pnlToday = todayLog?.realizedPnL ?? 0;
+      const currentDayReturn = (portfolio.totalPnLPercent ?? 0) / 100; // convert % to decimal
+
+      const tbdState = tbdEngine.checkCircuitBreaker(
+        currentDayReturn,
+        agState.currentDrawdownPct ?? 0,
+        tradesToday,
+        pnlToday,
+        agState.status
+      );
+
+      const tbdSignals = tbdEngine.generateSignals(
+        portfolio.totalValue,
+        tbdState,
+        agState.status,
+        undefined,
+        portfolio.positions || []
+      );
+
+      if (tbdSignals.length > 0) {
+        await saveSignals(tbdSignals);
+        console.log(`[scan] Saved ${tbdSignals.length} TBD signals to KV`);
+      }
+    } catch (err) {
+      console.error('[scan] TBD generation error', err);
+    }
 
     if (agState.tbdTargetPct === 0) {
       return NextResponse.json({
