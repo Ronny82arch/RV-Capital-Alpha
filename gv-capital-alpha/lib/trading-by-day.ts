@@ -1,3 +1,5 @@
+import type { TbdSignalStatus } from './tbd-signal-status';
+
 /**
  * CAPITAL ALPHA — TRADING BY DAY ENGINE v2 (Hunter Mode)
  * 
@@ -10,15 +12,7 @@
  * - Profitto atteso minimo: 5€ (anche piccoli profitto vanno bene).
  */
 
-// ─── TIPI PUBBLICI ────────────────────────────────────────────────────────────
-
-export type TbdSignalStatus =
-  | 'PRE_ALERT'
-  | 'ACTIVE'
-  | 'TRIGGERED'
-  | 'CLOSED_TP'
-  | 'CLOSED_SL'
-  | 'CANCELLED';
+// ─── TIPI PUBBLICI ────────────────────────────────────────────────────────
 
 export type TbdDirection = 'BUY' | 'SELL';
 
@@ -116,7 +110,7 @@ export const DEFAULT_CONFIG: TradingEngineConfig = {
   maxPositionPct: 30.0,
 };
 
-// ─── ENGINE ───────────────────────────────────────────────────────────────────
+// ─── ENGINE ──────────────────────────────────────────────────────────
 
 export class TradingByDayEngine {
   private config: TradingEngineConfig;
@@ -453,7 +447,7 @@ export class TradingByDayEngine {
   }
 }
 
-// ─── HELPER UI ───────────────────────────────────────────────────────────────
+// ─── HELPER UI ─────────────────────────────────────────────────────────
 
 export interface LiquidityMetrics {
   totalCapital: number;
@@ -513,3 +507,4 @@ export function getLiquidityWarningText(metrics: LiquidityMetrics): string {
     return `🚨 Liquidità CRITICA: ${metrics.availableLiquidity.toFixed(0)}€ rimasti. Hunter in standby`;
   }
 }
+
