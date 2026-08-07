@@ -34,7 +34,7 @@ export default function TradingByDaySignalsWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signalId: id })
       });
-      setSignals(prev => prev.map(s => s.id === id ? { ...s, status: 'APPROVED' } : s));
+      setSignals(prev => prev.map(s => s.id === id ? ({ ...(s as any), status: 'APPROVED' } as TbdSignal) : s));
     } catch (err) {
       console.error('Approve failed', err);
     }
@@ -47,7 +47,7 @@ export default function TradingByDaySignalsWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signalId: id, executedPrice: null })
       });
-      setSignals(prev => prev.map(s => s.id === id ? { ...s, status: 'TRIGGERED' } : s));
+      setSignals(prev => prev.map(s => s.id === id ? ({ ...(s as any), status: 'TRIGGERED' } as TbdSignal) : s));
     } catch (err) {
       console.error('Mark executed failed', err);
     }
@@ -64,13 +64,16 @@ export default function TradingByDaySignalsWidget() {
           <li key={s.id} style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <strong>{s.symbol}</strong> — {s.action} @ {s.entryPrice.toFixed(2)}€
-                <div style={{ fontSize: 12, color: 'var(--text3)' }}>Size: €{s.capitalAllocated.toFixed(0)} · Kelly: {(s.kellyFraction*100).toFixed(1)}% · Quality: {(s.winProbability*100).toFixed(0)}%</div>
+                <strong>{(s as any).symbol ?? (s as any).asset}</strong> — {(s as any).action ?? (s as any).direction} @ {(s as any).entryPrice?.toFixed ? (s as any).entryPrice.toFixed(2) : (s as any).entryPrice}€
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                  Size: €{((s as any).capitalAllocated ?? (s as any).allocatedSize ?? 0).toFixed ? ((s as any).capitalAllocated ?? (s as any).allocatedSize ?? 0).toFixed(0) : (s as any).capitalAllocated}
+                  {' · '}Kelly: {(((s as any).kellyFraction ?? (s as any).kelly ?? 0) * 100).toFixed(1)}% {' · '}Quality: {(((s as any).winProbability ?? (s as any).qualityScore ?? 0) * 100).toFixed(0)}%
+                </div>
               </div>
               <div>
-                {s.status === 'PENDING' && <button onClick={() => approveSignal(s.id)}>Approva</button>}
-                {(s.status === 'APPROVED' || s.status === 'PENDING') && <button style={{ marginLeft: 8 }} onClick={() => markExecuted(s.id)}>Segnala Eseguito</button>}
-                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>{s.urgency} · {new Date(s.generatedAt).toLocaleTimeString()}</div>
+                {( (s as any).status === 'PENDING' ) && <button onClick={() => approveSignal(s.id)}>Approva</button>}
+                {((s as any).status === 'APPROVED' || (s as any).status === 'PENDING') && <button style={{ marginLeft: 8 }} onClick={() => markExecuted(s.id)}>Segnala Eseguito</button>}
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>{(s as any).urgency ?? ''} · {new Date((s as any).generatedAt ?? (s as any).timestamp).toLocaleTimeString()}</div>
               </div>
             </div>
           </li>
