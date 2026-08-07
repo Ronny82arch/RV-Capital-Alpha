@@ -43,6 +43,8 @@ export interface TBDSignal {
   urgency: 'IMMEDIATE' | 'WITHIN_HOUR';
   reason: string;
   generatedAt: string;
+  // Stato opzionale per tracking (PENDING, APPROVED, TRIGGERED, CLOSED_TP, CLOSED_SL, CANCELLED)
+  status?: 'PENDING' | 'APPROVED' | 'TRIGGERED' | 'CLOSED_TP' | 'CLOSED_SL' | 'CANCELLED';
 }
 
 export interface TBDState {
@@ -209,8 +211,9 @@ export class TBDEngine {
         expectedValue: (winProb * tpDist - lossProb * slDist) * quantity,
         timeframe: asset.volatility24h > 3.5 ? 'INTRADAY' : 'SWING',
         urgency: i === 0 ? 'IMMEDIATE' : 'WITHIN_HOUR',
-        reason: `Gap target: ${(gap * 100).toFixed(3)}% | Quontest: ${asset.quontestScore}/100 | Vol: ${asset.volatility24h}% | Kelly: ${(kelly * 100).toFixed(1)}% | Rischio residuo: €${tbdState.remainingRisk.toFixed(0)}.`,
+        reason: `Gap target: ${(gap * 100).toFixed(3)}% | Quontest: ${asset.quontestScore}/100 | Vol: ${asset.volatility24h}% | Kelly: ${(kelly * 100).toFixed(1)}% | Rischio residuo: €${(tbdState.remainingRisk || 0).toFixed(0)}`,
         generatedAt: new Date().toISOString(),
+        status: 'PENDING',
       });
     }
 
