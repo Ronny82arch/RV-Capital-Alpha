@@ -17,36 +17,18 @@ import { notifyNewSignal, notifyStopLossAlert, notifyTakeProfitAlert, notifyDail
 import { AntigravityEngine, DEFAULT_ANTIGRAVITY_CONFIG, getTbdCooldownUntil } from '@/lib/antigravity-engine';
 import { kvGet, getTodayLog, saveSignals, getTbdConfig } from '@/lib/tbd-storage';
 import { TBDEngine } from '@/lib/tbd-engine';
+import { sendPreAlertNotification } from '@/lib/tbd-notifications';
 
 export const dynamic = 'force-dynamic';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://gv-capital-alpha.vercel.app';
 
 function isAuthorized(req: NextRequest): boolean {
+  // Accept only cron secret in production; allow local dev when NODE_ENV === 'development'
   const auth = req.headers.get('authorization');
   const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
   const isDev = process.env.NODE_ENV === 'development';
-  
-  const host = req.headers.get('host');
-  const referer = req.headers.get('referer');
-  const origin = req.headers.get('origin');
-  
-  let isSameOrigin = false;
-  if (host) {
-    if (referer) {
-      try {
-        const refUrl = new URL(referer);
-        isSameOrigin = refUrl.host === host;
-      } catch {}
-    }
-    if (!isSameOrigin && origin) {
-      try {
-        const origUrl = new URL(origin);
-        isSameOrigin = origUrl.host === host;
-      } catch {}
-    }
-  }
-  return !!(isCron || isDev || isSameOrigin);
+  return !!(isCron || isDev);
 }
 
 export async function GET(req: NextRequest) {
@@ -63,8 +45,38 @@ export async function POST(req: NextRequest) {
   return runScan();
 }
 
+async function runWithConcurrency<T, R>(items: T[], fn: (t: T) => Promise<R>, concurrency = 5) {
+  const results: (R | Error)[] = new Array(items.length);
+  let index = 0;
+  async function worker() {
+    while (true) {
+      const i = index++;
+      if (i >= items.length) return;
+      try {
+        results[i] = await fn(items[i]);
+      } catch (err) {
+        results[i] = err as Error;
+      }
+    }
+  }
+  const workers = [];
+  for (let i = 0; i < Math.min(concurrency, items.length); i++) workers.push(worker());
+  await Promise.all(workers);
+  return results;
+}
+
 async function runScan() {
   try {
+    // Fail-fast checks for production environment
+    if (process.env.NODE_ENV === 'production') {
+      const required = ['KV_REST_API_URL', 'KV_REST_API_TOKEN', 'CRON_SECRET'];
+      const missing = required.filter(k => !process.env[k]);
+      if (missing.length > 0) {
+        console.error('[scan] Missing required env:', missing);
+        return NextResponse.json({ success: false, error: `Missing env: ${missing.join(', ')}` }, { status: 500 });
+      }
+    }
+
     const portfolio = await getPortfolio();
     const marketData = await fetchAllMarketData();
     const calibrationTable = await getCalibrationTable();
@@ -152,8 +164,22 @@ async function runScan() {
 
     // ── Genera segnali Trading-by-Day automatici e salvali in KV (usati dalla UI)
     try {
-      const tbdConfig = await getTbdConfig();
-      const tbdEngine = new TBDEngine(tbdConfig);
+      const tbdConfigRaw = await getTbdConfig(); // TradingEngineConfig
+
+      // Map TradingEngineConfig -> TBDConfig expected by TBDEngine
+      const tbdConfigForEngine = {
+        targetAnnualReturn: portfolio.targetAnnualReturn ?? 0.25,
+        tradingDaysPerYear: 252,
+        maxDailyTrades: (tbdConfigRaw as any).maxTradesPerDay ?? (tbdConfigRaw as any).activeSlots ?? 3,
+        maxDailyLoss: (tbdConfigRaw as any).dailyRiskBudget ?? 200,
+        maxDrawdownPct: 5,
+        riskPerTradePct: 0.02,
+        minKellyFraction: 0.1,
+        maxKellyFraction: 0.5,
+        minQuontestScore: 55,
+      };
+
+      const tbdEngine = new TBDEngine(tbdConfigForEngine as any);
       const todayLog = await getTodayLog();
       const tradesToday = todayLog?.totalTrades ?? 0;
       const pnlToday = todayLog?.realizedPnL ?? 0;
@@ -161,32 +187,41 @@ async function runScan() {
 
       const tbdState = tbdEngine.checkCircuitBreaker(
         currentDayReturn,
-        agState.currentDrawdownPct ?? 0,
+        (agState as any).currentDrawdownPct ?? 0,
         tradesToday,
         pnlToday,
-        agState.status
+        (agState as any).status
       );
 
       const tbdSignals = tbdEngine.generateSignals(
         portfolio.totalValue,
         tbdState,
-        agState.status,
+        (agState as any).status,
         undefined,
         portfolio.positions || []
       );
 
       if (tbdSignals.length > 0) {
-        await saveSignals(tbdSignals);
+        await saveSignals(tbdSignals as any);
         console.log(`[scan] Saved ${tbdSignals.length} TBD signals to KV`);
+
+        // invia pre-alert push per ogni segnale generato (con concurrency)
+        await runWithConcurrency(tbdSignals, async (s) => {
+          try {
+            await sendPreAlertNotification(s as any);
+          } catch (e) {
+            console.error('[scan] sendPreAlertNotification failed for', (s as any).id, e);
+          }
+        }, 5);
       }
     } catch (err) {
       console.error('[scan] TBD generation error', err);
     }
 
-    if (agState.tbdTargetPct === 0) {
+    if ((agState as any).tbdTargetPct === 0) {
       return NextResponse.json({
         success: true,
-        message: `Nessun segnale generato. Antigravity Engine V2 ha bloccato il TBD. Stato: ${agState.status}. Motivazione: ${agState.actionRequired}`,
+        message: `Nessun segnale generato. Antigravity Engine V2 ha bloccato il TBD. Stato: ${(agState as any).status}. Motivazione: ${(agState as any).actionRequired}`,
         agState
       });
     }
@@ -211,7 +246,7 @@ async function runScan() {
 
     // Salva i segnali (uno per uno o batch)
     for (const signal of signals) {
-      await addSignal(signal);
+      await addSignal(signal as any);
       await notifyNewSignal(signal, APP_URL);
     }
 
