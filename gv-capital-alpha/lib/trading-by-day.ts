@@ -1,4 +1,4 @@
-import type { TbdSignalStatus } from './tbd-signal-status';
+import type { TbdSignalStatus } from '@/types';
 
 /**
  * CAPITAL ALPHA — TRADING BY DAY ENGINE v2 (Hunter Mode)
@@ -447,7 +447,7 @@ export class TradingByDayEngine {
   }
 }
 
-// ─── HELPER UI ─────────────────────────────────────────────────────────
+// ─── HELPER UI ─────────────���───────────────────────────────────────────
 
 export interface LiquidityMetrics {
   totalCapital: number;
