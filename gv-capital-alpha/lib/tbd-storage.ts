@@ -5,7 +5,7 @@
 
 import { TradingDayLog, TbdSignal, TradingEngineConfig, DEFAULT_CONFIG } from './trading-by-day';
 
-// ─── KV ADAPTER ───────────────────────────────────────────────────────────────
+// ─── KV ADAPTER ───────────────────────────────────────────────────────────
 
 export async function kvGet(key: string): Promise<string | null> {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
@@ -36,13 +36,13 @@ export async function kvSet(key: string, value: string, exSeconds?: number): Pro
   }
 }
 
-// ─── HELPER DATE ──────────────────────────────────────────────────────────────
+// ─── HELPER DATE ─────────────────────────────────────────────────────────
 
 export function todayKey(): string {
   return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
-// ─── TRADING DAY LOG ─────────────────────────────────────────────────────────
+// ─── TRADING DAY LOG ─────────────────────────────────────────────────────
 
 export async function getTodayLog(): Promise<TradingDayLog | null> {
   const raw = await kvGet(`tbd:log:${todayKey()}`);
@@ -73,30 +73,97 @@ export async function getLast30DaysLogs(): Promise<TradingDayLog[]> {
   return logs.sort((a, b) => b.date.localeCompare(a.date));
 }
 
-// ─── SEGNALI ATTIVI ───────────────────────────────────────────────────────────
+// ─── SEGNALI ATTIVI (con lock per atomicità) ───────────────────────────────
+
+const SIGNALS_KV_KEY = 'tbd:signals';
+const SIGNALS_LOCK_KEY = 'tbd:signals:lock';
+const SIGNALS_LOCK_TTL = 8; // seconds
+
+async function acquireLock(lockKey: string, ttlSec = 8): Promise<boolean> {
+  // If KV not configured, allow in development, fail in production to avoid silent inconsistencies
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    if (process.env.NODE_ENV === 'production') return false;
+    return true;
+  }
+
+  const url = `${process.env.KV_REST_API_URL}/set/${encodeURIComponent(lockKey)}?nx&ex=${ttlSec}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+        'Content-Type': 'text/plain',
+      },
+      body: String(Date.now()),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.result !== null && data.result !== undefined;
+  } catch (err) {
+    console.error('[acquireLock] Error:', err);
+    return false;
+  }
+}
+
+async function releaseLock(lockKey: string): Promise<void> {
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return;
+  const url = `${process.env.KV_REST_API_URL}/del/${encodeURIComponent(lockKey)}`;
+  try {
+    await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
+    });
+  } catch (err) {
+    console.error('[releaseLock] Error:', err);
+  }
+}
 
 export async function getActiveSignals(): Promise<TbdSignal[]> {
-  const raw = await kvGet('tbd:signals');
+  const raw = await kvGet(SIGNALS_KV_KEY);
   if (!raw) return [];
   try {
     const all = JSON.parse(raw) as TbdSignal[];
-    return all.filter(s =>
-      !['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(s.status)
-    );
+    return all.filter(s => !['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(s.status));
   } catch { return []; }
 }
 
 export async function saveSignals(signals: TbdSignal[]): Promise<void> {
-  const trimmed = signals.slice(0, 100);
-  await kvSet('tbd:signals', JSON.stringify(trimmed));
+  // write under a lock to avoid concurrent read-modify-write races
+  const got = await acquireLock(SIGNALS_LOCK_KEY, SIGNALS_LOCK_TTL);
+  if (!got) {
+    console.warn('[saveSignals] Could not acquire signals lock, aborting save to avoid race');
+    return;
+  }
+  try {
+    const trimmed = signals.slice(0, 100);
+    await kvSet(SIGNALS_KV_KEY, JSON.stringify(trimmed));
+  } finally {
+    await releaseLock(SIGNALS_LOCK_KEY);
+  }
 }
 
 export async function addSignal(signal: TbdSignal): Promise<void> {
-  const existing = await getActiveSignals();
-  const deduped = existing.filter(
-    s => !(s.asset === signal.asset && s.direction === signal.direction && s.timeframe === signal.timeframe)
-  );
-  await saveSignals([signal, ...deduped]);
+  const got = await acquireLock(SIGNALS_LOCK_KEY, SIGNALS_LOCK_TTL);
+  if (!got) {
+    console.warn('[addSignal] Could not acquire signals lock, skipping add to avoid race');
+    return;
+  }
+
+  try {
+    const existingRaw = await kvGet(SIGNALS_KV_KEY);
+    let existing: TbdSignal[] = [];
+    if (existingRaw) {
+      try { existing = JSON.parse(existingRaw) as TbdSignal[]; } catch { existing = []; }
+    }
+
+    const deduped = existing.filter(
+      s => !(s.asset === signal.asset && s.direction === signal.direction && s.timeframe === signal.timeframe)
+    );
+    const combined = [signal, ...deduped].slice(0, 100);
+    await kvSet(SIGNALS_KV_KEY, JSON.stringify(combined));
+  } finally {
+    await releaseLock(SIGNALS_LOCK_KEY);
+  }
 }
 
 export async function updateSignalStatus(
@@ -104,26 +171,39 @@ export async function updateSignalStatus(
   status: TbdSignal['status'],
   realizedPnL?: number,
 ): Promise<TbdSignal | null> {
-  const raw = await kvGet('tbd:signals');
-  if (!raw) return null;
-  const all = JSON.parse(raw) as TbdSignal[];
-  const idx = all.findIndex(s => s.id === signalId);
-  if (idx === -1) return null;
+  const got = await acquireLock(SIGNALS_LOCK_KEY, SIGNALS_LOCK_TTL);
+  if (!got) {
+    console.warn('[updateSignalStatus] Could not acquire signals lock, aborting update');
+    return null;
+  }
 
-  const isClosing = ['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(status);
+  try {
+    const raw = await kvGet(SIGNALS_KV_KEY);
+    if (!raw) return null;
+    const all = JSON.parse(raw) as TbdSignal[];
+    const idx = all.findIndex(s => s.id === signalId);
+    if (idx === -1) return null;
 
-  all[idx] = {
-    ...all[idx],
-    status,
-    ...(realizedPnL !== undefined ? { realizedPnL } : {}),
-    ...(isClosing ? { closedAt: new Date().toISOString() } : {}),
-    ...(!isClosing && !all[idx].triggeredAt ? { triggeredAt: new Date().toISOString() } : {}),
-  };
-  await saveSignals(all);
-  return all[idx];
+    const isClosing = ['CLOSED_TP', 'CLOSED_SL', 'CANCELLED'].includes(status);
+
+    all[idx] = {
+      ...all[idx],
+      status,
+      ...(realizedPnL !== undefined ? { realizedPnL } : {}),
+      ...(isClosing ? { closedAt: new Date().toISOString() } : {}),
+      ...(!isClosing && !all[idx].triggeredAt ? { triggeredAt: new Date().toISOString() } : {}),
+    };
+    await kvSet(SIGNALS_KV_KEY, JSON.stringify(all.slice(0, 100)));
+    return all[idx];
+  } catch (err) {
+    console.error('[updateSignalStatus] Error:', err);
+    return null;
+  } finally {
+    await releaseLock(SIGNALS_LOCK_KEY);
+  }
 }
 
-// ─── CONFIG RUNTIME ───────────────────────────────────────────────────────────
+// ─── CONFIG RUNTIME ───────────────────────────────────────────────────────
 
 export async function getTbdConfig(): Promise<TradingEngineConfig> {
   const raw = await kvGet('tbd:config');
@@ -136,7 +216,7 @@ export async function saveTbdConfig(config: Partial<TradingEngineConfig>): Promi
   await kvSet('tbd:config', JSON.stringify({ ...current, ...config }));
 }
 
-// ─── LOCK ATOMICO VIA SET NX EX (Upstash REST) ───────────────────────────────
+// ─── LOCK ATOMICO VIA SET NX EX (Upstash REST) ──────────────────────────────
 
 const LOCK_PREFIX = 'tbd:lock:';
 const LOCK_TTL_SECONDS = 30;
@@ -147,7 +227,11 @@ const LOCK_TTL_SECONDS = 30;
  * Nessun polling: opera in O(1) con semantica forte.
  */
 export async function acquireDayLock(date: string): Promise<boolean> {
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return true; // dev fallback
+  // In production we require KV envs; in dev allow fallback
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    if (process.env.NODE_ENV === 'production') return false;
+    return true;
+  }
 
   const lockKey = `${LOCK_PREFIX}${date}`;
   const lockValue = Date.now().toString();
